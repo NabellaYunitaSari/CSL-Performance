@@ -1,0 +1,4048 @@
+# -*- coding: utf-8 -*-
+"""
+Dashboard Customer Satisfaction (CSI) — Sales / Service / Spare Part
+Streamlit + Plotly, data dari Google Sheets + Shapefile GeoPandas.
+
+Jalankan dengan:
+    python -m streamlit run app.py
+"""
+
+import os
+import re
+import io
+import json
+import math
+import html
+from datetime import datetime
+import time
+import requests
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+import streamlit as st
+import plotly.graph_objects as go
+import plotly.express as px
+import plotly.io as pio
+
+import folium
+from branca.element import Template, MacroElement
+from streamlit_folium import st_folium
+
+st.set_page_config(page_title="Dashboard Kepuasan Dealer", layout="wide")
+
+# ============================================================
+# KONSTANTA & METADATA PROFILE
+# ============================================================
+
+RED_OUTLINE = "#E60012"
+ORANGE_OUTLINE = "#FF6B00"
+BLUE_OUTLINE = "#1665D8"
+
+GREEN = "#35A853"
+RED = "#E60012"
+YELLOW = "#FFB000"
+ORANGE = "#FF6B00"
+
+pio.templates["csl_performance"] = go.layout.Template(
+    layout=go.Layout(
+        font=dict(family="Inter, Segoe UI, Arial, sans-serif", color="#262626", size=12),
+        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
+        colorway=[RED, ORANGE, YELLOW, GREEN, BLUE_OUTLINE, "#C8102E"],
+        hoverlabel=dict(bgcolor="#262626", font=dict(color="#FFFFFF"), bordercolor="#262626"),
+        xaxis=dict(gridcolor="#F0F1F3", zerolinecolor="#C7C9CD", linecolor="#E7E9EC"),
+        yaxis=dict(gridcolor="#F0F1F3", zerolinecolor="#C7C9CD", linecolor="#E7E9EC"),
+        legend=dict(bgcolor="rgba(255,255,255,0)", font=dict(size=11)),
+    )
+)
+pio.templates.default = "csl_performance"
+
+SEMESTER_ORDER = {1: 0, 2: 1}
+
+TARGET_PROVINCES = {
+    "dki jakarta", "jakarta", "jawa barat", "jawa tengah",
+    "daerah istimewa yogyakarta", "di yogyakarta", "yogyakarta",
+    "jawa timur", "banten", "bali", "nusa tenggara barat", "ntb",
+    "nusa tenggara timur", "ntt"
+}
+
+SHP_KAB_CANDIDATES = [
+    "WADMKK", "ADM2_EN", "NAME_2", "KABKOT", "kabupaten", "name",
+    "ADM2_REF", "ADM2ALT1EN", "ADM2ALT2EN"
+]
+
+SHP_PROV_CANDIDATES = [
+    "WADMPR", "ADM1_EN", "NAME_1", "PROVINSI", "PROVINCE", "adm1_en"
+]
+
+PROFILE_NAMES = {
+    "P1": "Detractor", "P2": "Below Average", "P3": "Middle",
+    "P4": "Above Average", "P5": "Promoter",
+}
+PROFILE_COLORS = {
+    "P1": RED, "P2": ORANGE, "P3": YELLOW, "P4": "#9CCC65", "P5": GREEN,
+}
+
+# Mapping Kab/Kota -> Karesidenan (Jawa Timur)
+KARESIDENAN_MAP = {
+    "kota surabaya": "Surabaya", "sidoarjo": "Surabaya", "gresik": "Surabaya",
+    "kota malang": "Malang", "kabupaten malang": "Malang", "malang": "Malang",
+    "batu": "Malang", "kota batu": "Malang", "pasuruan": "Malang", "kota pasuruan": "Malang",
+    "probolinggo": "Malang", "kota probolinggo": "Malang", "lumajang": "Malang",
+    "kediri": "Kediri", "kota kediri": "Kediri", "nganjuk": "Kediri",
+    "tulungagung": "Kediri", "trenggalek": "Kediri", "blitar": "Kediri", "kota blitar": "Kediri",
+    "madiun": "Madiun", "kota madiun": "Madiun", "ngawi": "Madiun", "magetan": "Madiun",
+    "ponorogo": "Madiun", "pacitan": "Madiun", "bojonegoro": "Bojonegoro", "tuban": "Bojonegoro",
+    "lamongan": "Bojonegoro", "jombang": "Bojonegoro", "mojokerto": "Bojonegoro", "kota mojokerto": "Bojonegoro",
+    "jember": "Besuki", "banyuwangi": "Besuki", "bondowoso": "Besuki", "situbondo": "Besuki",
+    "pamekasan": "Madura", "sampang": "Madura", "sumenep": "Madura", "bangkalan": "Madura",
+}
+
+KAB_TO_PROVINSI = {
+    "surabaya": "Jawa Timur", "sidoarjo": "Jawa Timur", "gresik": "Jawa Timur",
+    "malang": "Jawa Timur", "batu": "Jawa Timur", "pasuruan": "Jawa Timur",
+    "probolinggo": "Jawa Timur", "lumajang": "Jawa Timur", "kediri": "Jawa Timur",
+    "nganjuk": "Jawa Timur", "tulungagung": "Jawa Timur", "trenggalek": "Jawa Timur",
+    "blitar": "Jawa Timur", "madiun": "Jawa Timur", "ngawi": "Jawa Timur",
+    "magetan": "Jawa Timur", "ponorogo": "Jawa Timur", "pacitan": "Jawa Timur",
+    "bojonegoro": "Jawa Timur", "tuban": "Jawa Timur", "lamongan": "Jawa Timur",
+    "jombang": "Jawa Timur", "mojokerto": "Jawa Timur", "jember": "Jawa Timur",
+    "banyuwangi": "Jawa Timur", "bondowoso": "Jawa Timur", "situbondo": "Jawa Timur",
+    "pamekasan": "Jawa Timur", "sampang": "Jawa Timur", "sumenep": "Jawa Timur",
+    "bangkalan": "Jawa Timur",
+    "jakarta": "DKI Jakarta",
+    "bandung": "Jawa Barat", "bogor": "Jawa Barat", "bekasi": "Jawa Barat",
+    "depok": "Jawa Barat", "cirebon": "Jawa Barat", "tasikmalaya": "Jawa Barat",
+    "sukabumi": "Jawa Barat", "karawang": "Jawa Barat",
+    "semarang": "Jawa Tengah", "solo": "Jawa Tengah", "surakarta": "Jawa Tengah",
+    "tegal": "Jawa Tengah", "pekalongan": "Jawa Tengah", "magelang": "Jawa Tengah",
+    "yogyakarta": "DI Yogyakarta", "sleman": "DI Yogyakarta", "bantul": "DI Yogyakarta",
+    "denpasar": "Bali", "badung": "Bali", "gianyar": "Bali",
+    "mataram": "Nusa Tenggara Barat", "lombok": "Nusa Tenggara Barat",
+    "kupang": "Nusa Tenggara Timur",
+}
+
+# ============================================================
+# CSS
+# ============================================================
+
+def inject_css():
+    st.markdown(
+        """
+        <style>
+        .st-key-csl_performance_section {
+            border: 2px solid #E53935 !important;
+            border-radius: 12px !important;
+            padding: 18px 18px 22px 18px !important;
+            margin-bottom: 24px !important;
+        }
+        .main { background-color: #FFFFFF; }
+        .section-box {
+            border-radius: 10px;
+            padding: 16px 18px 22px 18px;
+            margin-bottom: 22px;
+        }
+        .section-red { border: 2px solid %s; }
+        .section-orange { border: 2px solid %s; }
+        .section-blue { border: 2px solid %s; }
+        .section-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 20px; font-weight: 700; margin-bottom: 10px;
+        }
+        div[class*="st-key-"][class*="_csl_performance_section"] {
+            border: 2px solid #E53935 !important;
+            border-radius: 12px !important;
+            padding: 18px 18px 22px 18px !important;
+            margin-bottom: 24px !important;
+            background: #FFFFFF !important;
+        }
+        div[class*="st-key-"][class*="_matrix_section"] {
+            border: 2px solid #FB8C00 !important;
+            border-radius: 12px !important;
+            padding: 18px 18px 22px 18px !important;
+            margin-bottom: 24px !important;
+            background: #FFFFFF !important;
+        }
+        div[class*="st-key-"][class*="_profile_customer_section"] {
+            border: 2px solid #1E88E5 !important;
+            border-radius: 12px !important;
+            padding: 18px 18px 22px 18px !important;
+            margin-bottom: 24px !important;
+            background: #FFFFFF !important;
+        }
+
+        div[class*="st-key-"][class*="_motor_container"] {
+            max-height: 280px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        div[class*="st-key-"][class*="_prof_card_"] {
+            position: relative !important;
+            background: #FFFFFF !important;
+            border: 1px solid #D0D0D0 !important;
+            border-radius: 8px !important;
+            padding: 0 !important;
+            margin-bottom: 6px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+            transition: all 0.2s ease !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+        }
+
+        div[class*="st-key-"][class*="_prof_card_"] .element-container,
+        div[class*="st-key-"][class*="_prof_card_"] div[data-testid="stMarkdownContainer"],
+        div[class*="st-key-"][class*="_prof_card_"] div[data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        div[class*="st-key-"][class*="_prof_card_"]:hover {
+            border-color: #1E88E5 !important;
+            background: #F4F8FB !important;
+        }
+
+        div[class*="st-key-"][class*="_active"] {
+            background: #E3F2FD !important;
+            border: 2px solid #1E88E5 !important;
+            box-shadow: 0 2px 6px rgba(30,136,229,0.18) !important;
+        }
+
+        .profile-card-inner {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+            width: 100%% !important;
+            padding: 8px 12px 8px 12px !important;
+            box-sizing: border-box !important;
+        }
+
+        .profile-card-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100%% !important;
+            font-size: 12.5px !important;
+            line-height: 1.2 !important;
+        }
+
+        .profile-card-title {
+            font-weight: 600 !important;
+            color: #212121 !important;
+            line-height: 1.2 !important;
+        }
+
+        div[class*="st-key-"][class*="_active"] .profile-card-title {
+            color: #1565C0 !important;
+            font-weight: 700 !important;
+        }
+
+        .profile-card-pct {
+            font-weight: 700 !important;
+            color: #212121 !important;
+            margin-left: 8px !important;
+            white-space: nowrap !important;
+            line-height: 1.2 !important;
+        }
+
+        div[class*="st-key-"][class*="_active"] .profile-card-pct {
+            color: #1565C0 !important;
+        }
+
+        .profile-bar-bg {
+            background: #E0E0E0 !important;
+            border-radius: 6px !important;
+            height: 6px !important;
+            width: 100%% !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+        }
+
+        .profile-bar-fill {
+            border-radius: 6px;
+            height: 100%%;
+        }
+
+        .insight-box {
+            background: linear-gradient(135deg, #FFFFFF 0%%, #F4F8FB 100%%);
+            border: 1px solid #BBDEFB !important;
+            border-left: 5px solid #1E88E5 !important;
+            border-radius: 12px !important;
+            padding: 16px 18px 18px 18px !important;
+            margin-bottom: 14px !important;
+            box-shadow: 0 2px 8px rgba(30,136,229,0.06) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+            height: auto !important;
+            min-height: 100%% !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+        }
+
+        .insight-box-header {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            color: #0D47A1 !important;
+            padding-bottom: 8px !important;
+            border-bottom: 1px dashed #BBDEFB !important;
+        }
+
+        .insight-box-body {
+            font-size: 13.5px !important;
+            color: #37474F !important;
+            line-height: 1.6 !important;
+            font-weight: 400 !important;
+        }
+
+        .reco-box {
+            background: linear-gradient(135deg, #FFFFFF 0%%, #F1F8E9 100%%);
+            border: 1px solid #C8E6C9 !important;
+            border-left: 5px solid #2E7D32 !important;
+            border-radius: 12px !important;
+            padding: 16px 18px 18px 18px !important;
+            margin-bottom: 14px !important;
+            box-shadow: 0 2px 8px rgba(46,125,50,0.06) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+            height: auto !important;
+            min-height: 100%% !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+        }
+
+        .reco-box-header {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            color: #1B5E20 !important;
+            padding-bottom: 8px !important;
+            border-bottom: 1px dashed #C8E6C9 !important;
+        }
+
+        .reco-box-body {
+            font-size: 13.5px !important;
+            color: #2E3B2C !important;
+            line-height: 1.6 !important;
+            font-weight: 400 !important;
+        }
+
+        .ses-legend-box {
+            background: #F8F9FA !important;
+            border: 1px solid #E0E0E0 !important;
+            border-radius: 8px !important;
+            padding: 10px 12px !important;
+            margin-top: 10px !important;
+        }
+
+        .ses-legend-title {
+            font-size: 11.5px !important;
+            font-weight: 700 !important;
+            color: #37474F !important;
+            margin-bottom: 8px !important;
+        }
+
+        .ses-badge-grid {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+        }
+
+        .ses-badge {
+            background: #FFFFFF !important;
+            border: 1px solid #D0D0D0 !important;
+            border-radius: 6px !important;
+            padding: 4px 9px !important;
+            font-size: 11px !important;
+            color: #37474F !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+            font-weight: 500 !important;
+        }
+
+        div[class*="st-key-"][class*="_btn_select_"] {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100%% !important;
+            height: 100%% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 10 !important;
+        }
+
+        div[class*="st-key-"][class*="_btn_select_"] button {
+            width: 100%% !important;
+            height: 100%% !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            cursor: pointer !important;
+            color: transparent !important;
+            font-size: 0px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        div[class*="st-key-"][class*="_btn_select_"] button:hover {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .custom-section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .custom-section-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: #E53935;
+            color: white;
+            border-radius: 7px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .custom-section-text {
+            font-size: 21px;
+            font-weight: 700;
+            color: #303440;
+        }
+        .section-badge {
+            display:inline-flex; align-items:center; justify-content:center;
+            width:24px; height:24px; border-radius:6px; color:white;
+            font-size:14px; font-weight:700;
+        }
+        .badge-red { background-color: %s; }
+        .badge-orange { background-color: %s; }
+        .badge-blue { background-color: %s; }
+        .kpi-card {
+            background: #FFFFFF; border: 1px solid #D0D0D0; border-radius: 12px;
+            padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            text-align:center;
+        }
+        .kpi-label { font-size: 13px; color:#555555; font-weight:600; }
+        .kpi-value { font-size: 30px; font-weight:800; color:#212121; margin: 4px 0 2px 0; }
+        .kpi-sub { font-size: 13px; font-weight:600; }
+        .chart-card {
+            background:#FFFFFF; border:1px solid #D0D0D0; border-radius:10px;
+            padding:10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #D0D0D0 !important;
+            border-radius: 10px !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+        }
+        .chart-title { font-weight:700; font-size:15px; margin-bottom:2px; }
+        .chart-subtitle { font-size:12px; color:#888888; margin-bottom:6px; }
+        .profile-item {
+            border-radius:8px; padding:8px 10px; margin-bottom:8px; cursor:pointer;
+            border:1px solid #EEEEEE;
+        }
+        .profile-item-active { border:1px solid #212121; background:#F5F5F5; }
+        .profile-bar-bg { background:#EEEEEE; border-radius:6px; height:8px; width:100%%; }
+        .profile-bar-fill { border-radius:6px; height:8px; }
+        </style>
+        """ % (RED_OUTLINE, ORANGE_OUTLINE, BLUE_OUTLINE, RED_OUTLINE, ORANGE_OUTLINE, BLUE_OUTLINE),
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <style>
+        :root {--csl-red:#E60012;--csl-red-dark:#C8102E;--csl-orange:#FF6B00;--csl-blue:#1665D8;--csl-text:#262626;--csl-muted:#666;--csl-border:#E7E9EC;--csl-shadow:0 1px 2px rgba(20,20,20,.04),0 2px 8px rgba(20,20,20,.05);}
+        html,body,[class*="css"]{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;}
+        .stApp{background:linear-gradient(180deg,#FF6B00 0%,#FF8A33 420px,#FFF7F2 100%);background-attachment:fixed;color:var(--csl-text);}
+        [data-testid="stAppViewContainer"]>.main .block-container{max-width:1600px;padding:1rem 1.25rem 3rem;}
+        [data-testid="stHeader"]{background:transparent;}
+        .csl-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;margin-bottom:14px;border-radius:10px;background:linear-gradient(120deg,#C8102E 0%,#E60012 45%,#FF6B00 100%);box-shadow:0 4px 16px rgba(200,16,46,.28);color:#fff;}
+        .csl-brand{display:flex;align-items:center;gap:12px}.csl-logo{width:40px;height:40px;border-radius:10px;background:#fff;color:#C8102E;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;}
+        .csl-brand h1{font-size:18px;line-height:1.2;margin:0;color:#fff;font-weight:800;letter-spacing:.2px}.csl-brand p{font-size:12px;margin:2px 0 0;color:rgba(255,255,255,.86);font-weight:500}.csl-header-note{font-size:11.5px;color:rgba(255,255,255,.86);text-align:right;}
+        /* =========================================================
+        NAVIGASI PAGE H1, H2, H3
+        ========================================================= */
+
+        /* Kotak putih pembungkus seluruh tombol page */
+        div[data-testid="stTabs"] > div:first-child {
+            display: inline-flex !important;
+            width: auto !important;
+            max-width: fit-content !important;
+            align-items: center !important;
+            gap: 6px !important;
+
+            background-color: #FFFFFF !important;
+            border: 1px solid rgba(255, 255, 255, 0.95) !important;
+            border-radius: 14px !important;
+
+            padding: 6px !important;
+            margin-bottom: 14px !important;
+
+            box-shadow:
+                0 4px 12px rgba(38, 38, 38, 0.12),
+                0 1px 3px rgba(38, 38, 38, 0.08) !important;
+
+            overflow: hidden !important;
+        }
+
+        /* Mengatur tab list di dalam kotak */
+        div[data-testid="stTabs"] div[role="tablist"] {
+            display: flex !important;
+            width: auto !important;
+            gap: 6px !important;
+
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* Tombol H1, H2, dan H3 */
+        div[data-testid="stTabs"] button[role="tab"] {
+            height: 38px !important;
+            min-height: 38px !important;
+
+            padding: 0 17px !important;
+            margin: 0 !important;
+
+            background: transparent !important;
+            border: none !important;
+            border-radius: 9px !important;
+
+            color: #5F6368 !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+
+            transition:
+                background-color 0.2s ease,
+                color 0.2s ease,
+                box-shadow 0.2s ease !important;
+        }
+
+        /* Tulisan di dalam tombol */
+        div[data-testid="stTabs"] button[role="tab"] p {
+            color: inherit !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            margin: 0 !important;
+        }
+
+        /* Page yang sedang aktif */
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: linear-gradient(
+                135deg,
+                #E60012 0%,
+                #FF6B00 100%
+            ) !important;
+
+            color: #FFFFFF !important;
+            border-radius: 9px !important;
+
+            box-shadow: 0 3px 8px rgba(230, 0, 18, 0.22) !important;
+        }
+
+        /* Warna tulisan page aktif */
+        div[data-testid="stTabs"]
+        button[role="tab"][aria-selected="true"] p {
+            color: #FFFFFF !important;
+        }
+
+        /* Efek hover untuk page yang tidak aktif */
+        div[data-testid="stTabs"]
+        button[role="tab"][aria-selected="false"]:hover {
+            background-color: #FFF1F1 !important;
+            color: #C8102E !important;
+        }
+
+        /* Hilangkan garis bawah bawaan Streamlit */
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"],
+        div[data-testid="stTabs"] div[data-baseweb="tab-border"] {
+            display: none !important;
+        }
+
+        /* Pemilih page yang stabil: container putih melengkung */
+        div[class*="st-key-page_selector_card"] {
+            display: inline-block !important;
+            width: auto !important;
+            max-width: 100% !important;
+            background: #FFFFFF !important;
+            border: 1px solid rgba(255,255,255,.95) !important;
+            border-radius: 16px !important;
+            padding: 6px !important;
+            margin: 0 0 14px 0 !important;
+            box-shadow: 0 4px 14px rgba(38,38,38,.14) !important;
+            overflow: hidden !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        > div[data-testid="stVerticalBlockBorderWrapper"] {
+            width: auto !important;
+            background: #FFFFFF !important;
+            border: 0 !important;
+            border-radius: 12px !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] {
+            width: auto !important;
+            background: transparent !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button {
+            min-height: 38px !important;
+            padding: 0 18px !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            font-size: 12.5px !important;
+            font-weight: 750 !important;
+            box-shadow: none !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            background: linear-gradient(135deg,#E60012 0%,#FF6B00 100%) !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 3px 8px rgba(230,0,18,.22) !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="false"] {
+            background: transparent !important;
+            color: #5F6368 !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="false"]:hover {
+            background: #FFF1F1 !important;
+            color: #C8102E !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]{background:#fff!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;}
+        div[class*="st-key-"][class*="_csl_performance_section"],div[class*="st-key-"][class*="_matrix_section"],div[class*="st-key-"][class*="_profile_customer_section"]{background:rgba(255,255,255,.98)!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;padding:16px!important;margin:0 0 18px!important;}
+        .custom-section-title{gap:10px;margin-bottom:12px}.custom-section-badge{width:auto;min-width:72px;height:24px;padding:0 10px;border-radius:5px!important;background:#E60012!important;font-size:10.5px;font-weight:800;letter-spacing:.6px}.custom-section-text{font-size:15px;color:#262626;font-weight:800;letter-spacing:.1px}
+        div[class*="_matrix_section"] .custom-section-badge{background:#FF6B00!important}div[class*="_profile_customer_section"] .custom-section-badge{background:#1665D8!important}
+        .kpi-card{min-height:132px;text-align:left;background:#fff;border:1px solid var(--csl-border);border-radius:10px;padding:16px;box-shadow:var(--csl-shadow);position:relative;overflow:hidden}.kpi-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#E60012}.kpi-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.3px}.kpi-value{font-size:34px;color:#262626;font-weight:800;line-height:1.1;margin:8px 0 4px}.kpi-sub{display:inline-block;font-size:10.5px;font-weight:800;background:#F0F1F3;padding:3px 9px;border-radius:20px}
+        .chart-title{font-size:12px;font-weight:800;color:#666;letter-spacing:.3px;text-transform:uppercase;margin-bottom:4px}.chart-subtitle{font-size:11.5px;color:#666;margin-bottom:8px}.stSelectbox label,.stMultiSelect label{font-size:10px!important;font-weight:700!important;color:#666!important;text-transform:uppercase;letter-spacing:.4px}div[data-baseweb="select"]>div{border-color:var(--csl-border);border-radius:7px;background:#fff}.stButton>button{border-radius:8px;border:1px solid var(--csl-border);font-size:12.5px;font-weight:700}
+        div[class*="st-key-"][class*="_prof_card_"]{border:1px solid var(--csl-border)!important;border-radius:8px!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"]:hover{border-color:#E60012!important;background:#FFF6F6!important}div[class*="st-key-"][class*="_active"]{background:#FFF1F1!important;border:1.5px solid #E60012!important;box-shadow:none!important}div[class*="st-key-"][class*="_active"] .profile-card-title,div[class*="st-key-"][class*="_active"] .profile-card-pct{color:#C8102E!important}
+        .insight-box{background:#FFF6F6!important;border:1px solid #FFDADA!important;border-left:4px solid #E60012!important;border-radius:8px!important;box-shadow:none!important}.insight-box-header{color:#C8102E!important;border-bottom-color:#FFDADA!important}.reco-box{background:#FFF8E8!important;border:1px solid #FCE7B8!important;border-left:4px solid #FF6B00!important;border-radius:8px!important;box-shadow:none!important}.reco-box-header{color:#B45300!important;border-bottom-color:#FCE7B8!important}
+        /* Tinggi seluruh outline demographic chart disamakan */
+        div[class*="st-key-"][class*="_demographic_chart_card"] {
+            height: 390px !important;
+            min-height: 390px !important;
+            max-height: 390px !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        /* Pastikan wrapper border Streamlit benar-benar mengikuti tinggi card. */
+        div[class*="st-key-"][class*="_demographic_chart_card"]
+        > div[data-testid="stVerticalBlockBorderWrapper"] {
+            height: 100% !important;
+            min-height: 100% !important;
+            max-height: 100% !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+        }
+
+        div[class*="st-key-"][class*="_demographic_chart_card"]
+        > div[data-testid="stVerticalBlockBorderWrapper"]
+        > div[data-testid="stVerticalBlock"] {
+            height: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+
+        /* Hilangkan margin yang dapat menambah tinggi kartu */
+        div[class*="st-key-"][class*="_demographic_chart_card"]
+        div[data-testid="stMarkdownContainer"] p {
+            margin-bottom: 0 !important;
+        }
+
+        /* Area khusus chart */
+        div[class*="st-key-"][class*="_chart_viewport"] {
+            height: 330px !important;
+            min-height: 330px !important;
+            max-height: 330px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            scrollbar-gutter: stable;
+        }
+
+        /* Scrollbar chart */
+        div[class*="st-key-"][class*="_chart_viewport"]::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        div[class*="st-key-"][class*="_chart_viewport"]::-webkit-scrollbar-thumb {
+            background: #D8DBDF;
+            border-radius: 20px;
+        }
+
+        div[class*="st-key-"][class*="_chart_viewport"]::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* Gauge NPS sejajar dengan kartu tipe pembayaran pada baris yang sama. */
+        div[class*="st-key-"][class*="_nps_chart_card"] {
+            height: 390px !important;
+            min-height: 390px !important;
+            max-height: 390px !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+        }
+        div[class*="st-key-"][class*="_nps_chart_card"]
+        > div[data-testid="stVerticalBlockBorderWrapper"] {
+            height: 100% !important;
+            min-height: 100% !important;
+            max-height: 100% !important;
+            box-sizing: border-box !important;
+        }
+        div[class*="st-key-"][class*="_heatmap_scroll"]{max-height:520px;overflow-y:auto;overflow-x:hidden}div[class*="st-key-"][class*="_scroll_chart_card"]::-webkit-scrollbar,div[class*="st-key-"][class*="_heatmap_scroll"]::-webkit-scrollbar{width:7px;height:7px}div[class*="st-key-"][class*="_scroll_chart_card"]::-webkit-scrollbar-thumb,div[class*="st-key-"][class*="_heatmap_scroll"]::-webkit-scrollbar-thumb{background:#D8DBDF;border-radius:20px}
+        @media(max-width:700px){.csl-header-note{display:none}.csl-brand h1{font-size:15px}.custom-section-text{font-size:13px}}
+        /* Menyamakan tinggi kotak Heatmap, Daftar Profil, dan Penjelasan Profil */
+        div[class*="st-key-"][class*="_profile_equal_height"] {
+            height: 520px !important;
+            min-height: 520px !important;
+            max-height: 520px !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Konten heatmap dapat di-scroll jika terlalu panjang */
+        div[class*="st-key-"][class*="_profile_heatmap_column"] {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        /* Daftar profil dapat di-scroll jika profilnya terlalu panjang */
+        div[class*="st-key-"][class*="_profile_list_column"] {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        /* Penjelasan profil dapat di-scroll jika narasinya terlalu panjang */
+        div[class*="st-key-"][class*="_profile_explanation_column"] {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        /* Scrollbar dibuat tipis */
+        div[class*="st-key-"][class*="_profile_equal_height"]::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        div[class*="st-key-"][class*="_profile_equal_height"]::-webkit-scrollbar-thumb {
+            background: #D8DBDF;
+            border-radius: 20px;
+        }
+
+        div[class*="st-key-"][class*="_profile_equal_height"]::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def section_start(title, color):
+    cls = {"red": "section-red", "orange": "section-orange", "blue": "section-blue"}[color]
+    badge_cls = {"red": "badge-red", "orange": "badge-orange", "blue": "badge-blue"}[color]
+    number = {"red": "1", "orange": "2", "blue": "3"}[color]
+    st.markdown(
+        f'<div class="section-box {cls}">'
+        f'<div class="section-title"><span class="section-badge {badge_cls}">{number}</span>{title}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def section_end():
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ============================================================
+# DATA LOADING (GOOGLE SHEETS & SHAPEFILE)
+# ============================================================
+
+def _extract_spreadsheet_id(url: str) -> str:
+    m = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
+    if not m:
+        raise ValueError("URL Google Sheets tidak valid.")
+    return m.group(1)
+
+
+def _gviz_csv_url(spreadsheet_url: str, sheet_name: str) -> str:
+    sid = _extract_spreadsheet_id(spreadsheet_url)
+    return (
+        f"https://docs.google.com/spreadsheets/d/{sid}/gviz/tq"
+        f"?tqx=out:csv&sheet={sheet_name}"
+    )
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def read_sheet(sheet_name: str) -> pd.DataFrame:
+
+    spreadsheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
+    url = _gviz_csv_url(spreadsheet_url, sheet_name)
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 Chrome/120 Safari/537.36"
+        )
+    }
+
+    last_error = None
+
+    # coba maksimal 5 kali
+    for attempt in range(5):
+
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=30
+            )
+
+            response.raise_for_status()
+
+            df = pd.read_csv(
+                io.StringIO(response.text)
+            )
+
+            df.columns = [
+                str(c).strip()
+                for c in df.columns
+            ]
+
+            return df
+
+        except Exception as e:
+
+            last_error = e
+
+            # tunggu sebelum mencoba lagi
+            time.sleep(2 * (attempt + 1))
+
+    # kalau 5 kali tetap gagal
+    raise RuntimeError(
+        f"Gagal mengambil sheet '{sheet_name}' "
+        f"setelah 5 percobaan. Error terakhir: {last_error}"
+    )
+
+
+def try_read_sheet(sheet_name: str) -> pd.DataFrame:
+    try:
+        return read_sheet(sheet_name)
+
+
+    except Exception as e:
+        st.error(
+            f"Gagal membaca sheet '{sheet_name}': "
+            f"{type(e).__name__}: {e}"
+        )
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_shapefile():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    possible_paths = [
+        os.path.join(base_dir, "assets", "maps", "batas_kabkota_indonesia", "idn_admbnda_adm2_bps_20200401.shp"),
+        os.path.join("assets", "maps", "batas_kabkota_indonesia", "idn_admbnda_adm2_bps_20200401.shp"),
+        "idn_admbnda_adm2_bps_20200401.shp",
+    ]
+    shp_path = None
+    for p in possible_paths:
+        if os.path.exists(p):
+            shp_path = p
+            break
+
+    if not shp_path:
+        return None
+
+    try:
+        gdf = gpd.read_file(shp_path)
+        if gdf.crs is None or str(gdf.crs).lower() != "epsg:4326":
+            gdf = gdf.to_crs(epsg=4326)
+
+        # 1. Filter provinsi target (Jawa, Bali, NTB, NTT) saat loading
+        prov_col = _find_shp_col(gdf, SHP_PROV_CANDIDATES)
+        if prov_col:
+            gdf["__norm_prov"] = gdf[prov_col].apply(
+                lambda x: str(x).strip().lower() if pd.notna(x) else ""
+            )
+            gdf = gdf[
+                gdf["__norm_prov"].apply(lambda p: any(tp in p for tp in TARGET_PROVINCES))
+            ].copy()
+            if "__norm_prov" in gdf.columns:
+                gdf = gdf.drop(columns=["__norm_prov"])
+
+        # 2. Simplify geometry dengan tolerance=0.01 agar ukuran JSON sangat kecil (mencegah MessageSizeError)
+        gdf["geometry"] = gdf.geometry.simplify(tolerance=0.01, preserve_topology=True)
+        return gdf
+    except Exception:
+        return None
+
+
+# ============================================================
+# COLUMN AUTO-DETECTION & HELPERS
+# ============================================================
+
+ALIASES = {
+    "year": ["year", "tahun"],
+    "semester": ["semester", "periode"],
+    "main_dealer": ["main dealer", "md code", "maindealer", "kode main dealer"],
+    "layer": ["layer"],
+    "karesidenan": ["karesidenan", "residency"],
+    "kab_kota": [
+        "kab/kota", "kabupaten/kota", "kab kota", "city of dealer",
+        "city of ahass", "city of parts shop", "city", "kota", "kabupaten",
+    ],
+    "dealer_code": [
+        "dealer code", "kode dealer", "ahass code", "kode ahass",
+        "parts shop code", "kode part shop", "dealer", "ahass", "part shop",
+    ],
+    "profile": ["profile", "profil"],
+    "gender": ["gender", "jenis kelamin"],
+    "age": ["age group", "age", "usia", "kelompok usia"],
+    "motor_type": [
+        "type of motorcycle", "variant of motorcycle", "type of parts",
+        "type motor", "tipe motor", "jenis motor", "merk", "segment"
+    ],
+    "ses": ["ses"],
+    "payment": [
+        "d15", "d12", "d6", "d7", "payment", "tipe pembayaran", "metode pembayaran",
+        "method of payment", "method of purchasing", "cara pembayaran"
+    ],
+    "retention": [
+        "retention unit", "retention service", "retention part", "retention level",
+        "retention", "retensi pelanggan", "retensi"
+    ],
+    "nps": ["nps"],
+    "nps_unit": ["nps_unit", "nps unit"],
+    "nps_dealer": ["nps_dealer", "nps dealer", "nps ahass", "nps part shop", "nps part"],
+    "importance": ["importance"],
+}
+
+
+def find_col(df: pd.DataFrame, candidates):
+    if df is None or df.empty:
+        return None
+    cols_lower = {str(c).strip().lower(): c for c in df.columns}
+    for cand in candidates:
+        cand_l = cand.strip().lower()
+        if cand_l in cols_lower:
+            return cols_lower[cand_l]
+    for cand in candidates:
+        cand_l = cand.strip().lower()
+        for lower, orig in cols_lower.items():
+            if cand_l in lower:
+                return orig
+    return None
+
+
+def build_indicator_name_map(meta_df: pd.DataFrame) -> dict:
+    """Membentuk mapping KODE -> nama indikator dari metadata H1/H2/H3."""
+    if meta_df is None or meta_df.empty:
+        return {}
+    code_col = find_col(meta_df, [
+        "Kode_Indikator", "kode indikator", "Kode Indicator",
+        "kode_indicator", "indicator code", "kode", "code",
+    ])
+    name_col = find_col(meta_df, [
+        "Nama_Indikator", "nama indikator", "Indicator Name",
+        "nama_indicator", "indicator", "atribut", "attribute",
+        "description", "keterangan",
+    ])
+    if not code_col or not name_col:
+        return {}
+    result = {}
+    for _, row in meta_df[[code_col, name_col]].dropna(subset=[code_col]).iterrows():
+        code = str(row[code_col]).strip().upper()
+        name = str(row[name_col]).strip()
+        if code and name and name.lower() != "nan":
+            result[code] = name
+    return result
+
+
+def detect_columns(df: pd.DataFrame, unit_key: str) -> dict:
+    cols = {}
+    for logical, candidates in ALIASES.items():
+        cand = list(candidates)
+        if logical == "dealer_code":
+            if unit_key == "sales":
+                cand = ["dealer code", "kode dealer", "dealer"] + cand
+            elif unit_key == "service":
+                cand = ["ahass code", "kode ahass", "ahass"] + cand
+            elif unit_key == "parts":
+                cand = ["parts shop code", "kode part shop", "part shop"] + cand
+        if logical == "nps_dealer":
+            if unit_key == "sales":
+                cand = ["nps dealer"] + cand
+            elif unit_key == "service":
+                cand = ["nps ahass"] + cand
+            elif unit_key == "parts":
+                cand = ["nps part shop"] + cand
+        if logical == "nps":
+            # NPS umum dipakai sebagai gauge tambahan khusus H3. Pencarian
+            # dibuat exact agar tidak tertukar dengan NPS Unit/Part Shop.
+            exact_nps = {str(c).strip().lower(): c for c in df.columns}
+            cols[logical] = exact_nps.get("nps")
+            continue
+        cols[logical] = find_col(df, cand)
+    return cols
+
+
+def _norm(s):
+    if pd.isna(s):
+        return ""
+    return re.sub(r"^(kota|kabupaten|kab\.?)\s+", "", str(s).strip().lower()).strip()
+
+
+def _normalize_location_name(s):
+    if pd.isna(s) or not s:
+        return ""
+    name = str(s).strip().lower()
+    name = re.sub(r"\bkab-kodya\b", "", name)
+    name = re.sub(r"\b(kabupaten|kab|kodya|kota)\b\.?", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def _normalize_exact_location(s):
+    if pd.isna(s) or not s:
+        return ""
+    name = str(s).strip().lower()
+    name = re.sub(r"\bkab-kodya\b", "", name)
+    name = re.sub(r"\b(kabupaten|kab)\b\.?", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def _find_shp_col(gdf, candidates):
+    if gdf is None or gdf.empty:
+        return None
+    cols_lower = {str(c).strip().lower(): c for c in gdf.columns}
+    for cand in candidates:
+        if cand.lower() in cols_lower:
+            return cols_lower[cand.lower()]
+    for cand in candidates:
+        for cl, orig in cols_lower.items():
+            if cand.lower() in cl:
+                return orig
+    return None
+
+
+def add_karesidenan(df: pd.DataFrame, cols: dict) -> pd.DataFrame:
+    if df.empty:
+        return df
+    if cols.get("karesidenan") and cols["karesidenan"] in df.columns:
+        return df
+    kab_col = cols.get("kab_kota")
+    if not kab_col or kab_col not in df.columns:
+        return df
+    df = df.copy()
+    df["Karesidenan"] = df[kab_col].apply(
+        lambda x: KARESIDENAN_MAP.get(_norm(x), "Lainnya")
+    )
+    cols["karesidenan"] = "Karesidenan"
+    return df
+
+
+def kab_to_provinsi(kab_value):
+    return KAB_TO_PROVINSI.get(_norm(kab_value), None)
+
+
+# ============================================================
+# INDICATOR METADATA
+# ============================================================
+
+def indicator_columns(df: pd.DataFrame, meta_df: pd.DataFrame):
+    if df is None or df.empty:
+        return []
+    if meta_df is not None and not meta_df.empty:
+        code_col = find_col(meta_df, ["kode_indicator", "code", "kode", "atribut", "attribute"])
+        if code_col:
+            codes = [str(c).strip() for c in meta_df[code_col].dropna().unique()]
+            return [c for c in codes if c in df.columns]
+    pattern = re.compile(r"^[A-Za-z]\d{1,2}$")
+    return [c for c in df.columns if pattern.match(str(c).strip())]
+
+
+def get_target_col(meta_df: pd.DataFrame, main_dealer: str, layer: str):
+    candidates = []
+    md = (main_dealer or "").upper().replace(" ", "")
+    ly = (layer or "").upper().replace(" ", "")
+    if md and ly:
+        candidates.append(f"Target_{md}_{ly}")
+    if md:
+        candidates += [f"Target_{md}_BigWing", f"Target_{md}_Wing",
+                        f"Target_{md}_RegulerH123", f"Target_{md}"]
+    candidates += ["Target_MPM_RegulerH123", "Target_M2Z", "Target_M3Z", "Target"]
+    return find_col(meta_df, candidates)
+
+
+# ============================================================
+# PERIOD HELPERS
+# ============================================================
+
+def get_available_periods(df: pd.DataFrame, cols: dict):
+    year_col, sem_col = cols.get("year"), cols.get("semester")
+    if not year_col or not sem_col or df.empty:
+        return []
+    tmp = df[[year_col, sem_col]].dropna().copy()
+    tmp[year_col] = pd.to_numeric(tmp[year_col], errors="coerce")
+    tmp[sem_col] = tmp[sem_col].apply(_parse_semester)
+    tmp = tmp.dropna()
+    periods = sorted(set(zip(tmp[year_col].astype(int), tmp[sem_col].astype(int))))
+    return periods
+
+
+def _parse_semester(val):
+    if pd.isna(val):
+        return np.nan
+    s = str(val).strip().lower()
+    if "2" in s:
+        return 2
+    if "1" in s:
+        return 1
+    try:
+        return int(float(s))
+    except Exception:
+        return np.nan
+
+
+def get_previous_period(selected_year, selected_semester, available_periods):
+    if selected_year is None or selected_semester is None:
+        return None
+    try:
+        selected_year = int(selected_year)
+        selected_semester = int(selected_semester)
+    except Exception:
+        return None
+    if not available_periods:
+        return None
+    ordered = sorted(set(available_periods), key=lambda p: (p[0], p[1]))
+    try:
+        idx = ordered.index((selected_year, selected_semester))
+    except ValueError:
+        return None
+    if idx == 0:
+        return None
+    return ordered[idx - 1]
+
+
+def period_label(year, sem):
+    return f"Semester {sem} {year}"
+
+
+# ============================================================
+# FILTERS
+# ============================================================
+
+def _options(df, col):
+    if not col or col not in df.columns:
+        return []
+    vals = sorted([str(v) for v in df[col].dropna().unique()])
+    return vals
+
+
+def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: str):
+    filters = {}
+    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+
+    year_col = cols.get("year")
+    sem_col = cols.get("semester")
+    md_col = cols.get("main_dealer")
+    layer_col = cols.get("layer")
+    kar_col = cols.get("karesidenan")
+    kab_col = cols.get("kab_kota")
+    dealer_col = cols.get("dealer_code")
+
+    # Klik inset NTT mengirim query map_region=NTT dan map_unit sesuai tab.
+    # Proses sebelum widget dibuat supaya session_state aman diperbarui.
+    map_region = str(st.query_params.get("map_region", "")).strip().upper()
+    map_unit = str(st.query_params.get("map_unit", "")).strip().lower()
+    map_click_token = str(st.query_params.get("map_click_token", "")).strip()
+    last_click_token_key = f"{key_prefix}_last_map_click_token"
+    ntt_map_click = (
+        map_region == "NTT"
+        and map_unit == str(key_prefix).lower()
+        and bool(map_click_token)
+        and st.session_state.get(last_click_token_key) != map_click_token
+    )
+    if ntt_map_click:
+        st.session_state[last_click_token_key] = map_click_token
+        for suffix in ["md", "layer", "kar", "dealer"]:
+            st.session_state[f"{key_prefix}_{suffix}"] = "Semua"
+
+    with c1:
+        years = _options(df, year_col)
+        sel_year = st.selectbox("Tahun", ["Semua"] + years, key=f"{key_prefix}_year")
+    with c2:
+        sems = ["Semester 1", "Semester 2"]
+        sel_sem = st.selectbox("Periode", ["Semua"] + sems, key=f"{key_prefix}_sem")
+
+    df_scope = df.copy()
+    if sel_year != "Semua" and year_col:
+        df_scope = df_scope[df_scope[year_col].astype(str) == str(sel_year)]
+    if sel_sem != "Semua" and sem_col:
+        target_sem = 1 if "1" in sel_sem else 2
+        df_scope = df_scope[df_scope[sem_col].apply(_parse_semester) == target_sem]
+
+    with c3:
+        mds = _options(df_scope, md_col)
+        sel_md = st.selectbox("Main Dealer", ["Semua"] + mds, key=f"{key_prefix}_md")
+    if sel_md != "Semua" and md_col:
+        df_scope = df_scope[df_scope[md_col].astype(str) == sel_md]
+
+    with c4:
+        layers = _options(df_scope, layer_col)
+        sel_layer = st.selectbox("Layer", ["Semua"] + layers, key=f"{key_prefix}_layer")
+    if sel_layer != "Semua" and layer_col:
+        df_scope = df_scope[df_scope[layer_col].astype(str) == sel_layer]
+
+    with c5:
+        kars = _options(df_scope, kar_col)
+        sel_kar = st.selectbox("Karesidenan", ["Semua"] + kars, key=f"{key_prefix}_kar")
+    if sel_kar != "Semua" and kar_col:
+        df_scope = df_scope[df_scope[kar_col].astype(str) == sel_kar]
+
+    with c6:
+        kabs = _options(df_scope, kab_col)
+        if ntt_map_click:
+            ntt_option = next(
+                (
+                    option for option in kabs
+                    if "kupang" in _normalize_location_name(option)
+                    or "nusa tenggara timur" in str(option).strip().lower()
+                    or str(option).strip().lower() == "ntt"
+                ),
+                None,
+            )
+            if ntt_option is not None:
+                st.session_state[f"{key_prefix}_kab"] = ntt_option
+        sel_kab = st.selectbox("Kab / Kota", ["Semua"] + kabs, key=f"{key_prefix}_kab")
+    if sel_kab != "Semua" and kab_col:
+        df_scope = df_scope[df_scope[kab_col].astype(str) == sel_kab]
+
+    with c7:
+        deals = _options(df_scope, dealer_col)
+        sel_dealer = st.selectbox(dealer_label, ["Semua"] + deals, key=f"{key_prefix}_dealer")
+
+    filters = {
+        "year": None if sel_year == "Semua" else sel_year,
+        "semester": None if sel_sem == "Semua" else (1 if "1" in sel_sem else 2),
+        "main_dealer": None if sel_md == "Semua" else sel_md,
+        "layer": None if sel_layer == "Semua" else sel_layer,
+        "karesidenan": None if sel_kar == "Semua" else sel_kar,
+        "kab_kota": None if sel_kab == "Semua" else sel_kab,
+        "dealer": None if sel_dealer == "Semua" else sel_dealer,
+    }
+    return filters
+
+
+def apply_filters(df: pd.DataFrame, cols: dict, filters: dict,
+                   override_year=None, override_semester=None,
+                   ignore_period=False) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+
+    year_col, sem_col = cols.get("year"), cols.get("semester")
+    if not ignore_period:
+        yr = override_year if override_year is not None else filters.get("year")
+        sm = override_semester if override_semester is not None else filters.get("semester")
+        if yr is not None and year_col:
+            out = out[out[year_col].astype(str) == str(yr)]
+        if sm is not None and sem_col:
+            out = out[out[sem_col].apply(_parse_semester) == sm]
+    else:
+        if override_year is not None and year_col:
+            out = out[out[year_col].astype(str) == str(override_year)]
+        if override_semester is not None and sem_col:
+            out = out[out[sem_col].apply(_parse_semester) == override_semester]
+
+    mapping = [
+        ("main_dealer", cols.get("main_dealer")),
+        ("layer", cols.get("layer")),
+        ("karesidenan", cols.get("karesidenan")),
+        ("kab_kota", cols.get("kab_kota")),
+        ("dealer", cols.get("dealer_code")),
+    ]
+    for key, col in mapping:
+        val = filters.get(key)
+        if val is not None and col and col in out.columns:
+            out = out[out[col].astype(str) == str(val)]
+    return out
+
+
+# ============================================================
+# CALCULATIONS
+# ============================================================
+
+def calculate_satisfaction(df: pd.DataFrame, indicator_cols: list):
+    if df is None or df.empty or not indicator_cols:
+        return None
+    vals = df[indicator_cols].apply(pd.to_numeric, errors="coerce")
+    mean_score = vals.mean(axis=1).mean()
+    if pd.isna(mean_score):
+        return None
+    return round(mean_score / 5 * 100, 1)
+
+
+def calculate_attribute_satisfaction(df: pd.DataFrame, indicator_cols: list):
+    result = {}
+    if df is None or df.empty or not indicator_cols:
+        return result
+    for c in indicator_cols:
+        series = pd.to_numeric(df[c], errors="coerce")
+        m = series.mean()
+        if pd.isna(m):
+            continue
+        result[c] = round(m / 5 * 100, 1)
+    return result
+
+
+def calculate_target_gap(attr_sat: dict, meta_df: pd.DataFrame, main_dealer: str, layer: str):
+    gaps = {}
+    if not attr_sat or meta_df is None or meta_df.empty:
+        return gaps
+
+    code_col = find_col(meta_df, ["kode_indicator", "code", "kode", "atribut", "attribute"])
+    target_col = get_target_col(meta_df, main_dealer, layer)
+
+    if not code_col or not target_col:
+        return gaps
+
+    meta_indexed = meta_df.set_index(meta_df[code_col].astype(str).str.strip())
+    for code, sat in attr_sat.items():
+        c_code = str(code).strip()
+        if c_code in meta_indexed.index:
+            raw_t = meta_indexed.loc[c_code, target_col]
+            if isinstance(raw_t, pd.Series):
+                raw_t = raw_t.iloc[0]
+            t_str = str(raw_t).replace("%", "").replace(",", ".").strip()
+            try:
+                t_val = float(t_str)
+                gaps[c_code] = round(sat - t_val, 1)
+            except Exception:
+                pass
+    return gaps
+
+
+def calculate_semester_difference(df_cur: pd.DataFrame, df_prev: pd.DataFrame, indicator_cols: list):
+    if df_prev is None or df_prev.empty:
+        return None
+    cur = calculate_attribute_satisfaction(df_cur, indicator_cols)
+    prev = calculate_attribute_satisfaction(df_prev, indicator_cols)
+    if not prev:
+        return None
+    diffs = {}
+    for code in cur:
+        if code in prev:
+            diffs[code] = round(cur[code] - prev[code], 1)
+    return diffs
+
+
+def compute_nps(series: pd.Series):
+    s = pd.to_numeric(series, errors="coerce").dropna()
+    if s.empty:
+        return None
+    promoters = (s >= 9).sum()
+    detractors = (s <= 6).sum()
+    total = len(s)
+    if total == 0:
+        return None
+    return round((promoters - detractors) / total * 100, 1)
+
+
+# ============================================================
+# MAP (PETA ZONA BUDAYA)
+# ============================================================
+def create_map_legacy(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
+
+    # ========================================================
+    # 1. LOAD SHAPEFILE
+    # ========================================================
+    gdf_raw = load_shapefile()
+
+    if gdf_raw is None or gdf_raw.empty:
+        st.warning("Shapefile kabupaten/kota tidak ditemukan.")
+        return
+
+    kab_shape_col = _find_shp_col(
+        gdf_raw,
+        SHP_KAB_CANDIDATES
+    )
+
+    prov_shape_col = _find_shp_col(
+        gdf_raw,
+        SHP_PROV_CANDIDATES
+    )
+
+    if not kab_shape_col or not prov_shape_col:
+        st.warning(
+            "Kolom kabupaten/kota atau provinsi pada shapefile tidak ditemukan."
+        )
+        return
+
+    gdf_target = gdf_raw.copy()
+
+    # ========================================================
+    # 2. PASTIKAN CRS WGS84
+    # ========================================================
+    try:
+        if gdf_target.crs is None:
+            gdf_target = gdf_target.set_crs(epsg=4326)
+
+        elif gdf_target.crs.to_epsg() != 4326:
+            gdf_target = gdf_target.to_crs(epsg=4326)
+
+    except Exception:
+        pass
+
+    # ========================================================
+    # 3. HANYA JAWA TIMUR + NTT
+    #
+    # Wilayah lain TIDAK masuk overlay.
+    # Sumatera, Kalimantan, Bali dll hanya muncul sebagai
+    # background basemap Leaflet.
+    # ========================================================
+    prov_norm = (
+        gdf_target[prov_shape_col]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    gdf_target = gdf_target[
+        prov_norm.str.contains(
+            r"jawa timur|nusa tenggara timur|\bntt\b",
+            regex=True,
+            na=False
+        )
+    ].copy()
+
+    if gdf_target.empty:
+        st.warning("Wilayah Jawa Timur dan NTT tidak ditemukan.")
+        return
+
+    # ========================================================
+    # 4. IDENTIFIKASI JATIM DAN NTT
+    # ========================================================
+    gdf_target["__prov_norm"] = (
+        gdf_target[prov_shape_col]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    is_ntt = gdf_target["__prov_norm"].str.contains(
+        r"nusa tenggara timur|\bntt\b",
+        regex=True,
+        na=False
+    )
+
+    # ========================================================
+    # 5. NAMA WILAYAH
+    # ========================================================
+    gdf_target["__temp_kab"] = (
+        gdf_target[kab_shape_col]
+        .astype(str)
+        .str.strip()
+    )
+
+    # Kota Batu digabung dengan Kabupaten Malang
+    is_batu = (
+        (~is_ntt)
+        &
+        gdf_target["__temp_kab"]
+        .str.lower()
+        .str.contains("batu", na=False)
+    )
+
+    gdf_target.loc[
+        is_batu,
+        "__temp_kab"
+    ] = "Kabupaten Malang"
+
+    # Seluruh NTT menjadi satu polygon
+    gdf_target.loc[
+        is_ntt,
+        "__temp_kab"
+    ] = "Nusa Tenggara Timur"
+
+    # ========================================================
+    # 6. DISSOLVE
+    # ========================================================
+    try:
+        gdf_target = (
+            gdf_target
+            .dissolve(
+                by="__temp_kab",
+                as_index=False
+            )
+        )
+
+        kab_shape_col = "__temp_kab"
+
+    except Exception as e:
+        st.warning(f"Gagal memproses geometri peta: {e}")
+        return
+
+    # ========================================================
+    # 7. SHEET PENGELOMPOKKAN BUDAYA
+    # ========================================================
+    budaya_df = try_read_sheet(
+        "pengelompokkan_budaya"
+    )
+
+    if budaya_df.empty:
+        budaya_df = try_read_sheet(
+            "pengelompokan_budaya"
+        )
+
+    if budaya_df.empty:
+        st.warning(
+            "Worksheet pengelompokkan_budaya tidak ditemukan."
+        )
+        return
+
+    kab_budaya_col = find_col(
+        budaya_df,
+        [
+            "kabupaten/kota",
+            "kab/kota",
+            "kabupaten",
+            "kota",
+            "wilayah",
+        ]
+    )
+
+    zona_col = find_col(
+        budaya_df,
+        [
+            "budaya_utama",
+            "zona budaya",
+            "budaya",
+            "cluster budaya",
+            "cluster_budaya",
+            "kelompok budaya",
+        ]
+    )
+
+    prof_col = find_col(
+        budaya_df,
+        [
+            "profile dominan",
+            "dominan profile",
+            "profil dominan",
+            "dominant profile",
+            "profile",
+            "profil",
+        ]
+    )
+
+    if not kab_budaya_col or not zona_col:
+        st.warning(
+            "Kolom Kabupaten/Kota atau Zona Budaya tidak ditemukan."
+        )
+        return
+
+    # ========================================================
+    # 8. MAPPING BUDAYA
+    # ========================================================
+    budaya_clean = (
+        budaya_df
+        .drop_duplicates(
+            subset=[kab_budaya_col]
+        )
+        .copy()
+    )
+
+    exact_zona = {}
+    exact_profile = {}
+
+    stripped_zona = {}
+    stripped_profile = {}
+
+    for _, row in budaya_clean.iterrows():
+
+        nama = str(
+            row[kab_budaya_col]
+        ).strip()
+
+        zona = (
+            str(row[zona_col]).strip()
+            if pd.notna(row[zona_col])
+            else "Tidak Ada Data"
+        )
+
+        profile = (
+            str(row[prof_col]).strip()
+            if prof_col
+            and pd.notna(row[prof_col])
+            else "-"
+        )
+
+        nama_lower = nama.lower()
+
+        exact_zona[nama_lower] = zona
+        exact_profile[nama_lower] = profile
+
+        nama_exact = _normalize_exact_location(
+            nama
+        )
+
+        if nama_exact:
+            exact_zona[nama_exact] = zona
+            exact_profile[nama_exact] = profile
+
+        nama_strip = _normalize_location_name(
+            nama
+        )
+
+        if nama_strip:
+            stripped_zona[nama_strip] = zona
+            stripped_profile[nama_strip] = profile
+
+    # NTT
+    exact_zona["nusa tenggara timur"] = "NTT"
+    exact_profile["nusa tenggara timur"] = "-"
+
+    def get_budaya_info(nama_wilayah):
+
+        nama = str(
+            nama_wilayah
+        ).strip()
+
+        nama_lower = nama.lower()
+
+        if nama_lower in exact_zona:
+            return (
+                exact_zona[nama_lower],
+                exact_profile[nama_lower]
+            )
+
+        nama_exact = _normalize_exact_location(
+            nama
+        )
+
+        if nama_exact in exact_zona:
+            return (
+                exact_zona[nama_exact],
+                exact_profile[nama_exact]
+            )
+
+        nama_strip = _normalize_location_name(
+            nama
+        )
+
+        if nama_strip in stripped_zona:
+            return (
+                stripped_zona[nama_strip],
+                stripped_profile[nama_strip]
+            )
+
+        return "Tidak Ada Data", "-"
+
+    result = (
+        gdf_target[kab_shape_col]
+        .apply(get_budaya_info)
+    )
+
+    gdf_target["Zona_Budaya"] = [
+        x[0] for x in result
+    ]
+
+    gdf_target["Dominan_Profile"] = [
+        x[1] for x in result
+    ]
+
+    gdf_target["Kabupaten_Kota"] = (
+        gdf_target[kab_shape_col]
+        .astype(str)
+    )
+
+    # ========================================================
+    # 9. BUANG NO DATA
+    #
+    # Jadi tidak ada polygon abu-abu "Tidak Ada Data".
+    # ========================================================
+    gdf_target = gdf_target[
+        gdf_target["Zona_Budaya"]
+        != "Tidak Ada Data"
+    ].copy()
+
+    if gdf_target.empty:
+        st.warning(
+            "Tidak ada data budaya untuk Jawa Timur dan NTT."
+        )
+        return
+
+    # ========================================================
+    # 10. SIMPLIFY GEOMETRY
+    #
+    # Supaya Leaflet ringan.
+    # ========================================================
+    try:
+        gdf_target["geometry"] = (
+            gdf_target.geometry
+            .simplify(
+                tolerance=0.005,
+                preserve_topology=True
+            )
+        )
+
+    except Exception:
+        pass
+
+    # ========================================================
+    # 11. WARNA
+    # ========================================================
+    CULTURE_COLORS = {
+        "Arek": "#365EAE",
+        "Madura": "#E65F61",
+        "Mataraman": "#F2AD42",
+        "Tengger": "#8665B5",
+        "Pendaalungan": "#42AF9F",
+        "Pendalungan": "#42AF9F",
+        "Using": "#63AD48",
+        "Osing": "#63AD48",
+        "NTT": "#9A8376",
+    }
+
+    def zone_color(zone):
+
+        z = str(zone).strip()
+        low = z.lower()
+
+        if z in CULTURE_COLORS:
+            return CULTURE_COLORS[z]
+
+        if "arek" in low:
+            return CULTURE_COLORS["Arek"]
+
+        if "madura" in low:
+            return CULTURE_COLORS["Madura"]
+
+        if "mataram" in low:
+            return CULTURE_COLORS["Mataraman"]
+
+        if "tengger" in low:
+            return CULTURE_COLORS["Tengger"]
+
+        if (
+            "pendhalungan" in low
+            or "pendalungan" in low
+        ):
+            return CULTURE_COLORS[
+                "Pendaalungan"
+            ]
+
+        if (
+            "using" in low
+            or "osing" in low
+        ):
+            return CULTURE_COLORS["Using"]
+
+        if (
+            "ntt" in low
+            or "nusa tenggara timur" in low
+        ):
+            return CULTURE_COLORS["NTT"]
+
+        return "#90A4AE"
+
+    # ========================================================
+    # 12. LEAFLET MAP
+    # ========================================================
+    m = folium.Map(
+        location=[-8.1, 116.0],
+        zoom_start=6,
+        tiles=None,
+        zoom_control=True,
+        prefer_canvas=True,
+        control_scale=False,
+    )
+
+    # ========================================================
+    # 13. CLEAN BASEMAP TANPA LABEL
+    #
+    # Penting:
+    # memakai "light_nolabels", sehingga nama Sumatera,
+    # Kalimantan, Bali, dll tidak muncul.
+    # ========================================================
+    folium.TileLayer(
+        tiles=(
+            "https://{s}.basemaps.cartocdn.com/"
+            "light_nolabels/{z}/{x}/{y}{r}.png"
+        ),
+        attr=(
+            '&copy; OpenStreetMap contributors '
+            '&copy; CARTO'
+        ),
+        name="CARTO Light",
+        control=False,
+    ).add_to(m)
+
+    # ========================================================
+    # 14. POLYGON
+    # ========================================================
+    for _, row in gdf_target.iterrows():
+
+        kabupaten = str(
+            row["Kabupaten_Kota"]
+        )
+
+        zona = str(
+            row["Zona_Budaya"]
+        )
+
+        profile = str(
+            row["Dominan_Profile"]
+        )
+
+        warna = zone_color(
+            zona
+        )
+
+        feature = {
+            "type": "Feature",
+            "properties": {
+                "Kabupaten_Kota": kabupaten,
+                "Zona_Budaya": zona,
+                "Dominan_Profile": profile,
+            },
+            "geometry": row.geometry.__geo_interface__,
+        }
+
+        folium.GeoJson(
+            feature,
+
+            style_function=lambda feature, warna=warna: {
+                "fillColor": warna,
+                "color": "#FFFFFF",
+                "weight": 1.5,
+                "fillOpacity": 0.90,
+            },
+
+            highlight_function=lambda feature, warna=warna: {
+                "fillColor": warna,
+                "color": "#FFFFFF",
+                "weight": 3,
+                "fillOpacity": 1,
+            },
+
+            tooltip=folium.GeoJsonTooltip(
+                fields=[
+                    "Kabupaten_Kota",
+                    "Zona_Budaya",
+                    "Dominan_Profile",
+                ],
+
+                aliases=[
+                    "Kabupaten/Kota:",
+                    "Zona Budaya:",
+                    "Dominan Profile:",
+                ],
+
+                sticky=True,
+
+                style="""
+                    background-color: white;
+                    border: none;
+                    border-radius: 8px;
+                    box-shadow: 0px 3px 12px rgba(0,0,0,.18);
+                    color: #334155;
+                    font-family: Arial;
+                    font-size: 13px;
+                    padding: 8px 10px;
+                """
+            )
+
+        ).add_to(m)
+
+    # ========================================================
+    # 15. LABEL
+    #
+    # Karena overlay hanya Jawa Timur + NTT,
+    # hanya wilayah tersebut yang diberi nama.
+    # ========================================================
+    for _, row in gdf_target.iterrows():
+
+        nama = str(
+            row["Kabupaten_Kota"]
+        )
+
+        if nama.lower() == "nusa tenggara timur":
+            label = "Kupang"
+
+        else:
+            label = (
+                nama
+                .replace("Kabupaten ", "")
+                .replace("Kota ", "")
+                .replace("Kab. ", "")
+                .strip()
+            )
+
+        try:
+            titik = (
+                row.geometry
+                .representative_point()
+            )
+
+        except Exception:
+            continue
+
+        folium.Marker(
+            location=[
+                titik.y,
+                titik.x
+            ],
+
+            icon=folium.DivIcon(
+                icon_size=(100, 18),
+                icon_anchor=(50, 9),
+
+                html=f"""
+                <div style="
+                    width:100px;
+                    text-align:center;
+                    font-family:Arial, sans-serif;
+                    font-size:11px;
+                    font-weight:500;
+                    color:#184C7A;
+                    white-space:nowrap;
+                    pointer-events:none;
+                    text-shadow:
+                        -1px -1px 0 rgba(255,255,255,.85),
+                         1px -1px 0 rgba(255,255,255,.85),
+                        -1px  1px 0 rgba(255,255,255,.85),
+                         1px  1px 0 rgba(255,255,255,.85);
+                ">
+                    {label}
+                </div>
+                """
+            )
+        ).add_to(m)
+
+    # ========================================================
+    # 16. LEGENDA
+    # ========================================================
+    zones = (
+        gdf_target["Zona_Budaya"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    legend_order = [
+        "Arek",
+        "Madura",
+        "Mataraman",
+        "Tengger",
+        "Pendalungan",
+        "Pendalungan",
+        "Using",
+        "Osing",
+        "NTT",
+    ]
+
+    legend_items = []
+    already_added = set()
+
+    for desired in legend_order:
+
+        match = None
+
+        for actual in zones:
+
+            if actual.lower() == desired.lower():
+                match = actual
+                break
+
+        if match is None:
+            continue
+
+        normalized = (
+            match.lower()
+            .replace(
+                "pendalungan",
+                "pendhalungan"
+            )
+            .replace(
+                "osing",
+                "using"
+            )
+        )
+
+        if normalized in already_added:
+            continue
+
+        already_added.add(
+            normalized
+        )
+
+        if normalized == "pendhalungan":
+            display = "Pendhalungan"
+
+        elif normalized == "using":
+            display = "Using"
+
+        else:
+            display = match
+
+        legend_items.append(
+            f"""
+            <div style="
+                display:flex;
+                align-items:center;
+                gap:5px;
+                white-space:nowrap;
+            ">
+                <span style="
+                    width:12px;
+                    height:12px;
+                    background:{zone_color(match)};
+                    border-radius:2px;
+                    display:inline-block;
+                "></span>
+
+                <span>{display}</span>
+            </div>
+            """
+        )
+
+    legend_html = """
+    {% macro html(this, kwargs) %}
+
+    <div style="
+        position: fixed;
+        bottom: 16px;
+        left: 60px;
+        z-index: 9999;
+
+        background: rgba(255,255,255,.96);
+
+        border: 1px solid #D9DEE5;
+        border-radius: 8px;
+
+        box-shadow:
+            0 2px 8px rgba(0,0,0,.12);
+
+        padding: 10px 14px;
+
+        font-family: Arial, sans-serif;
+        font-size: 13px;
+
+        display:flex;
+        align-items:center;
+        gap:12px;
+    ">
+
+        <div style="
+            font-weight:700;
+            color:#475569;
+            white-space:nowrap;
+        ">
+            Budaya Utama
+        </div>
+
+        """ + "".join(legend_items) + """
+
+    </div>
+
+    {% endmacro %}
+    """
+
+    legend = MacroElement()
+    legend._template = Template(
+        legend_html
+    )
+
+    m.get_root().add_child(
+        legend
+    )
+
+    # ========================================================
+    # 17. FIT BOUNDS
+    #
+    # Sedikit padding supaya Jawa Timur dan NTT tidak terlalu
+    # mepet sisi kiri/kanan.
+    # ========================================================
+    try:
+
+        minx, miny, maxx, maxy = (
+            gdf_target.total_bounds
+        )
+
+        m.fit_bounds(
+            [
+                [
+                    miny - 0.3,
+                    minx - 0.5
+                ],
+                [
+                    maxy + 0.3,
+                    maxx + 0.5
+                ],
+            ]
+        )
+
+    except Exception:
+        pass
+
+    # ========================================================
+    # 18. TAMPILKAN
+    # ========================================================
+    st_folium(
+        m,
+        height=560,
+        use_container_width=True,
+        key=key,
+        returned_objects=[],
+    )
+
+
+# ============================================================
+# MAP SATISFACTION: JAWA TIMUR + INSET NTT
+# ============================================================
+def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
+    """Peta utama Jawa Timur dengan inset NTT dan warna berbasis satisfaction."""
+    gdf_raw = load_shapefile()
+    if gdf_raw is None or gdf_raw.empty:
+        st.warning("Shapefile kabupaten/kota tidak ditemukan.")
+        return
+
+    kab_shape_col = _find_shp_col(gdf_raw, SHP_KAB_CANDIDATES)
+    prov_shape_col = _find_shp_col(gdf_raw, SHP_PROV_CANDIDATES)
+    location_col = cols.get("kab_kota") if cols else None
+    profile_col = cols.get("profile") if cols else None
+
+    if not kab_shape_col or not prov_shape_col:
+        st.warning("Kolom kabupaten/kota atau provinsi pada shapefile tidak ditemukan.")
+        return
+    if not location_col or location_col not in df.columns:
+        st.warning("Kolom kabupaten/kota pada data responden tidak ditemukan.")
+        return
+
+    gdf = gdf_raw.copy()
+    try:
+        if gdf.crs is None:
+            gdf = gdf.set_crs(epsg=4326)
+        elif gdf.crs.to_epsg() != 4326:
+            gdf = gdf.to_crs(epsg=4326)
+    except Exception:
+        pass
+
+    gdf["__prov"] = gdf[prov_shape_col].astype(str).str.strip().str.lower()
+    gdf = gdf[gdf["__prov"].str.contains(r"jawa timur|nusa tenggara timur|\bntt\b", regex=True, na=False)].copy()
+    if gdf.empty:
+        st.warning("Wilayah Jawa Timur dan NTT tidak ditemukan pada shapefile.")
+        return
+
+    is_ntt = gdf["__prov"].str.contains(r"nusa tenggara timur|\bntt\b", regex=True, na=False)
+    gdf["Kabupaten_Kota"] = gdf[kab_shape_col].astype(str).str.strip()
+
+    # Sesuai logika dashboard sebelumnya: Kota Batu tergabung ke Kabupaten Malang.
+    batu_mask = (~is_ntt) & gdf["Kabupaten_Kota"].str.lower().str.contains("batu", na=False)
+    gdf.loc[batu_mask, "Kabupaten_Kota"] = "Kabupaten Malang"
+    gdf.loc[is_ntt, "Kabupaten_Kota"] = "Nusa Tenggara Timur"
+
+    try:
+        gdf = gdf.dissolve(by="Kabupaten_Kota", as_index=False)
+        gdf["geometry"] = gdf.geometry.simplify(tolerance=0.005, preserve_topology=True)
+    except Exception as exc:
+        st.warning(f"Gagal memproses geometri peta: {exc}")
+        return
+
+    unit_from_key = str(key).split("_")[0].strip().lower()
+    h_label = {"sales": "H1", "service": "H2", "parts": "H3"}.get(unit_from_key, "")
+
+    # Hitung satisfaction dan profil dominan langsung dari scope hasil filter.
+    exact_stats, simple_stats = {}, {}
+    for location, group in df.dropna(subset=[location_col]).groupby(location_col):
+        sat = calculate_satisfaction(group, indicator_cols)
+        if sat is None:
+            continue
+
+        dominant_profile = "-"
+        if profile_col and profile_col in group.columns:
+            profile_values = group[profile_col].dropna().astype(str).str.strip()
+            if not profile_values.empty:
+                dominant_profile = profile_values.value_counts().index[0]
+
+        info = {"satisfaction": float(sat), "profile": dominant_profile}
+        exact_stats[str(location).strip().lower()] = info
+        exact_key = _normalize_exact_location(location)
+        simple_key = _normalize_location_name(location)
+        if exact_key:
+            exact_stats[exact_key] = info
+        if simple_key:
+            simple_stats[simple_key] = info
+
+        # Data Kupang mewakili seluruh NTT pada dashboard ini.
+        if "kupang" in simple_key or "nusa tenggara timur" in simple_key or simple_key == "ntt":
+            exact_stats["nusa tenggara timur"] = info
+
+    def lookup_stats(name):
+        raw = str(name).strip().lower()
+        if raw in exact_stats:
+            return exact_stats[raw]
+        exact_key = _normalize_exact_location(name)
+        if exact_key in exact_stats:
+            return exact_stats[exact_key]
+        return simple_stats.get(_normalize_location_name(name), {"satisfaction": None, "profile": "-"})
+
+    info_rows = gdf["Kabupaten_Kota"].apply(lookup_stats)
+    gdf["Satisfaction"] = [x["satisfaction"] for x in info_rows]
+    gdf["Dominan_Profile"] = [x["profile"] for x in info_rows]
+
+    # %CSL H123 = rata-rata satisfaction H1, H2, dan H3 per wilayah.
+    # Sheet dibaca melalui cache sehingga tidak mengulang unduhan setiap rerun.
+    h123_by_location = {}
+    unit_sources = [
+        ("sales", "sales_respondent", ["Indicator_metadata_H1", "Indikator_metadata_H1"]),
+        ("service", "service_respondent", ["Indicator_metadata_H2", "Indikator_metadata_H2"]),
+        ("parts", "parts_respondent", ["Indicator_metadata_H3", "Indikator_metadata_H3"]),
+    ]
+    for source_unit, source_sheet, metadata_sheets in unit_sources:
+        source_df = try_read_sheet(source_sheet)
+        if source_df.empty:
+            continue
+        source_cols = detect_columns(source_df, source_unit)
+        source_location = source_cols.get("kab_kota")
+        if not source_location or source_location not in source_df.columns:
+            continue
+        source_meta = pd.DataFrame()
+        for metadata_sheet in metadata_sheets:
+            source_meta = try_read_sheet(metadata_sheet)
+            if not source_meta.empty:
+                break
+        source_indicators = indicator_columns(source_df, source_meta)
+        for location, location_group in source_df.dropna(subset=[source_location]).groupby(source_location):
+            location_sat = calculate_satisfaction(location_group, source_indicators)
+            if location_sat is None:
+                continue
+            loc_key = _normalize_location_name(location)
+            if "kupang" in loc_key or loc_key in {"ntt", "nusa tenggara timur"}:
+                loc_key = "nusa tenggara timur"
+            h123_by_location.setdefault(loc_key, []).append(float(location_sat))
+
+    def lookup_h123(name):
+        loc_key = _normalize_location_name(name)
+        if loc_key in {"ntt", "nusa tenggara timur"}:
+            loc_key = "nusa tenggara timur"
+        values = h123_by_location.get(loc_key, [])
+        return float(np.mean(values)) if values else None
+
+    gdf["CSL_H123"] = gdf["Kabupaten_Kota"].apply(lookup_h123)
+
+    available = pd.to_numeric(gdf["Satisfaction"], errors="coerce").dropna()
+    if available.empty:
+        st.info("Nilai satisfaction per wilayah belum tersedia untuk filter yang dipilih.")
+        return
+
+    scale_min = float(available.min())
+    scale_max = float(available.max())
+    if math.isclose(scale_min, scale_max):
+        scale_min = max(0.0, scale_min - 1.0)
+        scale_max = min(100.0, scale_max + 1.0)
+
+    def satisfaction_color(value):
+        if value is None or pd.isna(value):
+            return "#D9DEE5"
+        ratio = max(0.0, min(1.0, (float(value) - scale_min) / (scale_max - scale_min)))
+        stops = [(230, 0, 18), (255, 176, 0), (53, 168, 83)]
+        if ratio <= 0.5:
+            local, start, end = ratio * 2, stops[0], stops[1]
+        else:
+            local, start, end = (ratio - 0.5) * 2, stops[1], stops[2]
+        rgb = tuple(round(start[i] + (end[i] - start[i]) * local) for i in range(3))
+        return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+    gdf_jatim = gdf[gdf["__prov"].astype(str).str.contains("jawa timur", na=False)].copy()
+    gdf_ntt = gdf[gdf["Kabupaten_Kota"] == "Nusa Tenggara Timur"].copy()
+    if gdf_jatim.empty:
+        st.warning("Geometri Jawa Timur tidak tersedia.")
+        return
+
+    main_map = folium.Map(
+        location=[-7.62, 112.45],
+        zoom_start=8,
+        min_zoom=6,
+        max_zoom=12,
+        tiles=None,
+        zoom_control=True,
+        prefer_canvas=True,
+        control_scale=False,
+    )
+    folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+        attr="&copy; OpenStreetMap contributors &copy; CARTO", control=False,
+    ).add_to(main_map)
+
+    def add_polygons(target_map, frame, show_labels=True):
+        for _, row in frame.iterrows():
+            sat = row["Satisfaction"]
+            sat_text = f"{float(sat):.1f}%" if sat is not None and not pd.isna(sat) else "Tidak ada data"
+            csl_h123 = row.get("CSL_H123")
+            csl_h123_text = f"{float(csl_h123):.1f}%" if csl_h123 is not None and not pd.isna(csl_h123) else "Tidak ada data"
+            color = satisfaction_color(sat)
+            feature = {
+                "type": "Feature",
+                "properties": {
+                    "Kabupaten_Kota": str(row["Kabupaten_Kota"]),
+                    "Satisfaction_Page": sat_text,
+                    "CSL_H123": csl_h123_text,
+                },
+                "geometry": row.geometry.__geo_interface__,
+            }
+            folium.GeoJson(
+                feature,
+                style_function=lambda _, c=color: {"fillColor": c, "color": "#FFFFFF", "weight": 1.5, "fillOpacity": 0.92},
+                highlight_function=lambda _, c=color: {"fillColor": c, "color": "#262626", "weight": 2.5, "fillOpacity": 1},
+                tooltip=folium.GeoJsonTooltip(
+                    fields=["Kabupaten_Kota", "Satisfaction_Page", "CSL_H123"],
+                    aliases=["Kabupaten/Kota:", f"Satisfaction {h_label}:", "%CSL H123:"],
+                    sticky=True,
+                    style="background:#fff;border:0;border-radius:8px;box-shadow:0 3px 12px rgba(0,0,0,.18);color:#262626;font-family:Arial;font-size:13px;padding:8px 10px;",
+                ),
+            ).add_to(target_map)
+
+            if show_labels:
+                try:
+                    point = row.geometry.representative_point()
+                    label = str(row["Kabupaten_Kota"]).replace("Kabupaten ", "").replace("Kota ", "").replace("Kab. ", "")
+                    folium.Marker(
+                        [point.y, point.x],
+                        icon=folium.DivIcon(
+                            icon_size=(100, 18), icon_anchor=(50, 9),
+                            html=f'<div style="width:100px;text-align:center;font:500 11px Arial;color:#184C7A;white-space:nowrap;pointer-events:none;text-shadow:-1px -1px #fff,1px -1px #fff,-1px 1px #fff,1px 1px #fff">{label}</div>',
+                        ),
+                    ).add_to(target_map)
+                except Exception:
+                    pass
+
+    add_polygons(main_map, gdf_jatim, show_labels=True)
+    # Tampilan awal H1, H2, dan H3 selalu fokus ke Provinsi Jawa Timur.
+    # NTT tidak dimasukkan ke bounds karena ditampilkan melalui inset terpisah.
+    JATIM_BOUNDS = [
+        [-8.95, 110.75],  # Batas barat daya
+        [-6.70, 114.65],  # Batas timur laut
+    ]
+
+    main_map.fit_bounds(
+        JATIM_BOUNDS,
+        padding_top_left=[15, 15],
+        padding_bottom_right=[15, 15],
+        max_zoom=8,
+    )
+
+    # Inset NTT dibuat sebagai SVG mandiri. Cara ini lebih stabil daripada
+    # membuat instance Leaflet kedua di dalam iframe st_folium (terutama saat
+    # tab Service dan Spare Part baru dibuka).
+    if not gdf_ntt.empty:
+        ntt_color = satisfaction_color(gdf_ntt.iloc[0]["Satisfaction"])
+        ntt_sat = gdf_ntt.iloc[0]["Satisfaction"]
+        ntt_sat_text = f"{float(ntt_sat):.1f}%" if ntt_sat is not None and not pd.isna(ntt_sat) else "Tidak ada data"
+        inset_id = f"ntt_inset_{re.sub(r'[^a-zA-Z0-9_]', '_', key)}"
+
+        geom = gdf_ntt.geometry.unary_union
+        minx_n, miny_n, maxx_n, maxy_n = geom.bounds
+        svg_w, svg_h, svg_pad = 330.0, 175.0, 10.0
+        span_x, span_y = max(maxx_n - minx_n, 1e-9), max(maxy_n - miny_n, 1e-9)
+        scale = min((svg_w - 2 * svg_pad) / span_x, (svg_h - 2 * svg_pad) / span_y)
+        x_off = (svg_w - span_x * scale) / 2
+        y_off = (svg_h - span_y * scale) / 2
+
+        def polygon_svg_path(poly):
+            rings = [poly.exterior] + list(poly.interiors)
+            commands = []
+            for ring in rings:
+                coords = list(ring.coords)
+                if not coords:
+                    continue
+                points = [
+                    (x_off + (x - minx_n) * scale, y_off + (maxy_n - y) * scale)
+                    for x, y in coords
+                ]
+                commands.append("M " + " L ".join(f"{x:.2f} {y:.2f}" for x, y in points) + " Z")
+            return " ".join(commands)
+
+        polygons = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
+        svg_paths = "".join(
+            f'<path d="{polygon_svg_path(poly)}" fill="{ntt_color}" fill-opacity="0.94" '
+            'stroke="#FFFFFF" stroke-width="1.2" fill-rule="evenodd"/>'
+            for poly in polygons if getattr(poly, "geom_type", "") == "Polygon"
+        )
+        inset_html = f"""
+        {{% macro html(this, kwargs) %}}
+        <div id="{inset_id}" title="Klik untuk memfilter NTT" onclick="filter_{inset_id}()"
+             style="position:absolute;right:14px;bottom:18px;width:29%;min-width:255px;height:198px;z-index:9997;border:3px solid white;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);overflow:hidden;background:#E9EEF2;cursor:pointer">
+          <div style="position:absolute;left:10px;top:8px;z-index:2;background:rgba(255,255,255,.95);padding:4px 8px;border-radius:5px;font:700 11px Arial;color:#262626">NTT · {ntt_sat_text}</div>
+          <svg viewBox="0 0 {svg_w:.0f} {svg_h:.0f}" preserveAspectRatio="xMidYMid meet" style="position:absolute;left:0;right:0;bottom:0;width:100%;height:176px;background:#E9EEF2">
+            {svg_paths}
+          </svg>
+        </div>
+        <script>
+          function filter_{inset_id}(){{
+            var target = new URL(window.parent.location.href);
+            target.searchParams.set('map_region','NTT');
+            target.searchParams.set('map_unit','{key.split('_')[0]}');
+            target.searchParams.set('map_click_token',Date.now().toString());
+            window.parent.location.href = target.toString();
+          }}
+        </script>
+        {{% endmacro %}}
+        """
+        inset = MacroElement()
+        inset._template = Template(inset_html)
+        main_map.get_root().add_child(inset)
+
+    legend_html = f"""
+    {{% macro html(this, kwargs) %}}
+    <div style="position:absolute;left:60px;bottom:18px;z-index:9998;background:rgba(255,255,255,.96);border:1px solid #D9DEE5;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:9px 12px;font:12px Arial;color:#475569">
+      <div style="font-weight:700;margin-bottom:5px">Nilai Satisfaction</div>
+      <div style="width:210px;height:10px;border-radius:5px;background:linear-gradient(90deg,#E60012 0%,#FFB000 50%,#35A853 100%)"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px"><span>Rendah · {scale_min:.1f}%</span><span>Tinggi · {scale_max:.1f}%</span></div>
+    </div>
+    {{% endmacro %}}
+    """
+    legend = MacroElement()
+    legend._template = Template(legend_html)
+    main_map.get_root().add_child(legend)
+
+    st_folium(main_map, height=560, use_container_width=True, key=key, returned_objects=[])
+# ============================================================
+# RENDER: KPI
+# ============================================================
+
+def _kpi_card(label, value, sub, sub_color):
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-label">{label}</div>
+            <div class="kpi-value">{value}</div>
+            <div class="kpi-sub" style="color:{sub_color};">{sub}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_kpi_cards(sat_s1, sat_s2, n_responden):
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        val = f"{sat_s1:.1f}%" if sat_s1 is not None else "N/A"
+        label = "Baik" if (sat_s1 or 0) >= 70 else ("Cukup" if (sat_s1 or 0) >= 50 else "Kurang")
+        _kpi_card("Satisfaction Semester 1", val, label if sat_s1 is not None else "-", "#2E7D32")
+    with c2:
+        val = f"{sat_s2:.1f}%" if sat_s2 is not None else "N/A"
+        label = "Baik" if (sat_s2 or 0) >= 70 else ("Cukup" if (sat_s2 or 0) >= 50 else "Kurang")
+        _kpi_card("Satisfaction Semester 2", val, label if sat_s2 is not None else "-", "#2E7D32")
+    with c3:
+        if sat_s1 is not None and sat_s2 is not None:
+            diff = round(sat_s2 - sat_s1, 1)
+            sign = "+" if diff >= 0 else ""
+            label = "Meningkat" if diff >= 0 else "Menurun"
+            color = "#2E7D32" if diff >= 0 else "#C62828"
+            _kpi_card("Improvement", f"{sign}{diff:.1f}%", label, color)
+        else:
+            _kpi_card("Improvement", "N/A", "-", "#888888")
+    with c4:
+        val = f"{n_responden:,}".replace(",", ".") if n_responden is not None else "N/A"
+        _kpi_card("Jumlah Responden", val, "Responden", "#555555")
+
+
+# ============================================================
+# RENDER: SATISFACTION PER ATRIBUT & TARGET GAP
+# ============================================================
+
+def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
+    with st.container(key=f"{key}_scroll_chart_card", border=True):
+        st.markdown('<div class="chart-title">Nilai Satisfaction per Atribut</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-subtitle">Data ditampilkan berdasarkan filter yang dipilih</div>', unsafe_allow_html=True)
+        if not attr_sat:
+            st.info("Data tidak tersedia.")
+            return
+        codes = list(attr_sat.keys())
+        vals = list(attr_sat.values())
+        names = [indicator_names.get(str(code).strip().upper(), "Nama indikator belum tersedia") for code in codes]
+        max_val = max(vals) if vals else 100
+        fig = go.Figure(go.Bar(
+            x=vals, y=codes, orientation="h",
+            marker=dict(color=vals, colorscale=[[0, "#FFAB91"], [1, "#B71C1C"]]),
+            text=[f"{v:.0f}%" for v in vals], textposition="outside",
+            customdata=np.array(names, dtype=object).reshape(-1, 1),
+            hovertemplate=(
+                "<b>Kode Indikator:</b> %{y}<br>"
+                "<b>Nama Indikator:</b> %{customdata[0]}<br>"
+                "<b>Satisfaction:</b> %{x:.1f}%<extra></extra>"
+            ),
+        ))
+        fig.update_layout(
+            xaxis=dict(range=[0, max(112, max_val + 12)], ticksuffix="%"),
+            yaxis=dict(autorange="reversed"),
+            margin=dict(l=10, r=30, t=10, b=10), height=max(280, 26 * len(codes)),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, key: str):
+    with st.container(key=f"{key}_scroll_chart_card", border=True):
+        st.markdown('<div class="chart-title">Capaian terhadap Target Atribut</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-subtitle">Data ditampilkan berdasarkan filter yang dipilih</div>', unsafe_allow_html=True)
+        if not gaps:
+            st.info("Data tidak tersedia.")
+            return
+        codes = list(gaps.keys())
+        vals = list(gaps.values())
+        names = [indicator_names.get(str(code).strip().upper(), "Nama indikator belum tersedia") for code in codes]
+        satisfaction_values = [attr_sat.get(code) for code in codes]
+        colors = [GREEN if v >= 0 else RED for v in vals]
+        texts = [f"+{v:.1f}%" if v >= 0 else f"{v:.1f}%" for v in vals]
+        max_val = max(vals) if vals else 0
+        min_val = min(vals) if vals else 0
+        x_max = max(0.1, max_val + max(0.12, abs(max_val) * 0.25))
+        x_min = min(0, min_val - max(0.05, abs(min_val) * 0.25))
+        fig = go.Figure(go.Bar(
+            x=vals, y=codes, orientation="h", marker=dict(color=colors),
+            text=texts, textposition="outside",
+            customdata=np.array([
+                [name, sat if sat is not None else np.nan]
+                for name, sat in zip(names, satisfaction_values)
+            ], dtype=object),
+            hovertemplate=(
+                "<b>Kode Indikator:</b> %{y}<br>"
+                "<b>Nama Indikator:</b> %{customdata[0]}<br>"
+                "<b>%Satisfaction:</b> %{customdata[1]:.1f}%<br>"
+                "<b>%Gap semester sebelumnya:</b> %{x:+.1f}%<extra></extra>"
+            ),
+        ))
+        fig.add_vline(x=0, line_color="#999999")
+        fig.update_layout(
+            xaxis=dict(range=[x_min, x_max]),
+            yaxis=dict(autorange="reversed"),
+            margin=dict(l=10, r=30, t=10, b=10), height=max(280, 26 * len(codes)),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def render_semester_difference_chart(diffs, subtitle: str, key: str):
+    with st.container(key=f"{key}_scroll_chart_card", border=True):
+        st.markdown('<div class="chart-title">Selisih Satisfaction Antar Semester</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chart-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+        if diffs is None:
+            st.info("Data periode sebelumnya tidak tersedia untuk filter ini.")
+            return
+        if not diffs:
+            st.info("Data tidak tersedia.")
+            return
+        codes = list(diffs.keys())
+        vals = list(diffs.values())
+        colors = [GREEN if v >= 0 else RED for v in vals]
+        texts = [f"+{v:.1f}%" if v >= 0 else f"{v:.1f}%" for v in vals]
+        max_val = max(vals) if vals else 0
+        min_val = min(vals) if vals else 0
+        x_max = max(0.1, max_val + max(0.12, abs(max_val) * 0.25))
+        x_min = min(0, min_val - max(0.05, abs(min_val) * 0.25))
+        fig = go.Figure(go.Bar(
+            x=vals, y=codes, orientation="h", marker=dict(color=colors),
+            text=texts, textposition="outside",
+        ))
+        fig.add_vline(x=0, line_color="#999999")
+        fig.update_layout(
+            xaxis=dict(range=[x_min, x_max]),
+            yaxis=dict(autorange="reversed"),
+            margin=dict(l=10, r=30, t=10, b=10), height=max(280, 26 * len(codes)),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+def render_performance_section(
+    df_all,
+    cols,
+    meta_df,
+    filters,
+    indicator_cols,
+    key_prefix
+):
+    indicator_names = build_indicator_name_map(meta_df)
+
+    # ========================================================
+    # SECTION 1 : CSL PERFORMANCE INDEX
+    # Seluruh isi berada dalam SATU container
+    # sehingga outline benar-benar membungkus semuanya.
+    # ========================================================
+
+    with st.container(
+        key=f"{key_prefix}_csl_performance_section"
+    ):
+
+        # ====================================================
+        # JUDUL SECTION
+        # ====================================================
+
+        st.markdown(
+            """
+            <div class="custom-section-title">
+                <div class="custom-section-badge">SECTION 1</div>
+                <div class="custom-section-text">CSL PERFORMANCE INDEX</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # ====================================================
+        # PETA
+        # ====================================================
+
+        st.markdown(
+            """
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px;">
+                <div style="font-size:12px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.3px;">
+                    Peta Satisfaction
+                </div>
+                <div style="font-size:10.5px;font-weight:700;color:#C8102E;background:#FFF1F1;border:1px solid #FFD8D8;padding:4px 9px;border-radius:20px;">
+                    CLICK MAP TO FILTER
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        create_map(
+            df_all,
+            cols,
+            indicator_cols,
+            key=f"{key_prefix}_map"
+        )
+
+        st.markdown(
+            "<div style='height:16px'></div>",
+            unsafe_allow_html=True
+        )
+
+        # ====================================================
+        # FILTER
+        # ====================================================
+
+        new_filters = render_filters(
+            df_all,
+            cols,
+            filters.get(
+                "_dealer_label",
+                "Dealer"
+            ),
+            key_prefix
+        )
+
+        new_filters["_dealer_label"] = (
+            filters.get(
+                "_dealer_label",
+                "Dealer"
+            )
+        )
+
+        filters = new_filters
+
+        df_filtered = apply_filters(
+            df_all,
+            cols,
+            filters
+        )
+
+        st.markdown(
+            "<div style='height:16px'></div>",
+            unsafe_allow_html=True
+        )
+
+        # ====================================================
+        # KPI
+        # ====================================================
+
+        year_col = cols.get("year")
+        sem_col = cols.get("semester")
+
+        df_s1 = apply_filters(
+            df_all,
+            cols,
+            filters,
+            override_semester=1,
+            ignore_period=True
+        )
+
+        df_s2 = apply_filters(
+            df_all,
+            cols,
+            filters,
+            override_semester=2,
+            ignore_period=True
+        )
+
+        if filters.get("year") and year_col:
+
+            df_s1 = df_s1[
+                df_s1[year_col]
+                .astype(str)
+                == str(filters["year"])
+            ]
+
+            df_s2 = df_s2[
+                df_s2[year_col]
+                .astype(str)
+                == str(filters["year"])
+            ]
+
+        sat_s1 = calculate_satisfaction(
+            df_s1,
+            indicator_cols
+        )
+
+        sat_s2 = calculate_satisfaction(
+            df_s2,
+            indicator_cols
+        )
+
+        n_responden = (
+            len(df_filtered)
+            if df_filtered is not None
+            else 0
+        )
+
+        render_kpi_cards(
+            sat_s1,
+            sat_s2,
+            n_responden
+        )
+
+        st.markdown(
+            "<div style='height:16px'></div>",
+            unsafe_allow_html=True
+        )
+
+        # ====================================================
+        # SATISFACTION PER ATRIBUT
+        # ====================================================
+
+        attr_sat = (
+            calculate_attribute_satisfaction(
+                df_filtered,
+                indicator_cols
+            )
+        )
+
+        # ====================================================
+        # GAP TERHADAP TARGET
+        # ====================================================
+
+        gaps = calculate_target_gap(
+            attr_sat,
+            meta_df,
+            filters.get("main_dealer"),
+            filters.get("layer")
+        )
+
+        # ====================================================
+        # PERIODE SEBELUMNYA
+        # ====================================================
+
+        available_periods = get_available_periods(
+            df_all,
+            cols
+        )
+
+        prev_period = None
+
+        if (
+            filters.get("year")
+            and filters.get("semester")
+        ):
+
+            prev_period = get_previous_period(
+                filters["year"],
+                filters["semester"],
+                available_periods
+            )
+
+        # ====================================================
+        # CHART
+        # ====================================================
+
+        if prev_period is None:
+
+            c1, c2 = st.columns(
+                2,
+                gap="medium"
+            )
+
+            with c1:
+
+                render_satisfaction_chart(
+                    attr_sat,
+                    indicator_names,
+                    key=f"{key_prefix}_sat"
+                )
+
+            with c2:
+
+                render_target_gap_chart(
+                    gaps,
+                    attr_sat,
+                    indicator_names,
+                    key=f"{key_prefix}_gap"
+                )
+
+        else:
+
+            prev_year, prev_sem = (
+                prev_period
+            )
+
+            df_prev = apply_filters(
+                df_all,
+                cols,
+                filters,
+                override_year=prev_year,
+                override_semester=prev_sem,
+                ignore_period=True,
+            )
+
+            diffs = (
+                calculate_semester_difference(
+                    df_filtered,
+                    df_prev,
+                    indicator_cols
+                )
+            )
+
+            cur_label = period_label(
+                filters["year"],
+                filters["semester"]
+            )
+
+            prev_label = period_label(
+                prev_year,
+                prev_sem
+            )
+
+            subtitle = (
+                f"{cur_label} − {prev_label}"
+            )
+
+            c1, c2, c3 = st.columns(
+                3,
+                gap="medium"
+            )
+
+            with c1:
+
+                render_satisfaction_chart(
+                    attr_sat,
+                    indicator_names,
+                    key=f"{key_prefix}_sat"
+                )
+
+            with c2:
+
+                render_target_gap_chart(
+                    gaps,
+                    attr_sat,
+                    indicator_names,
+                    key=f"{key_prefix}_gap"
+                )
+
+            with c3:
+
+                render_semester_difference_chart(
+                    diffs,
+                    subtitle,
+                    key=f"{key_prefix}_diff"
+                )
+
+    # ========================================================
+    # SUDAH DI LUAR OUTLINE MERAH
+    # ========================================================
+
+    return filters, df_filtered
+
+# ============================================================
+# RENDER: IMPORTANCE MATRIX (DARI WORKSHEET MATRIKS)
+# ============================================================
+
+def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
+    with st.container(key=f"{key}_matrix_section"):
+        st.markdown(
+            """
+            <div class="custom-section-title">
+                <div class="custom-section-badge">SECTION 2</div>
+                <div class="custom-section-text">MATRIX SATISFACTION x IMPORTANCE</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "Matriks ini menunjukkan posisi setiap atribut berdasarkan tingkat "
+            "Satisfaction (Y) dan Importance (X)."
+        )
+
+        u_str = str(unit_key).strip().lower()
+        if u_str in ["sales", "h1"]:
+            sheet_candidates = ["matriks_h1", "matriks_H1", "matrix_h1", "matriks", "matrix"]
+        elif u_str in ["service", "h2"]:
+            sheet_candidates = ["matriks_h2", "matriks_H2", "matrix_h2", "matriks", "matrix"]
+        elif u_str in ["parts", "h3"]:
+            sheet_candidates = ["matriks_h3", "matriks_H3", "matrix_h3", "matriks", "matrix"]
+        else:
+            sheet_candidates = ["matriks_h1", "matriks_h2", "matriks_h3", "matriks", "matrix"]
+
+        mat_df = pd.DataFrame()
+        for s in sheet_candidates:
+            mat_df = try_read_sheet(s)
+            if not mat_df.empty:
+                break
+
+        if mat_df.empty:
+            st.warning("Worksheet matriks tidak ditemukan.")
+            return
+
+        code_col = find_col(mat_df, ["Attribute", "attribute", "Kode_Indicator", "kode_indicator", "kode", "kode atribut", "code"])
+        sat_col = find_col(mat_df, ["Performance", "performance", "satisfaction", "nilai satisfaction"])
+        imp_col = find_col(mat_df, ["Relative_Importance", "relative_importance", "Weighting", "weighting", "importance", "nilai importance"])
+
+        if not code_col or not sat_col or not imp_col:
+            st.warning("Kolom Kode, Satisfaction, atau Importance tidak ditemukan pada worksheet matriks.")
+            return
+
+        # Nama indikator untuk tooltip dan panel detail kuadran.
+        # Metadata dipilih sesuai unit agar kode yang sama pada H1/H2/H3
+        # tidak tertukar keterangannya.
+        meta_candidates = {
+            "sales": ["Indicator_metadata_H1", "indicator_metadata_H1"],
+            "h1": ["Indicator_metadata_H1", "indicator_metadata_H1"],
+            "service": ["Indicator_metadata_H2", "indicator_metadata_H2"],
+            "h2": ["Indicator_metadata_H2", "indicator_metadata_H2"],
+            "parts": ["Indicator_metadata_H3", "indicator_metadata_H3"],
+            "h3": ["Indicator_metadata_H3", "indicator_metadata_H3"],
+        }.get(u_str, []) + ["indicator_metadata"]
+        indicator_name_map = {}
+        for meta_sheet in meta_candidates:
+            meta_lookup = try_read_sheet(meta_sheet)
+            if meta_lookup.empty:
+                continue
+            meta_code_col = find_col(meta_lookup, [
+                "Kode_Indikator", "kode indikator", "Kode Indicator",
+                "kode_indicator", "indicator code", "kode", "code",
+            ])
+            meta_name_col = find_col(meta_lookup, [
+                "Nama_Indikator", "nama indikator", "Indicator Name",
+                "nama_indicator", "indicator", "atribut", "attribute",
+                "description", "keterangan",
+            ])
+            if meta_code_col and meta_name_col:
+                for _, meta_row in meta_lookup[[meta_code_col, meta_name_col]].dropna(subset=[meta_code_col]).iterrows():
+                    code_key = str(meta_row[meta_code_col]).strip().upper()
+                    name_val = str(meta_row[meta_name_col]).strip()
+                    if code_key and name_val and name_val.lower() != "nan":
+                        indicator_name_map[code_key] = name_val
+                break
+
+        df_sub = mat_df.copy()
+
+        if filters:
+            if "Tahun" in df_sub.columns and filters.get("year"):
+                df_sub = df_sub[df_sub["Tahun"].astype(str) == str(filters["year"])]
+
+            if "Semester" in df_sub.columns and filters.get("semester"):
+                sem_val = str(filters["semester"])
+                if not sem_val.lower().startswith("semester"):
+                    sem_val = f"Semester {sem_val}"
+                matched_sem = df_sub[df_sub["Semester"].astype(str).str.lower() == sem_val.lower()]
+                if not matched_sem.empty:
+                    df_sub = matched_sem
+
+            cat_type_col = find_col(df_sub, ["Category_Type", "category_type"])
+            cat_col = find_col(df_sub, ["Category", "category"])
+
+            if cat_type_col and cat_col:
+                target_type = None
+                target_cat = None
+                if filters.get("dealer_code"):
+                    target_type = "DEALER"
+                    target_cat = str(filters["dealer_code"])
+                elif filters.get("kab_kota"):
+                    target_type = "KOTA"
+                    target_cat = str(filters["kab_kota"])
+                elif filters.get("karesidenan"):
+                    target_type = "KARES"
+                    target_cat = str(filters["karesidenan"])
+                elif filters.get("layer"):
+                    target_type = "LAYER"
+                    target_cat = str(filters["layer"])
+                elif filters.get("main_dealer") and str(filters["main_dealer"]).strip().upper() in ["M2Z", "M3Z"]:
+                    target_type = "MAIN DEALER"
+                    target_cat = str(filters["main_dealer"]).strip().upper()
+                else:
+                    col_sel1, _ = st.columns([1, 3])
+                    with col_sel1:
+                        target_cat = st.selectbox(
+                            "Pilih Main Dealer (Matriks):",
+                            options=["M2Z", "M3Z"],
+                            key=f"{key}_md_selector"
+                        )
+                    target_type = "MAIN DEALER"
+
+                if target_type and target_cat:
+                    m = df_sub[
+                        (df_sub[cat_type_col].astype(str).str.upper() == target_type) &
+                        (df_sub[cat_col].astype(str).str.upper().str.contains(target_cat.upper(), na=False))
+                    ]
+                    if not m.empty:
+                        df_sub = m
+
+        if df_sub.empty:
+            df_sub = mat_df.copy()
+
+        codes, xs, ys = [], [], []
+        grouped = df_sub.groupby(code_col, as_index=False)
+        for c_code, group in grouped:
+            try:
+                perf_series = pd.to_numeric(group[sat_col].astype(str).str.replace("%", "").str.replace(",", "."), errors="coerce")
+                imp_series = pd.to_numeric(group[imp_col].astype(str).str.replace("%", "").str.replace(",", "."), errors="coerce")
+
+                avg_perf = perf_series.mean()
+                avg_imp = imp_series.mean()
+
+                if pd.isna(avg_perf) or pd.isna(avg_imp):
+                    continue
+
+                y_val = round((avg_perf / 5.0 * 100), 1) if avg_perf <= 10 else round(avg_perf, 1)
+                x_val = round(avg_imp, 2)
+
+                codes.append(str(c_code).strip())
+                xs.append(x_val)
+                ys.append(y_val)
+            except Exception:
+                continue
+
+        if not codes:
+            st.info("Data matriks tidak tersedia.")
+            return
+
+        x_mid = round(sum(xs) / len(xs), 2)
+        y_mid = round(sum(ys) / len(ys), 2)
+
+        QUADRANTS = {
+            "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": ORANGE,
+                     "test": lambda x, y: x >= x_mid and y >= y_mid},
+            "low": {"label": "Prioritas Rendah", "roman": "Kuadran II", "color": GREEN,
+                    "test": lambda x, y: x < x_mid and y >= y_mid},
+            "gradual": {"label": "Perbaikan Bertahap", "roman": "Kuadran III", "color": "#C9A400",
+                        "test": lambda x, y: x < x_mid and y < y_mid},
+            "priority": {"label": "Prioritas Utama", "roman": "Kuadran IV", "color": RED,
+                         "test": lambda x, y: x >= x_mid and y < y_mid},
+        }
+
+        def classify(x, y):
+            for qk, info in QUADRANTS.items():
+                if info["test"](x, y):
+                    return qk
+            return "gradual"
+
+        quadrant_of_code = {}
+        points_by_quadrant = {qk: [] for qk in QUADRANTS}
+        for c_code, x_val, y_val in zip(codes, xs, ys):
+            qk = classify(x_val, y_val)
+            quadrant_of_code[c_code] = qk
+            points_by_quadrant[qk].append({
+                "code": c_code, "name": indicator_name_map.get(c_code.upper(), "Nama indikator belum tersedia"),
+                "x": x_val, "y": y_val,
+            })
+
+        colors = [QUADRANTS[quadrant_of_code[c]]["color"] for c in codes]
+
+        sel_key = f"{key}_selected_quadrant"
+        if sel_key not in st.session_state:
+            # Default: tampilkan kuadran dengan jumlah indikator terbanyak.
+            st.session_state[sel_key] = max(points_by_quadrant, key=lambda qk: len(points_by_quadrant[qk]))
+
+        # Baca hasil klik titik pada chart dari render sebelumnya (state Plotly).
+        prev_selection = st.session_state.get(key, {})
+        clicked_points = []
+        if isinstance(prev_selection, dict):
+            clicked_points = prev_selection.get("selection", {}).get("points", [])
+        if clicked_points:
+            idx = clicked_points[0].get("point_index")
+            if idx is not None and 0 <= idx < len(codes):
+                st.session_state[sel_key] = quadrant_of_code[codes[idx]]
+
+        selected_qk = st.session_state[sel_key]
+
+        col_chart, col_detail = st.columns([2.3, 1])
+
+        with col_chart:
+            chip_cols = st.columns(4)
+            for chip_col, (qk, info) in zip(chip_cols, QUADRANTS.items()):
+                with chip_col:
+                    is_sel = qk == selected_qk
+                    if st.button(
+                        f"{'●' if is_sel else '○'} {info['roman']} ({len(points_by_quadrant[qk])})",
+                        key=f"{key}_chip_{qk}",
+                        use_container_width=True,
+                        help=info["label"],
+                    ):
+                        st.session_state[sel_key] = qk
+                        selected_qk = qk
+
+            x_min, x_max = min(xs), max(xs)
+            y_min, y_max = min(ys), max(ys)
+            x_pad = max(0.25, (x_max - x_min) * 0.14)
+            y_pad = max(0.6, (y_max - y_min) * 0.14)
+            x_lo, x_hi = max(0.0, x_min - x_pad), x_max + x_pad
+            y_lo, y_hi = max(0.0, y_min - y_pad), min(105.0, y_max + y_pad)
+
+            fig = go.Figure()
+
+            quad_bounds = {
+                "low": (x_lo, x_mid, y_mid, y_hi),
+                "keep": (x_mid, x_hi, y_mid, y_hi),
+                "gradual": (x_lo, x_mid, y_lo, y_mid),
+                "priority": (x_mid, x_hi, y_lo, y_mid),
+            }
+            for qk, (rx0, rx1, ry0, ry1) in quad_bounds.items():
+                is_sel = qk == selected_qk
+                fig.add_shape(
+                    type="rect", x0=rx0, x1=rx1, y0=ry0, y1=ry1,
+                    fillcolor=QUADRANTS[qk]["color"], opacity=0.16 if is_sel else 0.055,
+                    line=dict(width=1.5 if is_sel else 0, color=QUADRANTS[qk]["color"]),
+                    layer="below",
+                )
+
+            marker_opacity = [1.0 if quadrant_of_code[c] == selected_qk else 0.38 for c in codes]
+            marker_line_width = [2 if quadrant_of_code[c] == selected_qk else 0.8 for c in codes]
+
+            point_names = [indicator_name_map.get(c.upper(), "Nama indikator belum tersedia") for c in codes]
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="markers+text", text=codes, textposition="top center",
+                customdata=point_names,
+                textfont=dict(size=11),
+                marker=dict(
+                    size=14, color=colors, opacity=marker_opacity,
+                    line=dict(width=marker_line_width, color="white"),
+                ),
+                hovertemplate="<b>%{text} · %{customdata}</b><br><b>Importance:</b> %{x:.2f}<br><b>Satisfaction:</b> %{y:.2f}%<extra></extra>",
+            ))
+
+            fig.add_vline(x=x_mid, line_dash="dash", line_width=1, line_color="#9AA0A6")
+            fig.add_hline(y=y_mid, line_dash="dash", line_width=1, line_color="#9AA0A6")
+
+            fig.update_layout(
+                xaxis=dict(title="Importance", range=[x_lo, x_hi], tickformat=".2f", gridcolor="#F0F1F3"),
+                yaxis=dict(title="Satisfaction (%)", range=[y_lo, y_hi], tickformat=".1f", gridcolor="#F0F1F3"),
+                margin=dict(l=20, r=20, t=10, b=20), height=440,
+                clickmode="event+select",
+                annotations=[
+                    dict(x=x_lo, y=y_hi, text=f"{QUADRANTS['low']['roman']} · Prioritas Rendah", showarrow=False, font=dict(color=GREEN, size=11), xanchor="left", yanchor="top"),
+                    dict(x=x_hi, y=y_hi, text=f"{QUADRANTS['keep']['roman']} · Pertahankan", showarrow=False, font=dict(color=ORANGE, size=11), xanchor="right", yanchor="top"),
+                    dict(x=x_lo, y=y_lo, text=f"{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap", showarrow=False, font=dict(color="#C9A400", size=11), xanchor="left", yanchor="bottom"),
+                    dict(x=x_hi, y=y_lo, text=f"{QUADRANTS['priority']['roman']} · Prioritas Utama", showarrow=False, font=dict(color=RED, size=11), xanchor="right", yanchor="bottom"),
+                ],
+            )
+            st.plotly_chart(
+                fig, use_container_width=True, key=key,
+                on_select="rerun", selection_mode="points",
+            )
+            st.caption("Klik titik pada matriks, atau klik salah satu tombol kuadran di atas, untuk melihat detail indikator di panel kanan.")
+
+        with col_detail:
+            info = QUADRANTS[selected_qk]
+            pts = sorted(points_by_quadrant[selected_qk], key=lambda p: p["code"])
+            if not pts:
+                list_html = """
+                    <div style="padding:16px 4px;color:#777;font-size:12px;">
+                        Tidak ada indikator pada kuadran ini.
+                    </div>
+                """
+            else:
+                item_html = []
+                for p in pts:
+                    safe_code = html.escape(str(p["code"]))
+                    safe_name = html.escape(str(p["name"]))
+                    item_html.append(
+                        f"""
+                        <div title="{safe_code} · {safe_name}" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;
+                                    border:1px solid #F0F1F3;border-left:4px solid {info['color']};border-radius:6px;
+                                    padding:6px 10px;margin-bottom:6px;">
+                            <span style="min-width:0;font-size:11.5px;color:#262626;line-height:1.25;overflow:hidden;">
+                                <b style="font-size:12.5px;">{safe_code}</b><br>
+                                <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{safe_name}</span>
+                            </span>
+                            <span style="font-size:11px;color:#666;text-align:right;">
+                                Sat {p['y']:.2f}%<br>Imp {p['x']:.2f}
+                            </span>
+                        </div>
+                        """
+                    )
+                list_html = "".join(item_html)
+
+            # Tinggi panel disamakan dengan area tombol + matriks di sebelah kiri.
+            # Jika indikator banyak, hanya daftar indikator yang bergerak/scroll.
+            panel_html = f"""
+                <div style="height:478px;border:1px solid #E7E9EC;border-radius:10px;
+                            background:#FFFFFF;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;">
+                    <div style="flex:0 0 auto;padding:12px 14px 10px;border-bottom:1px solid #F0F1F3;">
+                        <div style="font-size:11px;font-weight:800;letter-spacing:.4px;color:{info['color']};text-transform:uppercase;">
+                            {html.escape(info['roman'])}
+                        </div>
+                        <div style="font-size:15px;font-weight:800;color:#262626;">
+                            {html.escape(info['label'])}
+                        </div>
+                    </div>
+                    <div style="flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
+                                padding:8px 10px 10px;scrollbar-gutter:stable;">
+                        {list_html}
+                    </div>
+                </div>
+                """
+            # Hilangkan indentasi/baris baru agar Markdown tidak membaca item
+            # indikator sebagai code block, terutama setelah HTML hasil join.
+            panel_html = "".join(line.strip() for line in panel_html.splitlines())
+            st.markdown(
+                panel_html,
+                unsafe_allow_html=True,
+            )
+
+
+# ============================================================
+# RENDER: PROFILE CUSTOMER & DEMOGRAPHICS (OUTLINE BIRU UTUH)
+# ============================================================
+
+def render_profile_heatmap(unit_key: str, key: str):
+    with st.container(key=f"{key}_heatmap_scroll"):
+        st.markdown('<div class="chart-title">Heatmap Customer Profile vs Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-subtitle">Kesenjangan Karakteristik Tiap Customer Profile Terhadap Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
+
+        u_str = str(unit_key).strip().lower()
+        if u_str in ["sales", "h1"]:
+            sheet_candidates = ["heatmap_h1", "heatmap_H1", "heatmap"]
+            metadata_candidates = ["Indicator_metadata_H1", "Indikator_metadata_H1"]
+        elif u_str in ["service", "h2"]:
+            sheet_candidates = ["heatmap_h2", "heatmap_H2", "heatmap"]
+            metadata_candidates = ["Indicator_metadata_H2", "Indikator_metadata_H2"]
+        elif u_str in ["parts", "h3"]:
+            sheet_candidates = ["heatmap_h3", "heatmap_H3", "heatmap"]
+            metadata_candidates = ["Indicator_metadata_H3", "Indikator_metadata_H3"]
+        else:
+            sheet_candidates = ["heatmap_h1", "heatmap_h2", "heatmap_h3", "heatmap"]
+            metadata_candidates = ["indicator_metadata"]
+
+        heatmap_meta = pd.DataFrame()
+        for metadata_sheet in metadata_candidates:
+            heatmap_meta = try_read_sheet(metadata_sheet)
+            if not heatmap_meta.empty:
+                break
+        heatmap_indicator_names = build_indicator_name_map(heatmap_meta)
+
+        hm_df = pd.DataFrame()
+        for s in sheet_candidates:
+            hm_df = try_read_sheet(s)
+            if not hm_df.empty and ("Profile" in hm_df.columns or "profile" in hm_df.columns or "Kode_Indikator" in hm_df.columns):
+                break
+
+        if hm_df.empty:
+            st.warning("Worksheet heatmap tidak ditemukan.")
+            return
+
+        p_col = find_col(hm_df, ["Profile", "profile", "p", "profil"])
+        k_col = find_col(hm_df, ["Kode_Indikator", "kode_indicator", "kode", "code", "attribute", "indikator"])
+        v_col = find_col(hm_df, ["Nilai", "nilai", "value", "val", "selisih", "gap"])
+
+        profiles_label = []
+        attr_codes = []
+        matrix = []
+
+        if p_col and k_col and v_col:
+            df_clean = hm_df[[p_col, k_col, v_col]].dropna().copy()
+            df_clean[p_col] = df_clean[p_col].astype(str).str.replace("P", "", case=False).str.replace("Profile", "", case=False).str.strip()
+            df_clean[v_col] = pd.to_numeric(df_clean[v_col].astype(str).str.replace(",", "."), errors="coerce")
+            df_clean = df_clean.dropna(subset=[v_col])
+
+            # Vertikal (baris) = indikator, horizontal (kolom) = profile.
+            piv = df_clean.pivot(index=k_col, columns=p_col, values=v_col)
+
+            existing_p = [p for p in ["1", "2", "3", "4", "5"] if p in piv.columns]
+            if not existing_p:
+                existing_p = list(piv.columns)
+            piv = piv.reindex(columns=existing_p)
+
+            attr_codes = list(piv.index)
+            profiles_label = [str(p) for p in piv.columns]
+            matrix = piv.values.tolist()
+        else:
+            prof_cols = [c for c in hm_df.columns if str(c).strip().upper() in ["P1", "P2", "P3", "P4", "P5", "PROFILE 1", "PROFILE 2", "PROFILE 3", "PROFILE 4", "PROFILE 5"]]
+            if not k_col or not prof_cols:
+                st.warning("Struktur kolom heatmap tidak ditemukan pada worksheet heatmap.")
+                return
+
+            profiles_label = [re.sub(r"[^0-9]", "", str(pc)) or str(pc) for pc in prof_cols]
+            matrix = []
+            for _, r in hm_df.iterrows():
+                c_code = str(r[k_col]).strip()
+                row_vals = []
+                for pc in prof_cols:
+                    try:
+                        val = float(str(r[pc]).replace(",", ".").strip())
+                        row_vals.append(val)
+                    except Exception:
+                        row_vals.append(0.0)
+                attr_codes.append(c_code)
+                matrix.append(row_vals)
+
+        if not matrix or not attr_codes:
+            st.info("Data heatmap tidak tersedia.")
+            return
+
+        text_matrix = []
+        for row in matrix:
+            row_text = []
+            for v in row:
+                if pd.isna(v) or v is None:
+                    row_text.append("")
+                elif round(v, 2) == 0:
+                    row_text.append("0")
+                else:
+                    row_text.append(f"{v:.2f}".rstrip("0").rstrip("."))
+            text_matrix.append(row_text)
+
+        colorscale = [
+            [0.0, "#B71C1C"],  # Merah (Semakin Negatif)
+            [0.35, "#EF5350"], # Merah Muda
+            [0.5, "#FFFFFF"],  # Putih (Netral / 0)
+            [0.65, "#81C784"], # Hijau Muda
+            [1.0, "#2E7D32"]   # Hijau (Semakin Positif)
+        ]
+
+        heatmap_names = [
+            heatmap_indicator_names.get(str(code).strip().upper(), "Nama indikator belum tersedia")
+            for code in attr_codes
+        ]
+        heatmap_customdata = [
+            [[str(code), str(name)] for _ in profiles_label]
+            for code, name in zip(attr_codes, heatmap_names)
+        ]
+
+        fig = go.Figure(go.Heatmap(
+            z=matrix,
+            x=[f"P{p}" for p in profiles_label],
+            y=attr_codes,
+            text=text_matrix,
+            texttemplate="%{text}",
+            textfont=dict(size=12, color="#212121"),
+            colorscale=colorscale,
+            zmid=0,
+            xgap=1.5,
+            ygap=1.5,
+            customdata=heatmap_customdata,
+            colorbar=dict(title="Selisih", thickness=15),
+            hovertemplate=(
+                "<b>Kode Indikator:</b> %{customdata[0]}<br>"
+                "<b>Nama Indikator:</b> %{customdata[1]}<br>"
+                "<b>Selisih satisfaction rata-rata keseluruhan:</b> %{z:.2f}"
+                "<extra></extra>"
+            )
+        ))
+
+        chart_height = max(340, 34 * len(attr_codes) + 90)
+        fig.update_layout(
+            xaxis=dict(title="Profile", tickangle=0, side="top"),
+            yaxis=dict(title="Indikator", autorange="reversed"),
+            margin=dict(l=30, r=20, t=40, b=20),
+            height=chart_height,
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
+    with st.container(border=True):
+        st.markdown('<div class="chart-title">Daftar Profil</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-subtitle">Klik kartu profil untuk memilih</div>', unsafe_allow_html=True)
+
+        profile_col = cols.get("profile") if cols else None
+        selected = st.session_state.get(f"{key_prefix}_selected_profile", "P1")
+
+        meta_names = {}
+        if profile_meta_df is not None and not profile_meta_df.empty:
+            code_col = find_col(profile_meta_df, ["profile", "profil", "code", "no"])
+            name_col = find_col(profile_meta_df, ["profile name", "nama profil", "nama", "name"])
+            if code_col and name_col:
+                for _, r in profile_meta_df.iterrows():
+                    p_raw = str(r[code_col]).replace(".0", "").strip()
+                    p_key = f"P{p_raw}" if not p_raw.upper().startswith("P") else p_raw.upper()
+                    n_val = str(r[name_col]).strip()
+                    if n_val and n_val.lower() != "nan":
+                        meta_names[p_key] = n_val
+
+        total = len(df_filtered) if df_filtered is not None else 0
+        for p in ["P1", "P2", "P3", "P4", "P5"]:
+            count = 0
+            if profile_col and df_filtered is not None and not df_filtered.empty and profile_col in df_filtered.columns:
+                count = df_filtered[profile_col].astype(str).str.contains(p, case=False, na=False).sum()
+                if count == 0:
+                    p_num = p.replace("P", "")
+                    count = df_filtered[profile_col].astype(str).str.contains(rf"\b{p_num}\b", case=False, na=False).sum()
+
+            pct = round(count / total * 100, 0) if total > 0 else 0
+            is_active = (p == selected)
+            p_num = p.replace("P", "")
+            name = meta_names.get(p, PROFILE_NAMES.get(p, f"Profil {p_num}"))
+
+            active_tag = "_active" if is_active else "_inactive"
+            card_key = f"{key_prefix}_prof_card_{p}{active_tag}"
+            
+            with st.container(key=card_key):
+                st.markdown(
+                    f"""
+                    <div class="profile-card-inner">
+                        <div class="profile-card-header">
+                            <span class="profile-card-title">Profil {p_num} – {name}</span>
+                            <span class="profile-card-pct">{pct:.0f}%</span>
+                        </div>
+                        <div class="profile-bar-bg">
+                            <div class="profile-bar-fill" style="width:{pct}%; background:{PROFILE_COLORS[p]};"></div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button(" ", key=f"{key_prefix}_btn_select_{p}", use_container_width=True):
+                    st.session_state[f"{key_prefix}_selected_profile"] = p
+                    selected = p
+        return selected
+
+
+def render_profile_explanation(profile_meta_df, selected_profile):
+    with st.container(border=True):
+        p_num = selected_profile.replace("P", "").strip()
+        p_key = f"P{p_num}"
+
+        name = PROFILE_NAMES.get(p_key, f"Profil {p_num}")
+        insight, reco = None, None
+
+        if profile_meta_df is not None and not profile_meta_df.empty:
+            code_col = find_col(profile_meta_df, ["profile", "profil", "code", "no"])
+            name_col = find_col(profile_meta_df, ["profile name", "nama profil", "nama", "name"])
+            insight_col = find_col(profile_meta_df, ["business insight", "insight"])
+            reco_col = find_col(profile_meta_df, ["recommendation", "rekomendasi"])
+
+            if code_col:
+                match = profile_meta_df[profile_meta_df[code_col].astype(str).str.contains(rf"\b{p_num}\b", case=False, na=False)]
+                if not match.empty:
+                    row = match.iloc[0]
+                    if name_col and pd.notna(row.get(name_col)):
+                        n_val = str(row.get(name_col)).strip()
+                        if n_val and n_val.lower() != "nan":
+                            name = n_val
+                    if insight_col and pd.notna(row.get(insight_col)):
+                        insight = str(row.get(insight_col)).strip()
+                    if reco_col and pd.notna(row.get(reco_col)):
+                        reco = str(row.get(reco_col)).strip()
+
+        st.markdown(f'<div class="chart-title" style="font-size:14px; margin-bottom:10px;">Penjelasan Profil: Profil {p_num} – {name}</div>', unsafe_allow_html=True)
+
+        insight_text = insight if insight and insight.lower() != "nan" else "Business insight tidak tersedia untuk profil ini."
+        st.markdown(
+            f"""
+            <div class="insight-box">
+                <div class="insight-box-header">
+                    <span></span><span>Business Insight</span>
+                </div>
+                <div class="insight-box-body">
+                    {insight_text}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        reco_text = reco if reco and reco.lower() != "nan" else "Rekomendasi tidak tersedia untuk profil ini."
+        st.markdown(
+            f"""
+            <div class="reco-box">
+                <div class="reco-box-header">
+                    <span></span><span>Rekomendasi Strategis</span>
+                </div>
+                <div class="reco-box-body">
+                    {reco_text}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# ============================================================
+# RENDER: DEMOGRAPHIC & NPS CHARTS
+# ============================================================
+
+def _simple_pie(df, col, title, key, colors=None):
+    with st.container(
+        key=f"{key}_demographic_chart_card",
+        border=True,
+    ):
+        st.markdown(
+            f'<div class="chart-title">{title}</div>',
+            unsafe_allow_html=True,
+        )
+
+        with st.container(key=f"{key}_chart_viewport"):
+            if (
+                not col
+                or df is None
+                or df.empty
+                or col not in df.columns
+            ):
+                st.info("Data tidak tersedia.")
+                return
+
+            counts = (
+                df[col]
+                .dropna()
+                .astype(str)
+                .value_counts()
+            )
+
+            if counts.empty:
+                st.info("Data tidak tersedia.")
+                return
+
+            fig = go.Figure(
+                go.Pie(
+                    labels=counts.index,
+                    values=counts.values,
+                    hole=0.35,
+                    marker=dict(colors=colors) if colors else None,
+                    textinfo="percent",
+                    hovertemplate=(
+                        "<b>%{label}</b><br>"
+                        "Persentase: %{percent}<br>"
+                        "Responden: %{value} orang"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+            fig.update_layout(
+                height=330,
+                margin=dict(l=10, r=10, t=5, b=5),
+                showlegend=True,
+                legend=dict(
+                    orientation="v",
+                    x=1,
+                    xanchor="right",
+                    y=1,
+                    yanchor="top",
+                ),
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=key,
+                config={"displayModeBar": False},
+            )
+
+
+def _age_group_hbar(df, col, title, key):
+    with st.container(
+        key=f"{key}_demographic_chart_card",
+        border=True,
+    ):
+        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+
+        with st.container(key=f"{key}_chart_viewport"):
+            if not col or df is None or df.empty or col not in df.columns:
+                st.info("Data tidak tersedia.")
+                return
+
+            counts = df[col].dropna().astype(str).value_counts()
+            if counts.empty:
+                st.info("Data tidak tersedia.")
+                return
+
+            total = counts.sum()
+            pct = (counts / total * 100).round(1)
+
+            def age_sort_key(label):
+                m = re.search(r"(\d+)", str(label))
+                if m:
+                    return int(m.group(1))
+                if "<" in str(label):
+                    return 0
+                if ">" in str(label):
+                    return 999
+                return 500
+
+            sorted_indices = sorted(pct.index, key=age_sort_key, reverse=True)
+            pct_sorted = pct.reindex(sorted_indices).dropna()
+            counts_sorted = counts.reindex(pct_sorted.index).fillna(0).astype(int)
+            max_val = max(pct_sorted.values) if not pct_sorted.empty else 100
+
+            # Tinggi grafik tidak diperkecil. Jika kategori bertambah,
+            # figure menjadi lebih tinggi dan viewport menampilkan scrollbar.
+            chart_h = max(330, 32 * len(pct_sorted) + 60)
+
+            fig = go.Figure(go.Bar(
+                x=pct_sorted.values,
+                y=pct_sorted.index,
+                orientation="h",
+                marker=dict(color=RED),
+                text=[f"{v:.1f}%" for v in pct_sorted.values],
+                textposition="outside",
+                customdata=np.array(counts_sorted.values, dtype=int).reshape(-1, 1),
+                hovertemplate=(
+                    "<b>Kelompok Usia:</b> %{y}<br>"
+                    "<b>Persentase:</b> %{x:.1f}%<br>"
+                    "<b>Responden:</b> %{customdata[0]} orang<extra></extra>"
+                ),
+            ))
+            fig.update_layout(
+                xaxis=dict(range=[0, max(112, max_val + 12)], ticksuffix="%"),
+                margin=dict(l=10, r=30, t=10, b=10),
+                height=chart_h,
+                showlegend=False,
+            )
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=key,
+                config={"displayModeBar": False},
+            )
+
+
+def _motor_type_hbar(df, col, title, key):
+    with st.container(
+        key=f"{key}_demographic_chart_card",
+        border=True,
+    ):
+        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+        with st.container(key=f"{key}_chart_viewport"):
+            if not col or df is None or df.empty or col not in df.columns:
+                st.info("Data tidak tersedia.")
+                return
+
+            def motor_series(value):
+                raw = str(value).strip()
+                norm = re.sub(r"[^a-z0-9]+", " ", raw.lower()).strip()
+                if re.search(r"\bbeat\b", norm):
+                    return "Beat Series"
+                if re.search(r"\bpcx\b", norm):
+                    return "PCX Series"
+                return raw
+
+            counts = df[col].dropna().map(motor_series).value_counts()
+            if counts.empty:
+                st.info("Data tidak tersedia.")
+                return
+            total = counts.sum()
+            pct = (counts / total * 100).round(1)
+
+            pct_sorted = pct.sort_values(ascending=True)
+            counts_sorted = counts.reindex(pct_sorted.index).fillna(0).astype(int)
+            max_val = max(pct_sorted.values) if not pct_sorted.empty else 100
+
+            # Grafik tetap proporsional. Jika kategorinya banyak, tinggi figure
+            # bertambah dan viewport yang akan menampilkan scrollbar.
+            chart_h = max(330, 32 * len(pct_sorted) + 60)
+            fig = go.Figure(go.Bar(
+                x=pct_sorted.values, y=pct_sorted.index, orientation="h",
+                marker=dict(color=RED), text=[f"{v:.1f}%" for v in pct_sorted.values], textposition="outside",
+                customdata=np.array(counts_sorted.values, dtype=int).reshape(-1, 1),
+                hovertemplate=(
+                    "<b>Tipe Motor:</b> %{y}<br>"
+                    "<b>Persentase:</b> %{x:.1f}%<br>"
+                    "<b>Responden:</b> %{customdata[0]} orang<extra></extra>"
+                ),
+            ))
+            fig.update_layout(
+                xaxis=dict(range=[0, max(112, max_val + 15)], ticksuffix="%"),
+                margin=dict(l=10, r=30, t=10, b=10),
+                height=chart_h, showlegend=False
+            )
+            st.plotly_chart(fig, use_container_width=True, key=key, config={"displayModeBar": False})
+
+
+def _simple_hbar(df, col, title, key):
+    with st.container(key=f"{key}_scroll_chart_card", border=True):
+        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+        if not col or df is None or df.empty or col not in df.columns:
+            st.info("Data tidak tersedia.")
+            return
+        counts = df[col].dropna().astype(str).value_counts()
+        if counts.empty:
+            st.info("Data tidak tersedia.")
+            return
+        total = counts.sum()
+        pct = (counts / total * 100).round(0)
+        max_val = max(pct.values) if not pct.empty else 100
+        fig = go.Figure(go.Bar(
+            x=pct.values, y=pct.index, orientation="h",
+            marker=dict(color=RED), text=[f"{v:.0f}%" for v in pct.values], textposition="outside",
+        ))
+        fig.update_layout(
+            xaxis=dict(range=[0, max(112, max_val + 12)], ticksuffix="%"),
+            margin=dict(l=10, r=30, t=10, b=10),
+            height=240, showlegend=False
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def _stacked_pct(df, col, title, key, is_ses=False):
+    with st.container(key=f"{key}_fixed_chart_card", border=True):
+        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+        if not col or df is None or df.empty or col not in df.columns:
+            st.info("Data tidak tersedia.")
+            return
+        counts = df[col].dropna().astype(str).value_counts()
+        if counts.empty:
+            st.info("Data tidak tersedia.")
+            return
+        total = counts.sum()
+        pct = (counts / total * 100).round(0)
+        palette = [RED, ORANGE, YELLOW, GREEN, "#1E88E5", "#8E24AA", "#D81B60"]
+        fig = go.Figure()
+        ses_ranges = {
+            "A": "> 6 Juta", "A1": "> 6 Juta", "A2": "4 – 6 Juta",
+            "B": "2,5 – 4 Juta", "C1": "1,75 – 2,5 Juta",
+            "C2": "1,25 – 1,75 Juta", "D": "0,9 – 1,25 Juta",
+            "E": "≤ 0,9 Juta",
+        }
+        for i, (label, v) in enumerate(pct.items()):
+            label_text = str(label).strip()
+            range_text = ses_ranges.get(label_text.upper(), "Rentang tidak tersedia")
+            respondents = int(counts.get(label, 0))
+            fig.add_trace(go.Bar(x=[v], y=[""], orientation="h", name=str(label),
+                                  marker=dict(color=palette[i % len(palette)]),
+                                  text=f"{v:.0f}%<br>{label}", textposition="inside",
+                                  customdata=[[range_text, respondents]],
+                                  hovertemplate=(
+                                      f"<b>{label_text}: %{{customdata[0]}}</b><br>"
+                                      "Persentase: %{x:.1f}%<br>"
+                                      "Responden: %{customdata[1]} orang<extra></extra>"
+                                  ) if is_ses else (
+                                      f"<b>{label_text}</b><br>Persentase: %{{x:.1f}}%<br>"
+                                      "Responden: %{customdata[1]} orang<extra></extra>"
+                                  )))
+        fig.update_layout(barmode="stack", showlegend=False, height=110,
+                           margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(visible=False), yaxis=dict(visible=False))
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+
+def render_nps_gauge(value, title, key):
+    with st.container(key=f"{key}_nps_chart_card", border=True):
+        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+        if value is None:
+            st.info("Data tidak tersedia.")
+            return
+
+        val_clamped = max(0.0, min(100.0, float(value)))
+        label = "Sangat Baik" if val_clamped >= 85 else ("Baik" if val_clamped >= 70 else ("Cukup" if val_clamped >= 50 else "Kurang"))
+
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=val_clamped,
+            number=dict(suffix="", font=dict(size=30, color="#212121")),
+            gauge=dict(
+                axis=dict(range=[0, 100], tickwidth=1, tickcolor="#666"),
+                bar=dict(color="#212121", thickness=0.25),
+                threshold=dict(
+                    line=dict(color="#000000", width=4),
+                    thickness=0.8,
+                    value=val_clamped
+                ),
+                steps=[
+                    dict(range=[0, 50], color=RED),
+                    dict(range=[50, 70], color=ORANGE),
+                    dict(range=[70, 85], color=YELLOW),
+                    dict(range=[85, 100], color=GREEN),
+                ],
+            ),
+        ))
+        fig.update_layout(margin=dict(l=15, r=15, t=10, b=10), height=250)
+        st.plotly_chart(fig, use_container_width=True, key=key)
+        st.caption(f"Status NPS: {label} ({val_clamped:.1f})")
+
+
+def render_demographic_charts(
+    df_filtered, cols, dealer_label, key_prefix,
+    selected_profile=None, unit_key=None,
+):
+    df_prof = df_filtered
+    profile_col = cols.get("profile") if cols else None
+    if selected_profile and profile_col and df_filtered is not None and not df_filtered.empty and profile_col in df_filtered.columns:
+        p_num = str(selected_profile).replace("P", "").strip()
+        matched = df_filtered[
+            df_filtered[profile_col].astype(str).str.contains(rf"\b{p_num}\b", case=False, na=False) |
+            df_filtered[profile_col].astype(str).str.contains(selected_profile, case=False, na=False)
+        ]
+        if not matched.empty:
+            df_prof = matched
+
+    r1c1, r1c2, r1c3 = st.columns(3)
+    with r1c1:
+        _simple_pie(df_prof, cols.get("gender"), "Jumlah Responden Berdasarkan Jenis Kelamin",
+                    key=f"{key_prefix}_gender", colors=[RED, ORANGE])
+    with r1c2:
+        _age_group_hbar(df_prof, cols.get("age"), "Jumlah Responden Berdasarkan Usia", key=f"{key_prefix}_age")
+    with r1c3:
+        _motor_type_hbar(df_prof, cols.get("motor_type"), "Tipe Motor", key=f"{key_prefix}_motor")
+
+    # SES dan Retention selalu satu baris berisi dua chart agar keduanya
+    # memperoleh ruang yang sama dan lebih mudah dibandingkan.
+    r2c1, r2c2 = st.columns(2)
+    with r2c1:
+        _stacked_pct(df_prof, cols.get("ses"), "SES", key=f"{key_prefix}_ses", is_ses=True)
+    with r2c2:
+        _stacked_pct(df_prof, cols.get("retention"), "Retention", key=f"{key_prefix}_retention")
+
+    unit = str(unit_key or key_prefix).strip().lower()
+    nps_col = cols.get("nps")
+    nps_unit_col = cols.get("nps_unit")
+    nps_dealer_col = cols.get("nps_dealer")
+
+    def nps_value(column):
+        if not column or df_prof is None or column not in df_prof.columns:
+            return None
+        return compute_nps(df_prof[column])
+
+    if unit == "sales":
+        # Sales: pembayaran ditempatkan bersama dua gauge NPS.
+        r3c1, r3c2, r3c3 = st.columns(3)
+        with r3c1:
+            _simple_pie(
+                df_prof, cols.get("payment"), "Distribusi Tipe Pembayaran",
+                key=f"{key_prefix}_payment",
+                colors=[RED, ORANGE, YELLOW, GREEN, "#1E88E5"],
+            )
+        with r3c2:
+            render_nps_gauge(
+                nps_value(nps_unit_col), "NPS Unit",
+                key=f"{key_prefix}_nps_unit",
+            )
+        with r3c3:
+            render_nps_gauge(
+                nps_value(nps_dealer_col), "NPS Dealer",
+                key=f"{key_prefix}_nps_dealer",
+            )
+
+    elif unit == "service":
+        # Service tidak menampilkan tipe pembayaran.
+        r3c1, r3c2 = st.columns(2)
+        with r3c1:
+            render_nps_gauge(
+                nps_value(nps_unit_col), "NPS Unit",
+                key=f"{key_prefix}_nps_unit",
+            )
+        with r3c2:
+            render_nps_gauge(
+                nps_value(nps_dealer_col), "NPS AHASS",
+                key=f"{key_prefix}_nps_dealer",
+            )
+
+    else:
+        # Spare Part: tiga gauge, tanpa tipe pembayaran.
+        r3c1, r3c2, r3c3 = st.columns(3)
+        with r3c1:
+            render_nps_gauge(
+                nps_value(nps_col), "NPS",
+                key=f"{key_prefix}_nps",
+            )
+        with r3c2:
+            render_nps_gauge(
+                nps_value(nps_unit_col), "NPS Unit",
+                key=f"{key_prefix}_nps_unit",
+            )
+        with r3c3:
+            render_nps_gauge(
+                nps_value(nps_dealer_col), "NPS Part Shop",
+                key=f"{key_prefix}_nps_dealer",
+            )
+
+
+# ============================================================
+# UNIT PAGE
+# ============================================================
+
+def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_label: str):
+    df_raw = try_read_sheet(sheet_name)
+    if df_raw.empty:
+        st.warning(f"Data '{sheet_name}' tidak ditemukan atau gagal dimuat dari Google Sheets.")
+        return
+
+    # Load Metadata Sheets
+    meta_h1 = try_read_sheet("Indicator_metadata_H1")
+    meta_h2 = try_read_sheet("Indicator_metadata_H2")
+    meta_h3 = try_read_sheet("Indicator_metadata_H3")
+    meta_gen = try_read_sheet("indicator_metadata")
+
+    if unit_key == "sales" and not meta_h1.empty:
+        meta_df = meta_h1
+    elif unit_key == "service" and not meta_h2.empty:
+        meta_df = meta_h2
+    elif unit_key == "parts" and not meta_h3.empty:
+        meta_df = meta_h3
+    else:
+        meta_df = meta_gen if not meta_gen.empty else (meta_h1 if not meta_h1.empty else (meta_h2 if not meta_h2.empty else meta_h3))
+
+    profile_meta_h1 = try_read_sheet("profile_metadata_H1")
+    profile_meta_h2 = try_read_sheet("profile_metadata_H2")
+    profile_meta_h3 = try_read_sheet("profile_metadata_H3")
+    profile_meta_gen = try_read_sheet("profile_metadata")
+
+    if unit_key == "sales" and not profile_meta_h1.empty:
+        profile_meta_df = profile_meta_h1
+    elif unit_key == "service" and not profile_meta_h2.empty:
+        profile_meta_df = profile_meta_h2
+    elif unit_key == "parts" and not profile_meta_h3.empty:
+        profile_meta_df = profile_meta_h3
+    else:
+        profile_meta_df = profile_meta_gen if not profile_meta_gen.empty else (profile_meta_h1 if not profile_meta_h1.empty else (profile_meta_h2 if not profile_meta_h2.empty else profile_meta_h3))
+
+    cols = detect_columns(df_raw, unit_key)
+    df_raw = add_karesidenan(df_raw, cols)
+    indicator_cols = indicator_columns(df_raw, meta_df)
+
+    key_prefix = f"{unit_key}"
+
+    filters = {"_dealer_label": dealer_label}
+    filters, df_filtered = render_performance_section(
+        df_raw, cols, meta_df, filters, indicator_cols, key_prefix
+    )
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    render_importance_matrix(unit_key, key=f"{key_prefix}_matrix", filters=filters)
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # BLUE SECTION START: Encompasses ALL Profile & Demographic & NPS charts
+    with st.container(key=f"{key_prefix}_profile_customer_section"):
+        st.markdown(
+            """
+            <div class="custom-section-title">
+                <div class="custom-section-badge">SECTION 3</div>
+                <div class="custom-section-text">PROFILE CUSTOMER</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        r1_col1, r1_col2, r1_col3 = st.columns(
+            [2.1, 1, 1.3],
+            gap="medium",
+            vertical_alignment="top",
+        )
+
+        # ============================================================
+        # HEATMAP
+        # ============================================================
+        with r1_col1:
+            with st.container(
+                key=f"{key_prefix}_profile_equal_height_profile_heatmap_column",
+                border=True,
+            ):
+                render_profile_heatmap(
+                    unit_key,
+                    key=f"{key_prefix}_heatmap"
+                )
+
+        # ============================================================
+        # DAFTAR PROFIL
+        # ============================================================
+        with r1_col2:
+            with st.container(
+                key=f"{key_prefix}_profile_equal_height_profile_list_column",
+                border=True,
+            ):
+                selected_profile = render_profile_list(
+                    df_filtered,
+                    cols,
+                    key_prefix,
+                    profile_meta_df=profile_meta_df,
+                )
+
+        # ============================================================
+        # PENJELASAN PROFIL
+        # ============================================================
+        with r1_col3:
+            with st.container(
+                key=f"{key_prefix}_profile_equal_height_profile_explanation_column",
+                border=True,
+            ):
+                render_profile_explanation(
+                    profile_meta_df,
+                    selected_profile,
+                )
+
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        render_demographic_charts(
+            df_filtered,
+            cols,
+            dealer_label,
+            key_prefix,
+            selected_profile=selected_profile,
+            unit_key=unit_key,
+        )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    inject_css()
+    st.markdown(
+        """
+        <div class="csl-header"><div class="csl-brand"><div class="csl-logo">CSL</div>
+        <div><h1>CSL PERFORMANCE INTELLIGENCE</h1><p>Customer Satisfaction Level Analytics</p></div></div>
+        <div class="csl-header-note">Dashboard Customer Satisfaction<br><b>Sales · Service · Spare Part</b></div></div>
+        """, unsafe_allow_html=True,
+    )
+
+    with st.container(key="page_selector_card", border=True):
+        selected_page = st.segmented_control(
+            "Pilih Page",
+            options=["H1 SALES", "H2 SERVICE", "H3 SPARE PART"],
+            default="H1 SALES",
+            key="main_page_selector",
+            label_visibility="collapsed",
+        )
+
+    if selected_page == "H2 SERVICE":
+        render_unit_page(
+            "service", "Service", "service_respondent", "AHASS"
+        )
+    elif selected_page == "H3 SPARE PART":
+        render_unit_page(
+            "parts", "Spare Part", "parts_respondent", "Part Shop"
+        )
+    else:
+        render_unit_page(
+            "sales", "Sales", "sales_respondent", "Dealer"
+        )
+if __name__ == "__main__":
+    main()
