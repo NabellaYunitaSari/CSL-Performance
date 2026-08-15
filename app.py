@@ -5068,7 +5068,7 @@ def render_top_navigation():
     with st.container(key="top_header"):
         brand_col, time_col, refresh_col, reset_col = st.columns([6.8, 1.55, 1.15, 1.05], vertical_alignment="center", gap="small")
         with brand_col:
-            st.markdown('''<div class="csl-header-brand"><div class="csl-logo">CSL</div><div class="csl-brand"><div><h1>CSL PERFORMANCE INTELLIGENCE</h1></div></div></div>''', unsafe_allow_html=True)
+            st.markdown('''<div class="csl-header-brand"><div class="csl-logo">CSL</div><div class="csl-brand"><div><h1>CUSTOMER SATISFACTION LEVEL ANALYTICS</h1></div></div></div>''', unsafe_allow_html=True)
         with time_col:
             st.markdown('<div class="csl-update-time">Data terakhir diperbarui<br>' f'<b>{_format_update_time(st.session_state.last_data_refresh)}</b></div>', unsafe_allow_html=True)
         with refresh_col:
