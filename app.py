@@ -494,14 +494,18 @@ def inject_css():
         [data-testid="stToolbar"]{top:.2rem;}
         #MainMenu,footer{visibility:hidden;}
         .csl-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;margin-bottom:14px;border-radius:10px;background:linear-gradient(120deg,#C8102E 0%,#E60012 45%,#FF6B00 100%);box-shadow:0 4px 16px rgba(200,16,46,.28);color:#fff;}
-        .csl-brand{display:flex;align-items:center;gap:12px}.csl-logo{width:40px;height:40px;border-radius:10px;background:#fff;color:#C8102E;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;}
-        .csl-brand h1{font-size:18px;line-height:1.2;margin:0;color:#fff;font-weight:800;letter-spacing:.2px}.csl-brand p{font-size:12px;margin:2px 0 0;color:rgba(255,255,255,.86);font-weight:500}.csl-header-note{font-size:11.5px;color:rgba(255,255,255,.86);text-align:right;}
+        .csl-brand{display:flex;align-items:center;justify-content:flex-start;height:40px;gap:12px;}
+        .csl-logo{width:40px;height:40px;border-radius:10px;background:#fff;color:#C8102E;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;font-weight:800;box-sizing:border-box;}
+        .csl-brand h1{display:flex;align-items:center;height:40px;font-size:18px;line-height:1;margin:0;padding:0;color:#fff;font-weight:800;letter-spacing:.2px;white-space:nowrap;}
+        .csl-brand p{font-size:12px;margin:2px 0 0;color:rgba(255,255,255,.86);font-weight:500}.csl-header-note{font-size:11.5px;color:rgba(255,255,255,.86);text-align:right;}
         /* Header fungsional: brand, waktu update, refresh, dan reset. */
         div[class*="st-key-top_header"]{margin:0 0 10px!important;padding:14px 20px!important;border:0!important;border-radius:10px!important;background:linear-gradient(110deg,#C8102E 0%,#E60012 43%,#FF6B00 100%)!important;box-shadow:0 4px 16px rgba(200,16,46,.28)!important;color:#fff!important;}
         div[class*="st-key-top_header"]>div[data-testid="stVerticalBlockBorderWrapper"]{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;}
         div[class*="st-key-top_header"] div[data-testid="stHorizontalBlock"]{align-items:center!important;gap:10px!important;}
-        div[class*="st-key-top_header"] .element-container{margin-bottom:0!important;}
-        .csl-header-brand{display:flex;align-items:center;gap:12px;min-height:44px;}.csl-header-brand .csl-logo{flex:0 0 40px;}
+        div[class*="st-key-top_header"] .element-container{margin:0!important;display:flex!important;align-items:center!important;}
+        div[class*="st-key-top_header"] div[data-testid="stMarkdownContainer"]{width:100%!important;margin:0!important;padding:0!important;display:flex!important;align-items:center!important;}
+        div[class*="st-key-top_header"] div[data-testid="stMarkdownContainer"] p{margin:0!important;padding:0!important;}
+        .csl-header-brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;height:44px;margin:0;padding:0;}.csl-header-brand .csl-logo{flex:0 0 40px;}
         .csl-update-time{font-size:11px;line-height:1.25;text-align:right;color:rgba(255,255,255,.92);white-space:nowrap;}.csl-update-time b{color:#fff;font-size:11.5px;}
         div[class*="st-key-header_refresh"] button,div[class*="st-key-header_reset"] button{min-height:34px!important;height:34px!important;width:100%!important;padding:0 14px!important;color:#fff!important;background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.72)!important;border-radius:9px!important;font-size:12px!important;font-weight:700!important;white-space:nowrap!important;box-shadow:none!important;}
         div[class*="st-key-header_refresh"] button:hover,div[class*="st-key-header_reset"] button:hover{color:#C8102E!important;background:#fff!important;border-color:#fff!important;}
@@ -646,10 +650,10 @@ def inject_css():
         }
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-            background: #202124 !important;
-            color: #FFFFFF !important;
-            border-color:#202124!important;
-            box-shadow: 0 3px 8px rgba(38,38,38,.20) !important;
+            background: #FFFFFF !important;
+            color: #C8102E !important;
+            border: 2px solid #E60012 !important;
+            box-shadow: none !important;
         }
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="false"] {
