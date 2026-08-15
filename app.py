@@ -638,33 +638,107 @@ def inject_css():
             background: transparent !important;
         }
         div[class*="st-key-page_selector_card"] div[role="radiogroup"]{display:flex!important;gap:7px!important;flex-wrap:wrap!important;}
+        /* =========================================================
+           TOMBOL NAVIGASI PAGE
+           Semua tombol tetap putih. Page aktif ditandai outline merah tua.
+           Selector anak (*) diperlukan agar warna bawaan Streamlit tidak
+           menimpa background dan warna tulisan yang sudah ditentukan.
+        ========================================================= */
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button {
-            min-height: 35px !important;
-            padding: 0 20px !important;
-            border: 1px solid rgba(255,255,255,.72) !important;
+            min-height: 40px !important;
+            height: 40px !important;
+            padding: 0 21px !important;
+            box-sizing: border-box !important;
+            background-color: #FFFFFF !important;
+            background-image: none !important;
+            border: 1px solid #E2E2E2 !important;
             border-radius: 9px !important;
+            color: #4F4F4F !important;
             font-size: 12.5px !important;
-            font-weight: 750 !important;
-            box-shadow: none !important;
+            font-weight: 700 !important;
+            opacity: 1 !important;
+            box-shadow: 0 2px 5px rgba(38,38,38,.10) !important;
+            transition: border-color .18s ease, color .18s ease,
+                        box-shadow .18s ease, transform .18s ease !important;
         }
+
+        /* Paksa seluruh lapisan di dalam tombol tetap transparan. */
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button > div,
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button > span {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+
+        /* PAGE AKTIF: putih solid, outline merah tebal, tulisan merah tua. */
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
             background: #FFFFFF !important;
-            color: #C8102E !important;
-            border: 2px solid #E60012 !important;
-            box-shadow: none !important;
+            background-color: #FFFFFF !important;
+            background-image: none !important;
+            color: #B80F20 !important;
+            border: 3px solid #C8102E !important;
+            font-weight: 850 !important;
+            opacity: 1 !important;
+            box-shadow:
+                0 4px 11px rgba(112,0,12,.27),
+                inset 0 0 0 1px rgba(200,16,46,.08) !important;
+            transform: translateY(-1px) !important;
         }
+
+        /* Warna tulisan di semua versi struktur HTML Streamlit. */
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"] p,
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"] span,
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"] div {
+            color: #B80F20 !important;
+            font-weight: 850 !important;
+            opacity: 1 !important;
+        }
+
+        /* PAGE TIDAK AKTIF. */
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="false"] {
-            background: rgba(255,255,255,.96) !important;
-            color: #5F6368 !important;
+            background: #FFFFFF !important;
+            background-color: #FFFFFF !important;
+            background-image: none !important;
+            color: #4F4F4F !important;
+            border: 1px solid #E2E2E2 !important;
+            opacity: 1 !important;
         }
         div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="false"] p,
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="false"] span,
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="false"] div {
+            color: #4F4F4F !important;
+            opacity: 1 !important;
+        }
+
+        /* Hover page yang tidak aktif. */
+        div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="false"]:hover {
-            background: #FFF1F1 !important;
+            background: #FFF7F7 !important;
+            background-color: #FFF7F7 !important;
             color: #C8102E !important;
-            border-color:#fff!important;
+            border-color: #E60012 !important;
+            box-shadow: 0 3px 8px rgba(200,16,46,.16) !important;
+        }
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button[aria-pressed="false"]:hover * {
+            color: #C8102E !important;
+        }
+
+        /* Fokus keyboard tetap jelas dan rapi. */
+        div[class*="st-key-page_selector_card"]
+        div[data-testid="stSegmentedControl"] button:focus-visible {
+            outline: 3px solid rgba(255,255,255,.95) !important;
+            outline-offset: 2px !important;
         }
         div[data-testid="stVerticalBlockBorderWrapper"]{background:#fff!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;}
         div[class*="st-key-"][class*="_csl_performance_section"],div[class*="st-key-"][class*="_matrix_section"],div[class*="st-key-"][class*="_profile_customer_section"]{background:rgba(255,255,255,.98)!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;padding:16px!important;margin:0 0 18px!important;}
