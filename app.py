@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Dashboard Customer Satisfaction (CSI) — Sales / Service / Spare Part
++ Page Profil Wilayah (Cluster BPS & Kelompok Budaya)
 Streamlit + Plotly, data dari Google Sheets + Shapefile GeoPandas.
 
 Jalankan dengan:
@@ -15,6 +16,8 @@ import math
 import html
 from datetime import datetime
 import time
+from typing import Any
+
 import requests
 import numpy as np
 import pandas as pd
@@ -455,8 +458,29 @@ def inject_css():
         .profile-item-active { border:1px solid #212121; background:#F5F5F5; }
         .profile-bar-bg { background:#EEEEEE; border-radius:6px; height:8px; width:100%%; }
         .profile-bar-fill { border-radius:6px; height:8px; }
+
+        /* ============ REGION / PROFIL WILAYAH DETAIL BOX ============ */
+        .region-detail-box {
+            background: #FAFBFC !important;
+            border: 1px solid #E7E9EC !important;
+            border-left: 4px solid %s !important;
+            border-radius: 8px !important;
+            padding: 10px 14px !important;
+            margin-bottom: 10px !important;
+        }
+        .region-detail-box.culture { border-left-color: %s !important; }
+        .region-detail-title {
+            font-weight: 700; font-size: 0.92rem; color: #262626; margin-bottom: 3px;
+        }
+        .region-detail-count {
+            font-weight: 500; color: #666666; font-size: 0.82rem;
+        }
+        .region-detail-body {
+            font-size: 0.85rem; color: #37474F; line-height: 1.5;
+        }
         </style>
-        """ % (RED_OUTLINE, ORANGE_OUTLINE, BLUE_OUTLINE, RED_OUTLINE, ORANGE_OUTLINE, BLUE_OUTLINE),
+        """ % (RED_OUTLINE, ORANGE_OUTLINE, BLUE_OUTLINE, RED_OUTLINE, ORANGE_OUTLINE, BLUE_OUTLINE,
+               BLUE_OUTLINE, ORANGE_OUTLINE),
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -465,11 +489,22 @@ def inject_css():
         :root {--csl-red:#E60012;--csl-red-dark:#C8102E;--csl-orange:#FF6B00;--csl-blue:#1665D8;--csl-text:#262626;--csl-muted:#666;--csl-border:#E7E9EC;--csl-shadow:0 1px 2px rgba(20,20,20,.04),0 2px 8px rgba(20,20,20,.05);}
         html,body,[class*="css"]{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;}
         .stApp{background:linear-gradient(180deg,#FF6B00 0%,#FF8A33 420px,#FFF7F2 100%);background-attachment:fixed;color:var(--csl-text);}
-        [data-testid="stAppViewContainer"]>.main .block-container{max-width:1600px;padding:1rem 1.25rem 3rem;}
-        [data-testid="stHeader"]{background:transparent;}
+        [data-testid="stAppViewContainer"]>.main .block-container{max-width:1600px;padding:.25rem 1.25rem 3rem;}
+        [data-testid="stHeader"]{background:transparent;height:0;}
+        [data-testid="stToolbar"]{top:.2rem;}
+        #MainMenu,footer{visibility:hidden;}
         .csl-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;margin-bottom:14px;border-radius:10px;background:linear-gradient(120deg,#C8102E 0%,#E60012 45%,#FF6B00 100%);box-shadow:0 4px 16px rgba(200,16,46,.28);color:#fff;}
         .csl-brand{display:flex;align-items:center;gap:12px}.csl-logo{width:40px;height:40px;border-radius:10px;background:#fff;color:#C8102E;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;}
         .csl-brand h1{font-size:18px;line-height:1.2;margin:0;color:#fff;font-weight:800;letter-spacing:.2px}.csl-brand p{font-size:12px;margin:2px 0 0;color:rgba(255,255,255,.86);font-weight:500}.csl-header-note{font-size:11.5px;color:rgba(255,255,255,.86);text-align:right;}
+        /* Header fungsional: brand, waktu update, refresh, dan reset. */
+        div[class*="st-key-top_header"]{margin:0 0 10px!important;padding:14px 20px!important;border:0!important;border-radius:10px!important;background:linear-gradient(110deg,#C8102E 0%,#E60012 43%,#FF6B00 100%)!important;box-shadow:0 4px 16px rgba(200,16,46,.28)!important;color:#fff!important;}
+        div[class*="st-key-top_header"]>div[data-testid="stVerticalBlockBorderWrapper"]{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;}
+        div[class*="st-key-top_header"] div[data-testid="stHorizontalBlock"]{align-items:center!important;gap:10px!important;}
+        div[class*="st-key-top_header"] .element-container{margin-bottom:0!important;}
+        .csl-header-brand{display:flex;align-items:center;gap:12px;min-height:44px;}.csl-header-brand .csl-logo{flex:0 0 40px;}
+        .csl-update-time{font-size:11px;line-height:1.25;text-align:right;color:rgba(255,255,255,.92);white-space:nowrap;}.csl-update-time b{color:#fff;font-size:11.5px;}
+        div[class*="st-key-header_refresh"] button,div[class*="st-key-header_reset"] button{min-height:34px!important;height:34px!important;width:100%!important;padding:0 14px!important;color:#fff!important;background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.72)!important;border-radius:9px!important;font-size:12px!important;font-weight:700!important;white-space:nowrap!important;box-shadow:none!important;}
+        div[class*="st-key-header_refresh"] button:hover,div[class*="st-key-header_reset"] button:hover{color:#C8102E!important;background:#fff!important;border-color:#fff!important;}
         /* =========================================================
         NAVIGASI PAGE H1, H2, H3
         ========================================================= */
@@ -508,7 +543,7 @@ def inject_css():
             margin: 0 !important;
         }
 
-        /* Tombol H1, H2, dan H3 */
+        /* Tombol H1, H2, H3 */
         div[data-testid="stTabs"] button[role="tab"] {
             height: 38px !important;
             min-height: 38px !important;
@@ -573,21 +608,21 @@ def inject_css():
 
         /* Pemilih page yang stabil: container putih melengkung */
         div[class*="st-key-page_selector_card"] {
-            display: inline-block !important;
-            width: auto !important;
+            display: block !important;
+            width: 100% !important;
             max-width: 100% !important;
-            background: #FFFFFF !important;
-            border: 1px solid rgba(255,255,255,.95) !important;
-            border-radius: 16px !important;
-            padding: 6px !important;
-            margin: 0 0 14px 0 !important;
-            box-shadow: 0 4px 14px rgba(38,38,38,.14) !important;
-            overflow: hidden !important;
+            background: transparent !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 0 12px 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
         }
         div[class*="st-key-page_selector_card"]
         > div[data-testid="stVerticalBlockBorderWrapper"] {
             width: auto !important;
-            background: #FFFFFF !important;
+            background: transparent !important;
             border: 0 !important;
             border-radius: 12px !important;
             box-shadow: none !important;
@@ -595,34 +630,37 @@ def inject_css():
         }
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] {
-            width: auto !important;
+            width: 100% !important;
             background: transparent !important;
         }
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"]{display:flex!important;gap:7px!important;flex-wrap:wrap!important;}
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button {
-            min-height: 38px !important;
-            padding: 0 18px !important;
-            border: 0 !important;
-            border-radius: 10px !important;
+            min-height: 35px !important;
+            padding: 0 20px !important;
+            border: 1px solid rgba(255,255,255,.72) !important;
+            border-radius: 9px !important;
             font-size: 12.5px !important;
             font-weight: 750 !important;
             box-shadow: none !important;
         }
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-            background: linear-gradient(135deg,#E60012 0%,#FF6B00 100%) !important;
+            background: #202124 !important;
             color: #FFFFFF !important;
-            box-shadow: 0 3px 8px rgba(230,0,18,.22) !important;
+            border-color:#202124!important;
+            box-shadow: 0 3px 8px rgba(38,38,38,.20) !important;
         }
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="false"] {
-            background: transparent !important;
+            background: rgba(255,255,255,.96) !important;
             color: #5F6368 !important;
         }
         div[class*="st-key-page_selector_card"]
         div[data-testid="stSegmentedControl"] button[aria-pressed="false"]:hover {
             background: #FFF1F1 !important;
             color: #C8102E !important;
+            border-color:#fff!important;
         }
         div[data-testid="stVerticalBlockBorderWrapper"]{background:#fff!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;}
         div[class*="st-key-"][class*="_csl_performance_section"],div[class*="st-key-"][class*="_matrix_section"],div[class*="st-key-"][class*="_profile_customer_section"]{background:rgba(255,255,255,.98)!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;padding:16px!important;margin:0 0 18px!important;}
@@ -707,7 +745,7 @@ def inject_css():
             box-sizing: border-box !important;
         }
         div[class*="st-key-"][class*="_heatmap_scroll"]{max-height:520px;overflow-y:auto;overflow-x:hidden}div[class*="st-key-"][class*="_scroll_chart_card"]::-webkit-scrollbar,div[class*="st-key-"][class*="_heatmap_scroll"]::-webkit-scrollbar{width:7px;height:7px}div[class*="st-key-"][class*="_scroll_chart_card"]::-webkit-scrollbar-thumb,div[class*="st-key-"][class*="_heatmap_scroll"]::-webkit-scrollbar-thumb{background:#D8DBDF;border-radius:20px}
-        @media(max-width:700px){.csl-header-note{display:none}.csl-brand h1{font-size:15px}.custom-section-text{font-size:13px}}
+        @media(max-width:700px){.csl-header-note{display:none}.csl-brand h1{font-size:15px}.custom-section-text{font-size:13px}[data-testid="stAppViewContainer"]>.main .block-container{padding:.2rem .65rem 2rem;}div[class*="st-key-top_header"]{padding:12px!important;}.csl-update-time{text-align:left;}div[class*="st-key-page_selector_card"] div[data-testid="stSegmentedControl"] button{padding:0 12px!important;}}
         /* Menyamakan tinggi kotak Heatmap, Daftar Profil, dan Penjelasan Profil */
         div[class*="st-key-"][class*="_profile_equal_height"] {
             height: 520px !important;
@@ -850,6 +888,15 @@ def try_read_sheet(sheet_name: str) -> pd.DataFrame:
             f"Gagal membaca sheet '{sheet_name}': "
             f"{type(e).__name__}: {e}"
         )
+        return pd.DataFrame()
+
+
+def try_read_sheet_silent(sheet_name: str) -> pd.DataFrame:
+    """Sama seperti try_read_sheet, tetapi tidak menampilkan st.error.
+    Dipakai saat mencoba beberapa alternatif nama worksheet secara berurutan."""
+    try:
+        return read_sheet(sheet_name)
+    except Exception:
         return pd.DataFrame()
 
 
@@ -4010,27 +4057,1042 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
 
 
 # ============================================================
+# REGION / PROFIL WILAYAH (CLUSTER BPS & KELOMPOK BUDAYA)
+# Gaya visual (warna, kartu KPI, chart-card) disamakan dengan
+# tema utama dashboard (RED/ORANGE/YELLOW/GREEN/BLUE_OUTLINE).
+# ============================================================
+
+RW_CLUSTER_SHEET = "Hasil_Cluster"
+RW_CULTURE_SHEET_CANDIDATES = ["Pengelompokkan_budaya", "pengelompokkan_budaya", "pengelompokan_budaya"]
+RW_CLUSTER_COLUMN = "Cluster_k3"
+RW_CLUSTER_PROFILE_COLUMN = "Profil_k3"
+RW_CLUSTER_REGION_COLUMN = "Kabupaten/Kota"
+
+RW_H_CONFIG = {
+    "H1": {"sheet": "sales_respondent", "region_column": "City of Dealer", "profile_column": "Profile",
+           "metadata_sheet": "profile_metadata_H1", "title": "Sales"},
+    "H2": {"sheet": "service_respondent", "region_column": "City of AHASS", "profile_column": "Profile",
+           "metadata_sheet": "profile_metadata_H2", "title": "Service"},
+    "H3": {"sheet": "parts_respondent", "region_column": "City of Parts Shop", "profile_column": "Profile",
+           "metadata_sheet": "profile_metadata_H3", "title": "Spare Part"},
+}
+
+RW_PROFILE_ORDER = [1, 2, 3, 4, 5]
+# Palet warna Profile 1-5 disamakan persis dengan PROFILE_COLORS (P1..P5)
+# yang sudah dipakai pada page H1/H2/H3 agar konsisten satu dashboard.
+RW_PROFILE_COLORS = {1: RED, 2: ORANGE, 3: YELLOW, 4: "#9CCC65", 5: GREEN}
+RW_CLUSTER_PROFILE_COLORS = {f"Profile {p}": RW_PROFILE_COLORS[p] for p in RW_PROFILE_ORDER}
+
+# Alias disesuaikan dengan bentuk nama wilayah pada file cluster BPS.
+# Tambahkan alias baru di sini apabila nama pada data CSL berbeda.
+RW_REGION_ALIASES = {
+    "surabaya": "Kota Surabaya",
+    "kota surabaya": "Kota Surabaya",
+    "kota malang": "Kota Malang",
+    "kabupaten malang": "Kabupaten Malang",
+    "kab malang": "Kabupaten Malang",
+    "blitar": "Kab-Kodya Blitar",
+    "kab kodya blitar": "Kab-Kodya Blitar",
+    "kab-kodya blitar": "Kab-Kodya Blitar",
+    "kabupaten blitar": "Kab-Kodya Blitar",
+    "kota blitar": "Kab-Kodya Blitar",
+    "kediri": "Kediri",
+    "kabupaten kediri": "Kediri",
+    "kota kediri": "Kediri",
+    "kab kodya kediri": "Kediri",
+    "probolinggo": "Probolinggo",
+    "kabupaten probolinggo": "Probolinggo",
+    "kota probolinggo": "Probolinggo",
+    "kab kodya probolinggo": "Probolinggo",
+    "mojokerto": "Mojokerto",
+    "kabupaten mojokerto": "Mojokerto",
+    "kota mojokerto": "Mojokerto",
+    "kab kodya mojokerto": "Mojokerto",
+    "pasuruan": "Pasuruan",
+    "kabupaten pasuruan": "Pasuruan",
+    "kota pasuruan": "Pasuruan",
+    "kab kodya pasuruan": "Pasuruan",
+    "madiun": "Madiun",
+    "kabupaten madiun": "Madiun",
+    "kota madiun": "Madiun",
+    "kab kodya madiun": "Madiun",
+    "sidoarjo": "Sidoarjo",
+    "kabupaten sidoarjo": "Sidoarjo",
+    "pamekasan": "Pamekasan",
+    "kabupaten pamekasan": "Pamekasan",
+    "trenggalek": "Trenggalek",
+    "kabupaten trenggalek": "Trenggalek",
+    "nganjuk": "Nganjuk",
+    "kabupaten nganjuk": "Nganjuk",
+    "lamongan": "Lamongan",
+    "kabupaten lamongan": "Lamongan",
+    "jember": "Jember",
+    "kabupaten jember": "Jember",
+    "lumajang": "Lumajang",
+    "kabupaten lumajang": "Lumajang",
+    "bojonegoro": "Bojonegoro",
+    "kabupaten bojonegoro": "Bojonegoro",
+    "bangkalan": "Bangkalan",
+    "kabupaten bangkalan": "Bangkalan",
+    "jombang": "Jombang",
+    "kabupaten jombang": "Jombang",
+    "banyuwangi": "Banyuwangi",
+    "kabupaten banyuwangi": "Banyuwangi",
+    "gresik": "Gresik",
+    "kabupaten gresik": "Gresik",
+    "situbondo": "Situbondo",
+    "kabupaten situbondo": "Situbondo",
+    "tulungagung": "Tulungagung",
+    "kabupaten tulungagung": "Tulungagung",
+    "sumenep": "Sumenep",
+    "kabupaten sumenep": "Sumenep",
+    "magetan": "Magetan",
+    "kabupaten magetan": "Magetan",
+    "pacitan": "Pacitan",
+    "kabupaten pacitan": "Pacitan",
+    "ngawi": "Ngawi",
+    "kabupaten ngawi": "Ngawi",
+    "ponorogo": "Ponorogo",
+    "kabupaten ponorogo": "Ponorogo",
+    "tuban": "Tuban",
+    "kabupaten tuban": "Tuban",
+    "bondowoso": "Bondowoso",
+    "kabupaten bondowoso": "Bondowoso",
+    "sampang": "Sampang",
+    "kabupaten sampang": "Sampang",
+    "kupang": "Kupang",
+    "kabupaten kupang": "Kupang",
+    "kota kupang": "Kupang",
+}
+
+
+def rw_normalize_text(value: Any):
+    if pd.isna(value):
+        return None
+    text = str(value).strip().lower()
+    if not text or text in {"nan", "none", "-", ""}:
+        return None
+    text = re.sub(r"[/_.]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def rw_normalize_region(value: Any):
+    """Menyamakan nama Kabupaten/Kota CSL dengan nama pada data cluster BPS."""
+    text = rw_normalize_text(value)
+    if text is None:
+        return None
+    text = text.replace("kab.", "kabupaten ")
+    text = text.replace("kab ", "kabupaten ")
+    text = text.replace("kodya", "kota")
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if text in RW_REGION_ALIASES:
+        return RW_REGION_ALIASES[text]
+    without_kab = re.sub(r"^kabupaten\s+", "", text).strip()
+    if without_kab in RW_REGION_ALIASES:
+        return RW_REGION_ALIASES[without_kab]
+    return " ".join(word.capitalize() for word in text.split())
+
+
+def rw_normalize_profile(value: Any):
+    """Mengubah nilai seperti 1, 1.0, 'Profile 1' menjadi integer 1."""
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, np.integer)):
+        p = int(value)
+        return p if p in RW_PROFILE_ORDER else None
+    if isinstance(value, (float, np.floating)):
+        if math.isnan(float(value)):
+            return None
+        p = int(value)
+        return p if p in RW_PROFILE_ORDER else None
+    match = re.search(r"([1-5])", str(value))
+    if not match:
+        return None
+    p = int(match.group(1))
+    return p if p in RW_PROFILE_ORDER else None
+
+
+def rw_validate_columns(df: pd.DataFrame, required_columns: list, source_name: str):
+    missing = [c for c in required_columns if c not in df.columns]
+    if missing:
+        raise KeyError(f"Kolom berikut tidak ditemukan pada {source_name}: " + ", ".join(missing))
+
+
+def rw_load_cluster_data() -> pd.DataFrame:
+    cluster_df = try_read_sheet_silent(RW_CLUSTER_SHEET)
+    if cluster_df.empty:
+        raise KeyError(f"Worksheet '{RW_CLUSTER_SHEET}' tidak ditemukan atau kosong.")
+
+    rw_validate_columns(
+        cluster_df,
+        [RW_CLUSTER_REGION_COLUMN, RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN],
+        f"worksheet {RW_CLUSTER_SHEET}",
+    )
+
+    cluster_df = cluster_df[[RW_CLUSTER_REGION_COLUMN, RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN]].copy()
+    cluster_df["Region_Key"] = cluster_df[RW_CLUSTER_REGION_COLUMN].apply(rw_normalize_region)
+    cluster_df[RW_CLUSTER_COLUMN] = pd.to_numeric(cluster_df[RW_CLUSTER_COLUMN], errors="coerce").astype("Int64")
+    cluster_df = (
+        cluster_df.dropna(subset=["Region_Key", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN])
+        .drop_duplicates(subset=["Region_Key"], keep="first")
+        .reset_index(drop=True)
+    )
+    return cluster_df
+
+
+def rw_load_culture_data() -> pd.DataFrame:
+    culture_df = pd.DataFrame()
+    for sheet_name in RW_CULTURE_SHEET_CANDIDATES:
+        culture_df = try_read_sheet_silent(sheet_name)
+        if not culture_df.empty:
+            break
+
+    if culture_df.empty:
+        raise KeyError("Worksheet 'Pengelompokkan_budaya' tidak ditemukan atau kosong.")
+
+    kab_col = find_col(culture_df, ["kabupaten/kota", "kab/kota", "kabupaten", "kota", "wilayah"])
+    zona_col = find_col(culture_df, ["budaya_utama", "zona budaya", "budaya", "cluster budaya", "kelompok budaya"])
+    cluster_col = find_col(culture_df, ["cluster_budaya", "cluster budaya"])
+
+    if not kab_col or not zona_col:
+        raise KeyError("Kolom Kabupaten/Kota atau Budaya_Utama tidak ditemukan pada worksheet budaya.")
+
+    culture_df = culture_df.rename(columns={kab_col: "Kabupaten/Kota_Budaya", zona_col: "Kelompok_Budaya"})
+    if cluster_col and cluster_col in culture_df.columns:
+        culture_df = culture_df.rename(columns={cluster_col: "Cluster_Budaya"})
+    else:
+        culture_df["Cluster_Budaya"] = np.nan
+
+    culture_df = culture_df[["Kabupaten/Kota_Budaya", "Kelompok_Budaya", "Cluster_Budaya"]].copy()
+    culture_df["Region_Key"] = culture_df["Kabupaten/Kota_Budaya"].apply(rw_normalize_region)
+    culture_df["Kelompok_Budaya"] = culture_df["Kelompok_Budaya"].astype(str).str.strip()
+    culture_df["Cluster_Budaya"] = pd.to_numeric(culture_df["Cluster_Budaya"], errors="coerce").astype("Int64")
+    culture_df = (
+        culture_df.dropna(subset=["Region_Key", "Kelompok_Budaya"])
+        .drop_duplicates(subset=["Region_Key"], keep="first")
+        .reset_index(drop=True)
+    )
+    return culture_df
+
+
+def rw_load_profile_metadata(h_code: str) -> pd.DataFrame:
+    config = RW_H_CONFIG[h_code]
+    metadata_df = try_read_sheet_silent(config["metadata_sheet"])
+    if metadata_df.empty:
+        raise KeyError(f"Worksheet '{config['metadata_sheet']}' tidak ditemukan atau kosong.")
+
+    profile_col = find_col(metadata_df, ["profile", "profil", "no", "code"])
+    name_col = find_col(metadata_df, ["profile name", "nama profil", "nama", "name"])
+    if not profile_col or not name_col:
+        raise KeyError(f"Kolom Profile / Profile Name tidak ditemukan pada '{config['metadata_sheet']}'.")
+
+    metadata_df = metadata_df.rename(columns={profile_col: "Profile", name_col: "Profile Name"})
+    metadata_df["Profile"] = metadata_df["Profile"].apply(rw_normalize_profile)
+    metadata_df = metadata_df.dropna(subset=["Profile"]).copy()
+    metadata_df["Profile"] = metadata_df["Profile"].astype(int)
+    return metadata_df
+
+
+def rw_load_csl_profile_data(h_code: str):
+    config = RW_H_CONFIG[h_code]
+    respondent_df = try_read_sheet_silent(config["sheet"])
+    if respondent_df.empty:
+        raise KeyError(f"Worksheet '{config['sheet']}' tidak ditemukan atau kosong.")
+
+    region_col = find_col(respondent_df, [config["region_column"].lower()]) or (
+        config["region_column"] if config["region_column"] in respondent_df.columns else None
+    )
+    profile_col = find_col(respondent_df, [config["profile_column"].lower()]) or (
+        config["profile_column"] if config["profile_column"] in respondent_df.columns else None
+    )
+    if not region_col or not profile_col:
+        raise KeyError(f"Kolom wilayah/profile tidak ditemukan pada '{config['sheet']}'.")
+
+    diagnostic = {
+        "total_rows": len(respondent_df),
+        "region_non_null": int(respondent_df[region_col].notna().sum()),
+        "profile_non_null": int(respondent_df[profile_col].notna().sum()),
+    }
+
+    result = respondent_df.copy()
+    result["Region_Key"] = result[region_col].apply(rw_normalize_region)
+    result["Profile_Clean"] = result[profile_col].apply(rw_normalize_profile)
+    result = result[["Region_Key", "Profile_Clean"]].dropna(subset=["Region_Key", "Profile_Clean"]).copy()
+    result["Profile_Clean"] = result["Profile_Clean"].astype(int)
+
+    diagnostic["valid_rows"] = len(result)
+    diagnostic["valid_regions"] = int(result["Region_Key"].nunique())
+    return result, diagnostic
+
+
+def rw_calculate_region_profile_distribution(respondent_df, metadata_df, cluster_df, minimum_respondents):
+    merged_respondents = respondent_df.merge(cluster_df, on="Region_Key", how="left", validate="many_to_one")
+    valid_cluster_respondents = merged_respondents.dropna(subset=[RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN]).copy()
+
+    counts = (
+        valid_cluster_respondents.groupby(
+            ["Region_Key", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN, "Profile_Clean"], observed=True
+        ).size().rename("Jumlah").reset_index()
+    )
+
+    if counts.empty:
+        return pd.DataFrame(), merged_respondents
+
+    pivot_count = counts.pivot_table(
+        index=["Region_Key", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN],
+        columns="Profile_Clean", values="Jumlah", aggfunc="sum", fill_value=0,
+    ).reset_index()
+
+    for profile in RW_PROFILE_ORDER:
+        if profile not in pivot_count.columns:
+            pivot_count[profile] = 0
+
+    profile_count_columns = []
+    for profile in RW_PROFILE_ORDER:
+        new_column = f"Jumlah_Profile_{profile}"
+        pivot_count[new_column] = pivot_count[profile].astype(int)
+        profile_count_columns.append(new_column)
+
+    pivot_count["Jumlah_Responden"] = pivot_count[profile_count_columns].sum(axis=1)
+
+    for profile in RW_PROFILE_ORDER:
+        pivot_count[f"Persen_Profile_{profile}"] = np.where(
+            pivot_count["Jumlah_Responden"] > 0,
+            pivot_count[f"Jumlah_Profile_{profile}"] / pivot_count["Jumlah_Responden"] * 100,
+            np.nan,
+        )
+
+    percent_columns = [f"Persen_Profile_{profile}" for profile in RW_PROFILE_ORDER]
+    percent_matrix = pivot_count[percent_columns].to_numpy(dtype=float)
+    sorted_indices = np.argsort(-percent_matrix, axis=1)
+
+    pivot_count["Profile_Dominan"] = sorted_indices[:, 0] + 1
+    pivot_count["Profile_Kedua"] = sorted_indices[:, 1] + 1
+    pivot_count["Persen_Dominan"] = np.take_along_axis(percent_matrix, sorted_indices[:, [0]], axis=1).ravel()
+    pivot_count["Persen_Kedua"] = np.take_along_axis(percent_matrix, sorted_indices[:, [1]], axis=1).ravel()
+    pivot_count["Margin_Dominasi"] = pivot_count["Persen_Dominan"] - pivot_count["Persen_Kedua"]
+
+    pivot_count["Status_Sampel"] = np.where(
+        pivot_count["Jumlah_Responden"] >= minimum_respondents, "Memadai", "Di Bawah Minimum"
+    )
+
+    profile_name_map = metadata_df.set_index("Profile")["Profile Name"].to_dict()
+    pivot_count["Nama_Profile_Dominan"] = pivot_count["Profile_Dominan"].map(profile_name_map)
+    pivot_count["Nama_Profile_Kedua"] = pivot_count["Profile_Kedua"].map(profile_name_map)
+
+    region_display_map = cluster_df.set_index("Region_Key")[RW_CLUSTER_REGION_COLUMN].to_dict()
+    pivot_count["Kabupaten/Kota"] = pivot_count["Region_Key"].map(region_display_map)
+
+    ordered_columns = [
+        "Kabupaten/Kota", "Region_Key", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN,
+        "Jumlah_Responden", *profile_count_columns, *percent_columns,
+        "Profile_Dominan", "Nama_Profile_Dominan", "Persen_Dominan",
+        "Profile_Kedua", "Nama_Profile_Kedua", "Persen_Kedua",
+        "Margin_Dominasi", "Status_Sampel",
+    ]
+
+    region_summary = pivot_count[ordered_columns].sort_values([RW_CLUSTER_COLUMN, "Kabupaten/Kota"]).reset_index(drop=True)
+    return region_summary, merged_respondents
+
+
+def rw_jensen_shannon_similarity(first_distribution, second_distribution):
+    first = np.asarray(first_distribution, dtype=float)
+    second = np.asarray(second_distribution, dtype=float)
+    if first.sum() <= 0 or second.sum() <= 0:
+        return np.nan
+    first = first / first.sum()
+    second = second / second.sum()
+    midpoint = 0.5 * (first + second)
+
+    def kl_divergence(distribution, reference):
+        mask = distribution > 0
+        return float(np.sum(distribution[mask] * np.log2(distribution[mask] / reference[mask])))
+
+    js_divergence = 0.5 * kl_divergence(first, midpoint) + 0.5 * kl_divergence(second, midpoint)
+    js_distance = math.sqrt(max(js_divergence, 0.0))
+    return float(1.0 - js_distance)
+
+
+def rw_classify_similarity(value):
+    if value is None or pd.isna(value):
+        return "Belum Dapat Dinilai"
+    if value >= 0.85:
+        return "Sangat Mirip"
+    if value >= 0.70:
+        return "Cukup Mirip"
+    return "Beragam"
+
+
+def rw_calculate_cluster_similarity(region_summary, minimum_respondents):
+    if region_summary.empty:
+        return pd.DataFrame()
+
+    eligible = region_summary[region_summary["Jumlah_Responden"] >= minimum_respondents].copy()
+    percent_columns = [f"Persen_Profile_{p}" for p in RW_PROFILE_ORDER]
+    results = []
+
+    for (cluster_number, cluster_name), group in eligible.groupby(
+        [RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN], observed=True
+    ):
+        group = group.copy()
+        region_count = len(group)
+        dominant_counts = group["Profile_Dominan"].value_counts()
+
+        if dominant_counts.empty:
+            majority_profile, majority_regions, consistency = np.nan, 0, np.nan
+        else:
+            majority_profile = int(dominant_counts.index[0])
+            majority_regions = int(dominant_counts.iloc[0])
+            consistency = majority_regions / region_count * 100
+
+        distribution_matrix = group[percent_columns].to_numpy(dtype=float) / 100
+        pairwise_similarities = []
+        for i in range(region_count):
+            for j in range(i + 1, region_count):
+                sim = rw_jensen_shannon_similarity(distribution_matrix[i], distribution_matrix[j])
+                if not pd.isna(sim):
+                    pairwise_similarities.append(sim)
+
+        average_similarity = float(np.mean(pairwise_similarities)) if pairwise_similarities else np.nan
+
+        results.append({
+            "Cluster": int(cluster_number),
+            "Profil_Wilayah": cluster_name,
+            "Jumlah_Wilayah_Valid": region_count,
+            "Profile_Mayoritas": majority_profile,
+            "Jumlah_Wilayah_Sesuai": majority_regions,
+            "Konsistensi_Profile_Dominan": consistency,
+            "Kemiripan_Distribusi": average_similarity,
+            "Kategori_Kemiripan": rw_classify_similarity(average_similarity),
+        })
+
+    return pd.DataFrame(results).sort_values("Cluster").reset_index(drop=True)
+
+
+def rw_calculate_culture_similarity(region_summary, minimum_respondents):
+    if region_summary.empty:
+        return pd.DataFrame()
+
+    eligible = region_summary[region_summary["Jumlah_Responden"] >= minimum_respondents].copy()
+    percent_columns = [f"Persen_Profile_{p}" for p in RW_PROFILE_ORDER]
+    results = []
+
+    for culture, group in eligible.groupby("Kelompok_Budaya", observed=True):
+        group = group.copy()
+        region_count = len(group)
+        dominant_counts = group["Profile_Dominan"].value_counts()
+
+        if dominant_counts.empty:
+            majority_profile, majority_regions, consistency = np.nan, 0, np.nan
+        else:
+            majority_profile = int(dominant_counts.index[0])
+            majority_regions = int(dominant_counts.iloc[0])
+            consistency = majority_regions / region_count * 100
+
+        distribution_matrix = group[percent_columns].to_numpy(dtype=float) / 100
+        pairwise_similarities = []
+        for i in range(region_count):
+            for j in range(i + 1, region_count):
+                sim = rw_jensen_shannon_similarity(distribution_matrix[i], distribution_matrix[j])
+                if not pd.isna(sim):
+                    pairwise_similarities.append(sim)
+
+        average_similarity = float(np.mean(pairwise_similarities)) if pairwise_similarities else np.nan
+
+        results.append({
+            "Kelompok_Budaya": culture,
+            "Jumlah_Wilayah_Valid": region_count,
+            "Profile_Mayoritas": majority_profile,
+            "Jumlah_Wilayah_Sesuai": majority_regions,
+            "Konsistensi_Profile_Dominan": consistency,
+            "Kemiripan_Distribusi": average_similarity,
+            "Kategori_Kemiripan": rw_classify_similarity(average_similarity),
+        })
+
+    return pd.DataFrame(results).sort_values("Kelompok_Budaya").reset_index(drop=True)
+
+
+def rw_create_region_stacked_bar(data: pd.DataFrame, profile_name_map: dict) -> go.Figure:
+    figure = go.Figure()
+    for profile in RW_PROFILE_ORDER:
+        profile_label = profile_name_map.get(profile, f"Profile {profile}")
+        figure.add_trace(go.Bar(
+            name=f"Profile {profile}",
+            y=data["Kabupaten/Kota"],
+            x=data[f"Persen_Profile_{profile}"],
+            orientation="h",
+            marker=dict(color=RW_PROFILE_COLORS[profile]),
+            customdata=np.column_stack([data[f"Jumlah_Profile_{profile}"], data["Jumlah_Responden"]]),
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                + f"<b>Profile {profile} — {profile_label}</b><br>"
+                + "Persentase: %{x:.1f}%<br>"
+                + "Jumlah responden profile: %{customdata[0]:,.0f}<br>"
+                + "Total responden wilayah: %{customdata[1]:,.0f}"
+                + "<extra></extra>"
+            ),
+        ))
+
+    figure.update_layout(
+        barmode="stack",
+        xaxis_title="Persentase Responden",
+        yaxis_title=None,
+        xaxis=dict(range=[0, 100], ticksuffix="%"),
+        legend_title="Customer Profile",
+        margin=dict(l=10, r=10, t=20, b=10),
+        height=max(420, len(data) * 32),
+        hoverlabel=dict(align="left"),
+    )
+    return figure
+
+
+def rw_create_profile_heatmap(data: pd.DataFrame) -> go.Figure:
+    profile_percent_columns = [f"Persen_Profile_{p}" for p in RW_PROFILE_ORDER]
+    profile_count_columns = [f"Jumlah_Profile_{p}" for p in RW_PROFILE_ORDER]
+
+    percent_values = data[profile_percent_columns].to_numpy(dtype=float)
+    profile_count_values = data[profile_count_columns].to_numpy(dtype=float)
+    total_respondents = np.repeat(
+        data["Jumlah_Responden"].to_numpy(dtype=float).reshape(-1, 1), len(RW_PROFILE_ORDER), axis=1
+    )
+    custom_data = np.stack([profile_count_values, total_respondents], axis=-1)
+
+    figure = go.Figure(data=go.Heatmap(
+        z=percent_values,
+        x=[f"Profile {p}" for p in RW_PROFILE_ORDER],
+        y=data["Kabupaten/Kota"],
+        colorscale=[[0.0, "#FFF3E0"], [0.5, "#FFB000"], [1.0, "#E60012"]],
+        zmin=0, zmax=100,
+        text=np.round(percent_values, 1),
+        texttemplate="%{text:.1f}%",
+        customdata=custom_data,
+        hovertemplate=(
+            "<b>%{y}</b><br>%{x}<br>Persentase: %{z:.1f}%<br>"
+            "Jumlah responden profile: %{customdata[0]:,.0f}<br>"
+            "Total responden wilayah: %{customdata[1]:,.0f}<extra></extra>"
+        ),
+        colorbar=dict(title="% Responden"),
+    ))
+    figure.update_layout(
+        xaxis_title=None, yaxis_title=None,
+        margin=dict(l=10, r=10, t=30, b=10),
+        height=max(420, len(data) * 32),
+    )
+    return figure
+
+
+def rw_create_cluster_dominant_chart(region_summary: pd.DataFrame) -> go.Figure:
+    dominant_distribution = (
+        region_summary.groupby([RW_CLUSTER_PROFILE_COLUMN, "Profile_Dominan"], observed=True)
+        .size().rename("Jumlah_Wilayah").reset_index()
+    )
+    cluster_totals = dominant_distribution.groupby(RW_CLUSTER_PROFILE_COLUMN)["Jumlah_Wilayah"].transform("sum")
+    dominant_distribution["Persentase_Wilayah"] = dominant_distribution["Jumlah_Wilayah"] / cluster_totals * 100
+    dominant_distribution["Profile_Label"] = "Profile " + dominant_distribution["Profile_Dominan"].astype(str)
+
+    figure = px.bar(
+        dominant_distribution, x=RW_CLUSTER_PROFILE_COLUMN, y="Persentase_Wilayah",
+        color="Profile_Label", barmode="stack",
+        color_discrete_map=RW_CLUSTER_PROFILE_COLORS,
+        text="Persentase_Wilayah",
+        labels={RW_CLUSTER_PROFILE_COLUMN: "Cluster Wilayah", "Persentase_Wilayah": "Persentase Wilayah", "Profile_Label": "Profile"},
+    )
+    figure.update_traces(
+        width=0.45, texttemplate="%{text:.1f}", textposition="inside",
+        hovertemplate="<b>%{x}</b><br>%{fullData.name}<br>Persentase wilayah: %{y:.1f}%<extra></extra>",
+    )
+    figure.update_layout(
+        height=300,
+        yaxis=dict(range=[0, 100], ticksuffix="%", title="Persentase Wilayah"),
+        xaxis=dict(title="Cluster Wilayah"),
+        legend=dict(title="Profile Dominan", orientation="v"),
+        margin=dict(l=40, r=20, t=15, b=40),
+    )
+    return figure
+
+
+def rw_create_culture_dominant_chart(region_summary: pd.DataFrame, culture_df: pd.DataFrame) -> go.Figure:
+    culture_summary = region_summary.merge(
+        culture_df[["Region_Key", "Kelompok_Budaya"]], on="Region_Key", how="left", validate="one_to_one"
+    )
+    culture_summary = culture_summary.dropna(subset=["Kelompok_Budaya"]).copy()
+
+    dominant_distribution = (
+        culture_summary.groupby(["Kelompok_Budaya", "Profile_Dominan"], observed=True)
+        .size().rename("Jumlah_Wilayah").reset_index()
+    )
+    culture_totals = dominant_distribution.groupby("Kelompok_Budaya")["Jumlah_Wilayah"].transform("sum")
+    dominant_distribution["Persentase_Wilayah"] = dominant_distribution["Jumlah_Wilayah"] / culture_totals * 100
+    dominant_distribution["Profile_Label"] = "Profile " + dominant_distribution["Profile_Dominan"].astype(str)
+
+    figure = px.bar(
+        dominant_distribution, x="Kelompok_Budaya", y="Persentase_Wilayah",
+        color="Profile_Label", barmode="stack",
+        color_discrete_map=RW_CLUSTER_PROFILE_COLORS,
+        text="Persentase_Wilayah",
+        labels={"Kelompok_Budaya": "Kelompok Budaya", "Persentase_Wilayah": "Persentase Wilayah", "Profile_Label": "Profile Dominan"},
+    )
+    figure.update_traces(
+        width=0.50, texttemplate="%{text:.1f}", textposition="inside",
+        hovertemplate="<b>%{x}</b><br>%{fullData.name}<br>Persentase wilayah: %{y:.1f}%<extra></extra>",
+    )
+    figure.update_layout(
+        height=300,
+        yaxis=dict(range=[0, 100], ticksuffix="%", title="Persentase Wilayah"),
+        xaxis=dict(title="Kelompok Budaya"),
+        legend=dict(title="Profile Dominan"),
+        margin=dict(l=35, r=15, t=10, b=35),
+    )
+    return figure
+
+
+def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
+    """Keterangan daftar wilayah per Cluster Wilayah (BPS), gaya kotak disamakan dashboard."""
+    with st.expander("**Keterangan Anggota Wilayah per Cluster BPS**", expanded=True):
+        if cluster_df.empty:
+            st.info("Data cluster BPS tidak tersedia.")
+            return
+
+        grouped = cluster_df.groupby([RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN], observed=True)
+        sorted_groups = sorted(grouped, key=lambda x: x[0][0])
+
+        for (c_num, c_name), group in sorted_groups:
+            regions = sorted(group[RW_CLUSTER_REGION_COLUMN].dropna().unique().tolist())
+            region_count = len(regions)
+            region_str = ", ".join(regions)
+            st.markdown(
+                f"""
+                <div class="region-detail-box">
+                    <div class="region-detail-title">Cluster {c_num} – {c_name}
+                        <span class="region-detail-count">({region_count} Wilayah)</span>
+                    </div>
+                    <div class="region-detail-body">{region_str}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def rw_render_culture_region_details(culture_df: pd.DataFrame):
+    """Keterangan daftar wilayah per Kelompok Budaya, gaya kotak disamakan dashboard."""
+    with st.expander("**Keterangan Anggota Wilayah per Kelompok Budaya**", expanded=True):
+        if culture_df.empty:
+            st.info("Data pengelompokkan budaya tidak tersedia.")
+            return
+
+        if "Cluster_Budaya" in culture_df.columns:
+            culture_order = (
+                culture_df[["Cluster_Budaya", "Kelompok_Budaya"]]
+                .dropna(subset=["Kelompok_Budaya"])
+                .drop_duplicates(subset=["Kelompok_Budaya"])
+                .sort_values(by="Cluster_Budaya", na_position="last")
+            )
+            culture_list = culture_order["Kelompok_Budaya"].tolist()
+        else:
+            culture_list = sorted(culture_df["Kelompok_Budaya"].dropna().unique().tolist())
+
+        for budaya in culture_list:
+            group = culture_df[culture_df["Kelompok_Budaya"] == budaya]
+            regions = sorted(group["Kabupaten/Kota_Budaya"].dropna().unique().tolist())
+            region_count = len(regions)
+            region_str = ", ".join(regions)
+
+            c_num = (
+                group["Cluster_Budaya"].iloc[0]
+                if "Cluster_Budaya" in group.columns and not pd.isna(group["Cluster_Budaya"].iloc[0])
+                else None
+            )
+            cluster_prefix = f"Cluster Budaya {int(c_num)} – " if c_num is not None else ""
+
+            st.markdown(
+                f"""
+                <div class="region-detail-box culture">
+                    <div class="region-detail-title">{cluster_prefix}{budaya}
+                        <span class="region-detail-count">({region_count} Wilayah)</span>
+                    </div>
+                    <div class="region-detail-body">{region_str}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def rw_render_data_diagnostic(diagnostic: dict, h_code: str):
+    config = RW_H_CONFIG[h_code]
+    with st.expander("Pemeriksaan Kelengkapan Data", expanded=False):
+        diagnostic_df = pd.DataFrame({
+            "Ukuran": [
+                "Total Baris", f"Wilayah Terisi ({config['region_column']})",
+                "Profile Terisi", "Baris Valid Wilayah + Profile", "Jumlah Wilayah Valid",
+            ],
+            "Nilai": [
+                diagnostic.get("total_rows", 0), diagnostic.get("region_non_null", 0),
+                diagnostic.get("profile_non_null", 0), diagnostic.get("valid_rows", 0),
+                diagnostic.get("valid_regions", 0),
+            ],
+        })
+        st.dataframe(diagnostic_df, hide_index=True, use_container_width=True)
+        if diagnostic.get("profile_non_null", 0) > diagnostic.get("region_non_null", 0):
+            st.warning(
+                "Kolom Profile lebih banyak terisi daripada kolom wilayah. Wilayah setiap "
+                "responden tidak boleh ditebak (tidak dilakukan forward-fill). Gunakan data "
+                "responden yang kolom wilayahnya terisi pada setiap baris."
+            )
+
+
+def rw_render_region_profile_page():
+    """Page Profil Wilayah: Cluster BPS & Kelompok Budaya vs Customer Profile.
+    Style disamakan dengan SECTION 1/2/3 pada dashboard utama (badge, kpi-card, chart-title)."""
+    with st.container(key="wilayah_profile_customer_section"):
+        st.markdown(
+            """
+            <div class="custom-section-title">
+                <div class="custom-section-badge">SECTION 4</div>
+                <div class="custom-section-text">PROFIL WILAYAH &amp; CLUSTER BUDAYA</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "Menunjukkan pengelompokan kabupaten/kota berdasarkan karakteristik wilayah "
+            "(Cluster BPS) dan kelompok budaya, serta kesesuaiannya dengan distribusi "
+            "Customer Profile hasil survei."
+        )
+
+        filter_col_1, filter_col_2 = st.columns(2)
+        with filter_col_1:
+            selected_h = st.selectbox(
+                "Pilih Bagian",
+                options=list(RW_H_CONFIG.keys()),
+                format_func=lambda value: f"{value} — {RW_H_CONFIG[value]['title']}",
+                key="rw_selected_h",
+            )
+
+        minimum_respondents = 30
+
+        try:
+            cluster_df = rw_load_cluster_data()
+            culture_df = rw_load_culture_data()
+            metadata_df = rw_load_profile_metadata(selected_h)
+            respondent_df, diagnostic = rw_load_csl_profile_data(selected_h)
+        except (KeyError, ValueError, RuntimeError) as error:
+            st.error(str(error))
+            st.info(
+                "Periksa nama worksheet 'Hasil_Cluster', 'Pengelompokkan_budaya', dan "
+                "'profile_metadata_H1/H2/H3' pada Google Sheets."
+            )
+            return
+
+        if respondent_df.empty:
+            st.error(
+                "Tidak ada baris yang memiliki wilayah dan Profile secara bersamaan "
+                "untuk bagian ini."
+            )
+            return
+
+        region_summary, merged_respondents = rw_calculate_region_profile_distribution(
+            respondent_df=respondent_df,
+            metadata_df=metadata_df,
+            cluster_df=cluster_df,
+            minimum_respondents=int(minimum_respondents),
+        )
+
+        if region_summary.empty:
+            unmatched_regions = sorted(
+                merged_respondents.loc[merged_respondents[RW_CLUSTER_COLUMN].isna(), "Region_Key"]
+                .dropna().unique().tolist()
+            )
+            st.error("Tidak ada wilayah CSL yang berhasil dipasangkan dengan data cluster BPS.")
+            if unmatched_regions:
+                st.write("Nama wilayah yang belum cocok:")
+                st.code("\n".join(unmatched_regions))
+            return
+
+        unmatched_regions = sorted(
+            merged_respondents.loc[merged_respondents[RW_CLUSTER_COLUMN].isna(), "Region_Key"]
+            .dropna().unique().tolist()
+        )
+        if unmatched_regions:
+            with st.expander(f"{len(unmatched_regions)} nama wilayah belum cocok", expanded=False):
+                st.write(
+                    "Tambahkan nama berikut ke `RW_REGION_ALIASES` jika wilayah tersebut "
+                    "seharusnya tersedia pada data cluster:"
+                )
+                st.code("\n".join(unmatched_regions))
+
+        cluster_options = ["Semua"] + sorted(region_summary[RW_CLUSTER_PROFILE_COLUMN].dropna().unique().tolist())
+        with filter_col_2:
+            selected_cluster = st.selectbox("Filter Cluster Wilayah", options=cluster_options, key="rw_selected_cluster")
+
+        filtered_summary = region_summary.copy()
+        if selected_cluster != "Semua":
+            filtered_summary = filtered_summary[filtered_summary[RW_CLUSTER_PROFILE_COLUMN] == selected_cluster].copy()
+
+        sorted_summary = filtered_summary.sort_values(
+            by=[RW_CLUSTER_COLUMN, "Persen_Dominan"], ascending=[True, True]
+        ).copy()
+
+        # ----------------------------
+        # KPI
+        # ----------------------------
+        eligible_summary = filtered_summary[filtered_summary["Jumlah_Responden"] >= minimum_respondents].copy()
+        cluster_similarity_all = rw_calculate_cluster_similarity(region_summary, int(minimum_respondents))
+
+        region_summary_culture = region_summary.merge(
+            culture_df[["Region_Key", "Kelompok_Budaya"]], on="Region_Key", how="left"
+        )
+        culture_similarity_all = rw_calculate_culture_similarity(region_summary_culture, int(minimum_respondents))
+
+        dominant_overall = (
+            eligible_summary["Profile_Dominan"].mode().iloc[0] if not eligible_summary.empty else np.nan
+        )
+        dominant_overall_name = (
+            metadata_df.set_index("Profile")["Profile Name"].to_dict().get(int(dominant_overall), "-")
+            if not pd.isna(dominant_overall) else "-"
+        )
+
+        if selected_cluster == "Semua":
+            relevant_similarity = cluster_similarity_all
+        else:
+            relevant_similarity = cluster_similarity_all[cluster_similarity_all["Profil_Wilayah"] == selected_cluster]
+
+        average_distribution_similarity = (
+            relevant_similarity["Kemiripan_Distribusi"].mean() if not relevant_similarity.empty else np.nan
+        )
+
+        jumlah_wilayah = filtered_summary["Kabupaten/Kota"].nunique()
+        jumlah_responden = int(filtered_summary["Jumlah_Responden"].sum())
+        dominant_value = f"Profile {int(dominant_overall)}" if not pd.isna(dominant_overall) else "-"
+        similarity_pct = average_distribution_similarity * 100 if not pd.isna(average_distribution_similarity) else None
+        similarity_value = f"{similarity_pct:.1f}%" if similarity_pct is not None else "N/A"
+        similarity_category = rw_classify_similarity(average_distribution_similarity)
+        similarity_color = (
+            GREEN if similarity_category == "Sangat Mirip"
+            else (ORANGE if similarity_category == "Cukup Mirip" else (RED if similarity_category == "Beragam" else "#888888"))
+        )
+        dominant_color = RW_PROFILE_COLORS.get(int(dominant_overall), "#555555") if not pd.isna(dominant_overall) else "#888888"
+
+        kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
+        with kpi_1:
+            _kpi_card("Jumlah Wilayah", f"{jumlah_wilayah:,}".replace(",", "."), "Wilayah Tercakup", "#555555")
+        with kpi_2:
+            _kpi_card("Jumlah Responden", f"{jumlah_responden:,}".replace(",", "."), "Responden Tervalidasi", "#555555")
+        with kpi_3:
+            _kpi_card("Profile Dominan Umum", dominant_value, dominant_overall_name, dominant_color)
+        with kpi_4:
+            _kpi_card("Kemiripan Distribusi", similarity_value, similarity_category, similarity_color)
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        # ----------------------------
+        # STACKED BAR PER WILAYAH
+        # ----------------------------
+        profile_name_map = metadata_df.set_index("Profile")["Profile Name"].to_dict()
+        with st.container(key="rw_stacked_chart_card", border=True):
+            st.markdown('<div class="chart-title">Distribusi Customer Profile per Kabupaten/Kota</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="chart-subtitle">Komposisi Profile 1–5 pada masing-masing kabupaten/kota '
+                'berdasarkan persentase responden</div>',
+                unsafe_allow_html=True,
+            )
+            st.plotly_chart(
+                rw_create_region_stacked_bar(sorted_summary, profile_name_map),
+                use_container_width=True,
+                key=f"rw_stacked_region_profile_{selected_h}_{selected_cluster}",
+            )
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        # ----------------------------
+        # DOMINASI PROFILE: CLUSTER BPS vs BUDAYA
+        # ----------------------------
+        chart_left, chart_right = st.columns(2, gap="medium")
+
+        with chart_left:
+            with st.container(key="rw_cluster_dominant_chart_card", border=True):
+                st.markdown('<div class="chart-title">Dominasi Profile berdasarkan Cluster Wilayah</div>', unsafe_allow_html=True)
+                st.markdown(
+                    '<div class="chart-subtitle">Proporsi kabupaten/kota berdasarkan customer profile '
+                    'dominan pada cluster karakteristik wilayah (BPS)</div>',
+                    unsafe_allow_html=True,
+                )
+                st.plotly_chart(
+                    rw_create_cluster_dominant_chart(
+                        region_summary[region_summary["Jumlah_Responden"] >= minimum_respondents]
+                    ),
+                    use_container_width=True,
+                    key=f"rw_cluster_dominant_{selected_h}",
+                )
+                rw_render_cluster_region_details(cluster_df)
+
+        with chart_right:
+            with st.container(key="rw_culture_dominant_chart_card", border=True):
+                st.markdown('<div class="chart-title">Dominasi Profile berdasarkan Kelompok Budaya</div>', unsafe_allow_html=True)
+                st.markdown(
+                    '<div class="chart-subtitle">Proporsi kabupaten/kota berdasarkan customer profile '
+                    'dominan pada masing-masing kelompok budaya</div>',
+                    unsafe_allow_html=True,
+                )
+                st.plotly_chart(
+                    rw_create_culture_dominant_chart(
+                        region_summary[region_summary["Jumlah_Responden"] >= minimum_respondents], culture_df,
+                    ),
+                    use_container_width=True,
+                    key=f"rw_culture_dominant_{selected_h}",
+                )
+                rw_render_culture_region_details(culture_df)
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        # ----------------------------
+        # TABEL DOMINAN PER WILAYAH
+        # ----------------------------
+        display_table = filtered_summary[[
+            "Kabupaten/Kota", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN, "Jumlah_Responden",
+            "Profile_Dominan", "Nama_Profile_Dominan", "Persen_Dominan",
+            "Profile_Kedua", "Nama_Profile_Kedua", "Persen_Kedua",
+            "Margin_Dominasi", "Status_Sampel",
+        ]].copy()
+
+        display_table = display_table.rename(columns={
+            RW_CLUSTER_COLUMN: "Cluster",
+            RW_CLUSTER_PROFILE_COLUMN: "Profil Wilayah",
+            "Jumlah_Responden": "Jumlah Responden",
+            "Profile_Dominan": "Profile Dominan",
+            "Nama_Profile_Dominan": "Nama Profile Dominan",
+            "Persen_Dominan": "% Dominan",
+            "Profile_Kedua": "Profile Kedua",
+            "Nama_Profile_Kedua": "Nama Profile Kedua",
+            "Persen_Kedua": "% Profile Kedua",
+            "Margin_Dominasi": "Margin Dominasi",
+            "Status_Sampel": "Status Sampel",
+        })
+
+        with st.container(key="rw_table_chart_card", border=True):
+            st.markdown('<div class="chart-title">Tabel Profile Dominan per Wilayah</div>', unsafe_allow_html=True)
+            st.markdown('<div class="chart-subtitle">Detail profil dominan dan kedua untuk setiap kabupaten/kota</div>', unsafe_allow_html=True)
+            st.dataframe(display_table, hide_index=True, use_container_width=True)
+
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        rw_render_data_diagnostic(diagnostic, selected_h)
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        # ----------------------------
+        # INSIGHT CLUSTER & BUDAYA
+        # ----------------------------
+        left_insight, right_insight = st.columns(2, gap="large")
+
+        with left_insight:
+            st.markdown('<div class="chart-title" style="font-size:14px;">Insight Cluster Wilayah</div>', unsafe_allow_html=True)
+            if cluster_similarity_all.empty:
+                st.info("Kemiripan belum dapat dinilai.")
+            else:
+                for row in cluster_similarity_all.itertuples(index=False):
+                    maj_prof = f"Profile {row.Profile_Mayoritas}" if not pd.isna(row.Profile_Mayoritas) else "-"
+                    sim_pct = f"{row.Kemiripan_Distribusi * 100:.1f}%" if not pd.isna(row.Kemiripan_Distribusi) else "-"
+                    cons_pct = f"{row.Konsistensi_Profile_Dominan:.1f}%" if not pd.isna(row.Konsistensi_Profile_Dominan) else "-"
+                    st.markdown(
+                        f"""
+                        <div class="insight-box">
+                            <div class="insight-box-header"><span></span><span>Cluster {row.Cluster} – {row.Profil_Wilayah}</span></div>
+                            <div class="insight-box-body">
+                                <b>Mayoritas Profile:</b> {maj_prof} ({row.Jumlah_Wilayah_Sesuai}/{row.Jumlah_Wilayah_Valid} Wilayah, {cons_pct})<br>
+                                <b>Kemiripan Distribusi:</b> {sim_pct} ({row.Kategori_Kemiripan})
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+        with right_insight:
+            st.markdown('<div class="chart-title" style="font-size:14px;">Insight Kelompok Budaya</div>', unsafe_allow_html=True)
+            if culture_similarity_all.empty:
+                st.info("Belum ada insight.")
+            else:
+                for row in culture_similarity_all.itertuples(index=False):
+                    maj_prof = f"Profile {row.Profile_Mayoritas}" if not pd.isna(row.Profile_Mayoritas) else "-"
+                    sim_pct = f"{row.Kemiripan_Distribusi * 100:.1f}%" if not pd.isna(row.Kemiripan_Distribusi) else "-"
+                    cons_pct = f"{row.Konsistensi_Profile_Dominan:.1f}%" if not pd.isna(row.Konsistensi_Profile_Dominan) else "-"
+                    st.markdown(
+                        f"""
+                        <div class="reco-box">
+                            <div class="reco-box-header"><span></span><span>{row.Kelompok_Budaya}</span></div>
+                            <div class="reco-box-body">
+                                <b>Mayoritas Profile:</b> {maj_prof} ({row.Jumlah_Wilayah_Sesuai}/{row.Jumlah_Wilayah_Valid} Wilayah, {cons_pct})<br>
+                                <b>Kemiripan Distribusi:</b> {sim_pct} ({row.Kategori_Kemiripan})
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
+PAGE_OPTIONS = ["H1 SALES", "H2 SERVICE", "H3 SPARE PART", "PROFIL WILAYAH", "FRAMEWORK"]
+
+
+def _format_update_time(value):
+    """Format waktu pembaruan terakhir menggunakan waktu lokal server."""
+    if not isinstance(value, datetime):
+        value = datetime.now()
+    month_names = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+    return f"{value.day:02d} {month_names[value.month - 1]} {value.year}, {value:%H:%M}"
+
+
+def _reset_active_page_filters(selected_page):
+    """Hapus state filter halaman aktif tanpa mengubah pilihan halaman."""
+    prefix_by_page = {
+        "H1 SALES": ("sales_",), "H2 SERVICE": ("service_",),
+        "H3 SPARE PART": ("parts_",), "PROFIL WILAYAH": ("rw_",),
+    }
+    prefixes = prefix_by_page.get(selected_page, ())
+    for state_key in list(st.session_state.keys()):
+        if state_key not in {"main_page_selector", "last_data_refresh"} and any(state_key.startswith(prefix) for prefix in prefixes):
+            del st.session_state[state_key]
+    for param in ("map_region", "map_unit", "map_click_token"):
+        if param in st.query_params:
+            del st.query_params[param]
+
+
+def render_top_navigation():
+    """Render header dan navigasi utama seperti rancangan dashboard."""
+    if "last_data_refresh" not in st.session_state:
+        st.session_state.last_data_refresh = datetime.now()
+    active_page = st.session_state.get("main_page_selector", "H1 SALES")
+    with st.container(key="top_header"):
+        brand_col, time_col, refresh_col, reset_col = st.columns([6.8, 1.55, 1.15, 1.05], vertical_alignment="center", gap="small")
+        with brand_col:
+            st.markdown('''<div class="csl-header-brand"><div class="csl-logo">CSL</div><div class="csl-brand"><div><h1>CSL PERFORMANCE INTELLIGENCE</h1><p>Customer Satisfaction Level Analytics</p></div></div></div>''', unsafe_allow_html=True)
+        with time_col:
+            st.markdown('<div class="csl-update-time">Data terakhir diperbarui<br>' f'<b>{_format_update_time(st.session_state.last_data_refresh)}</b></div>', unsafe_allow_html=True)
+        with refresh_col:
+            if st.button("⟳  Refresh Data", key="header_refresh", use_container_width=True):
+                st.cache_data.clear()
+                st.session_state.last_data_refresh = datetime.now()
+                st.rerun()
+        with reset_col:
+            if st.button("Reset Filter", key="header_reset", use_container_width=True):
+                _reset_active_page_filters(active_page)
+                st.rerun()
+
+    with st.container(key="page_selector_card"):
+        return st.segmented_control("Pilih Page", options=PAGE_OPTIONS, default="H1 SALES", key="main_page_selector", label_visibility="collapsed")
+
+
+def render_framework_placeholder():
+    """Halaman disiapkan tanpa konten sesuai permintaan."""
+    st.markdown('<div class="framework-empty-space" aria-label="Framework"></div>', unsafe_allow_html=True)
+
+
 def main():
     inject_css()
-    st.markdown(
-        """
-        <div class="csl-header"><div class="csl-brand"><div class="csl-logo">CSL</div>
-        <div><h1>CSL PERFORMANCE INTELLIGENCE</h1><p>Customer Satisfaction Level Analytics</p></div></div>
-        <div class="csl-header-note">Dashboard Customer Satisfaction<br><b>Sales · Service · Spare Part</b></div></div>
-        """, unsafe_allow_html=True,
-    )
-
-    with st.container(key="page_selector_card", border=True):
-        selected_page = st.segmented_control(
-            "Pilih Page",
-            options=["H1 SALES", "H2 SERVICE", "H3 SPARE PART"],
-            default="H1 SALES",
-            key="main_page_selector",
-            label_visibility="collapsed",
-        )
+    selected_page = render_top_navigation()
 
     if selected_page == "H2 SERVICE":
         render_unit_page(
@@ -4040,6 +5102,10 @@ def main():
         render_unit_page(
             "parts", "Spare Part", "parts_respondent", "Part Shop"
         )
+    elif selected_page == "PROFIL WILAYAH":
+        rw_render_region_profile_page()
+    elif selected_page == "FRAMEWORK":
+        render_framework_placeholder()
     else:
         render_unit_page(
             "sales", "Sales", "sales_respondent", "Dealer"
