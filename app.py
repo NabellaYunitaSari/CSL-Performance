@@ -5164,8 +5164,116 @@ def render_top_navigation():
 
 
 def render_framework_placeholder():
-    """Halaman disiapkan tanpa konten sesuai permintaan."""
-    st.markdown('<div class="framework-empty-space" aria-label="Framework"></div>', unsafe_allow_html=True)
+    """Tampilkan alur analisis CSL berdasarkan notebook proyek H1."""
+    steps = [
+        {
+            "no": "01", "icon": "▤", "title": "DATA PREPARATION &<br>SATISFACTION SCORE",
+            "items": [
+                ("Persiapan data", "Membaca data, memilih indikator, mengubah skor menjadi numerik, dan menangani missing value."),
+                ("Score atribut", "Menghitung rata-rata, standar deviasi, serta jumlah data valid setiap atribut."),
+                ("Score MOT", "Mengelompokkan atribut berdasarkan Moment of Truth dan menghitung rata-ratanya."),
+                ("Total CSL Score", "Menghitung rata-rata seluruh score MOT untuk setiap responden dan wilayah."),
+            ],
+            "output": ["Score atribut", "Score MOT", "Total CSL Score"],
+        },
+        {
+            "no": "02", "icon": "⌁", "title": "SATISFACTION DRIVER<br>MODELLING",
+            "items": [
+                ("Target & predictor", "Total CSL Score sebagai target dan seluruh atribut kepuasan sebagai predictor."),
+                ("Random Forest", "Membagi data training–testing 80:20, melatih model, lalu mengevaluasi R², MAE, dan RMSE."),
+                ("SHAP Analysis", "Menghitung mean absolute SHAP value untuk melihat besar pengaruh setiap atribut."),
+                ("Driver ranking", "Mengurutkan atribut berdasarkan kontribusi terhadap kepuasan secara total dan per wilayah."),
+            ],
+            "output": ["SHAP importance", "Satisfaction driver rank"],
+        },
+        {
+            "no": "03", "icon": "★", "title": "CUSTOMER IMPORTANCE<br>ANALYSIS",
+            "items": [
+                ("Data ranking", "Menggunakan lima atribut yang dipilih pelanggan pada TOP 1 sampai TOP 5."),
+                ("Pembobotan", "TOP 1 = 5, TOP 2 = 4, TOP 3 = 3, TOP 4 = 2, dan TOP 5 = 1."),
+                ("Weighted score", "Mengalikan frekuensi pemilihan atribut dengan bobot posisi ranking."),
+                ("Importance rank", "Menormalisasi score menjadi Importance Index dan menyusun peringkat atribut."),
+            ],
+            "output": ["Importance score", "Importance index & rank"],
+        },
+        {
+            "no": "04", "icon": "⊞", "title": "PRIORITY IMPROVEMENT<br>MATRIX",
+            "items": [
+                ("Integrasi hasil", "Menggabungkan satisfaction score, SHAP driver, dan importance index per atribut."),
+                ("Sumbu matriks", "Sumbu X menggunakan Importance Index dan sumbu Y menggunakan Mean Absolute SHAP."),
+                ("Batas kuadran", "Median importance dan median satisfaction driver menjadi garis pembagi matriks."),
+                ("Prioritas", "Atribut dipetakan ke empat kuadran untuk menentukan area yang dipertahankan atau diperbaiki."),
+            ],
+            "output": ["Matriks 4 kuadran", "Daftar fokus perbaikan"],
+        },
+        {
+            "no": "05", "icon": "◉", "title": "CUSTOMER PROFILE<br>MODELLING",
+            "items": [
+                ("Eksplorasi", "Memeriksa missing value, distribusi indikator, dan korelasi antarvariabel."),
+                ("Standardisasi", "Mengisi missing value dengan median dan menstandardisasi indikator kepuasan."),
+                ("Gaussian Mixture", "Menguji beberapa jumlah profile menggunakan covariance full."),
+                ("Evaluasi profile", "Membandingkan AIC, BIC, dan Silhouette untuk memilih jumlah profile terbaik."),
+            ],
+            "output": ["Customer profile", "Posterior probability", "Profile confidence"],
+        },
+        {
+            "no": "06", "icon": "⌖", "title": "PROFILE INTERPRETATION &<br>INTERACTIVE DASHBOARD",
+            "items": [
+                ("Interpretasi profile", "Membandingkan rata-rata profile dengan rata-rata keseluruhan melalui profile gap dan heatmap."),
+                ("Karakteristik", "Menganalisis gender, usia, SES, pendidikan, pekerjaan, tipe motor, NPS, dan retention."),
+                ("Analisis wilayah", "Menyajikan hasil per main dealer, layer, karesidenan, kabupaten/kota, dan dealer unit."),
+                ("Dashboard", "Mengintegrasikan CSL performance, matriks prioritas, customer profile, dan focus item."),
+            ],
+            "output": ["Insight customer profile", "Focus item", "Dashboard interaktif"],
+        },
+    ]
+
+    cards = []
+    for step in steps:
+        item_html = "".join(
+            f'<div class="fw-item"><div class="fw-mini-icon">{step["icon"]}</div>'
+            f'<div><b>{html.escape(label)}</b><span>{html.escape(desc)}</span></div></div>'
+            for label, desc in step["items"]
+        )
+        output_html = "".join(f"<li>{html.escape(value)}</li>" for value in step["output"])
+        cards.append(
+            f'''<article class="fw-step">
+                <div class="fw-step-head"><span>{step["no"]}</span><h3>{step["title"]}</h3></div>
+                <div class="fw-step-body">{item_html}<div class="fw-output"><b>OUTPUT</b><ul>{output_html}</ul></div></div>
+            </article>'''
+        )
+
+    st.markdown(
+        """
+        <style>
+        .fw-shell{background:#fff;border:1px solid #ececec;border-radius:18px;padding:22px 18px 24px;margin:10px 0 24px;box-shadow:0 8px 24px rgba(36,20,10,.06)}
+        .fw-title{text-align:center;margin:0;color:#222;font-size:25px;font-weight:800;letter-spacing:.2px}
+        .fw-subtitle{text-align:center;color:#777;font-size:13px;margin:6px 0 22px}
+        .fw-grid{display:grid;grid-template-columns:repeat(6,minmax(205px,1fr));gap:14px;overflow-x:auto;padding:2px 2px 12px;scrollbar-color:#ff7a1a #fff1e8}
+        .fw-step{--accent:#e60012;--tint:#fff3f3;min-width:205px;border:1.5px solid var(--accent);border-radius:15px;background:#fff;overflow:hidden;box-shadow:0 5px 14px rgba(80,34,10,.08)}
+        .fw-step:nth-child(even){--accent:#ff6b00;--tint:#fff6ee}
+        .fw-step-head{min-height:92px;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex;align-items:center;gap:10px;padding:14px 12px}
+        .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#c90012,#f13a20)}
+        .fw-step-head>span{display:grid;place-items:center;flex:0 0 36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-size:15px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.13)}
+        .fw-step-head h3{margin:0;font-size:13px;line-height:1.35;font-weight:800;color:#fff}
+        .fw-step-body{padding:11px;background:linear-gradient(180deg,var(--tint),#fff 28%)}
+        .fw-item{display:flex;gap:8px;align-items:flex-start;border:1px solid color-mix(in srgb,var(--accent) 24%,white);border-radius:10px;background:#fff;padding:9px 8px;margin-bottom:9px;min-height:78px}
+        .fw-mini-icon{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:8px;background:var(--tint);color:var(--accent);font-weight:900;font-size:16px}
+        .fw-item b{display:block;color:#343434;font-size:11.5px;line-height:1.25;margin:1px 0 4px}
+        .fw-item span{display:block;color:#666;font-size:10.5px;line-height:1.38}
+        .fw-output{border-radius:10px;background:var(--tint);border:1px solid color-mix(in srgb,var(--accent) 30%,white);padding:10px 11px;min-height:92px}
+        .fw-output b{color:var(--accent);font-size:11px}.fw-output ul{margin:6px 0 0 16px;padding:0;color:#444;font-size:10.5px;line-height:1.55}
+        @media(max-width:1100px){.fw-grid{grid-template-columns:repeat(3,minmax(220px,1fr))}}
+        @media(max-width:720px){.fw-grid{grid-template-columns:1fr;overflow-x:visible}.fw-step{min-width:0}.fw-shell{padding:17px 12px}.fw-title{font-size:21px}}
+        </style>
+        <section class="fw-shell">
+          <h2 class="fw-title">CUSTOMER SATISFACTION LEVEL ANALYTICAL FRAMEWORK</h2>
+          <p class="fw-subtitle">Alur pengolahan data, analisis prioritas perbaikan, customer profiling, dan penyajian insight</p>
+          <div class="fw-grid">""" + "".join(cards) + """</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def main():
