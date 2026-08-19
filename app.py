@@ -5678,7 +5678,7 @@ def render_framework_placeholder():
         f"""
         <section class="fw-shell">
           <h2 class="fw-title">ALUR PERHITUNGAN MATRIX SATISFACTION x IMPORTANCE</h2>
-          <p class="fw-subtitle">Empat tahap pengolahan data survei kepuasan menjadi Priority Improvement Matrix,
+          <p class="fw-subtitle">Enam tahap pengolahan data survei kepuasan menjadi Priority Improvement Matrix,
           mulai dari perhitungan skor sampai pemetaan atribut ke dalam empat kuadran prioritas.</p>
           <div class="fw-grid fw-grid-a">{matrix_cards_html}</div>
         </section>
