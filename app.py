@@ -85,19 +85,41 @@ PROFILE_COLORS = {
     "P1": RED, "P2": ORANGE, "P3": YELLOW, "P4": "#9CCC65", "P5": GREEN,
 }
 
-# Mapping Kab/Kota -> Karesidenan (Jawa Timur)
+# Mapping nama wilayah baku dashboard -> Keresidenan.
+# Nama dan kelompok mengikuti mapping operasional yang diberikan pengguna.
 KARESIDENAN_MAP = {
-    "kota surabaya": "Surabaya", "sidoarjo": "Surabaya", "gresik": "Surabaya",
-    "kota malang": "Malang", "kabupaten malang": "Malang", "malang": "Malang",
-    "batu": "Malang", "kota batu": "Malang", "pasuruan": "Malang", "kota pasuruan": "Malang",
-    "probolinggo": "Malang", "kota probolinggo": "Malang", "lumajang": "Malang",
-    "kediri": "Kediri", "kota kediri": "Kediri", "nganjuk": "Kediri",
-    "tulungagung": "Kediri", "trenggalek": "Kediri", "blitar": "Kediri", "kota blitar": "Kediri",
-    "madiun": "Madiun", "kota madiun": "Madiun", "ngawi": "Madiun", "magetan": "Madiun",
-    "ponorogo": "Madiun", "pacitan": "Madiun", "bojonegoro": "Bojonegoro", "tuban": "Bojonegoro",
-    "lamongan": "Bojonegoro", "jombang": "Bojonegoro", "mojokerto": "Bojonegoro", "kota mojokerto": "Bojonegoro",
-    "jember": "Besuki", "banyuwangi": "Besuki", "bondowoso": "Besuki", "situbondo": "Besuki",
-    "pamekasan": "Madura", "sampang": "Madura", "sumenep": "Madura", "bangkalan": "Madura",
+    "Surabaya": "Karesidenan Surabaya",
+    "Gresik": "Karesidenan Eks Surabaya",
+    "Sidoarjo": "Karesidenan Eks Surabaya",
+    "Mojokerto": "Karesidenan Eks Surabaya",
+    "Jombang": "Karesidenan Eks Surabaya",
+    "Malang": "Karesidenan Malang",
+    "Kota Malang": "Karesidenan Malang",
+    "Pasuruan": "Karesidenan Eks Malang",
+    "Probolinggo": "Karesidenan Eks Malang",
+    "Lumajang": "Karesidenan Eks Malang",
+    "Banyuwangi": "Karesidenan Besuki",
+    "Jember": "Karesidenan Besuki",
+    "Bondowoso": "Karesidenan Besuki",
+    "Situbondo": "Karesidenan Besuki",
+    "Kediri": "Karesidenan Kediri",
+    "Kab-Kodya Blitar": "Karesidenan Kediri",
+    "Tulungagung": "Karesidenan Kediri",
+    "Trenggalek": "Karesidenan Kediri",
+    "Nganjuk": "Karesidenan Kediri",
+    "Madiun": "Karesidenan Madiun",
+    "Ngawi": "Karesidenan Madiun",
+    "Magetan": "Karesidenan Madiun",
+    "Ponorogo": "Karesidenan Madiun",
+    "Pacitan": "Karesidenan Madiun",
+    "Bojonegoro": "Karesidenan Bojonegoro",
+    "Tuban": "Karesidenan Bojonegoro",
+    "Lamongan": "Karesidenan Bojonegoro",
+    "Bangkalan": "Karesidenan Madura",
+    "Sampang": "Karesidenan Madura",
+    "Pamekasan": "Karesidenan Madura",
+    "Sumenep": "Karesidenan Madura",
+    "Kupang": "Karesidenan Kupang",
 }
 
 KAB_TO_PROVINSI = {
@@ -740,6 +762,41 @@ def inject_css():
             outline: 3px solid rgba(255,255,255,.95) !important;
             outline-offset: 2px !important;
         }
+
+        /* Kompatibilitas struktur SegmentedControl Streamlit/BaseWeb terbaru.
+           Tombol aktif selalu putih; pembeda hanya outline dan teks merah. */
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] label,
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button {
+            background:#FFFFFF!important;
+            background-color:#FFFFFF!important;
+            background-image:none!important;
+            border:1px solid #E2E2E2!important;
+            color:#4F4F4F!important;
+        }
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] label:has(input:checked),
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[aria-checked="true"],
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[aria-selected="true"],
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[aria-pressed="true"],
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[data-active="true"],
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[data-selected="true"] {
+            background:#FFFFFF!important;
+            background-color:#FFFFFF!important;
+            background-image:none!important;
+            border:2px solid #E60012!important;
+            color:#E60012!important;
+            box-shadow:0 2px 7px rgba(230,0,18,.16)!important;
+        }
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] label:has(input:checked) *,
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[aria-checked="true"] *,
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[aria-selected="true"] *,
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[aria-pressed="true"] *,
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[data-active="true"] *,
+        div[class*="st-key-page_selector_card"] div[role="radiogroup"] button[data-selected="true"] * {
+            background:transparent!important;
+            background-color:transparent!important;
+            background-image:none!important;
+            color:#E60012!important;
+        }
         div[data-testid="stVerticalBlockBorderWrapper"]{background:#fff!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;}
         div[class*="st-key-"][class*="_csl_performance_section"],div[class*="st-key-"][class*="_matrix_section"],div[class*="st-key-"][class*="_profile_customer_section"]{background:rgba(255,255,255,.98)!important;border:1px solid var(--csl-border)!important;border-radius:10px!important;box-shadow:var(--csl-shadow)!important;padding:16px!important;margin:0 0 18px!important;}
         .custom-section-title{gap:10px;margin-bottom:12px}.custom-section-badge{width:auto;min-width:72px;height:24px;padding:0 10px;border-radius:5px!important;background:#E60012!important;font-size:10.5px;font-weight:800;letter-spacing:.6px}.custom-section-text{font-size:15px;color:#262626;font-weight:800;letter-spacing:.1px}
@@ -1028,7 +1085,7 @@ ALIASES = {
     "semester": ["semester", "periode"],
     "main_dealer": ["main dealer", "md code", "maindealer", "kode main dealer"],
     "layer": ["layer"],
-    "karesidenan": ["karesidenan", "residency"],
+    "karesidenan": ["karesidenan", "keresidenan", "residency"],
     "kab_kota": [
         "kab/kota", "kabupaten/kota", "kab kota", "city of dealer",
         "city of ahass", "city of parts shop", "city", "kota", "kabupaten",
@@ -1154,6 +1211,85 @@ def _normalize_exact_location(s):
     return name
 
 
+def _dashboard_region_name(value):
+    """Nama wilayah baku yang dipakai bersama oleh data, peta, dan filter."""
+    if pd.isna(value) or not str(value).strip():
+        return ""
+    raw = re.sub(r"[_/]+", " ", str(value).strip().lower())
+    raw = re.sub(r"\s+", " ", raw).strip()
+    simple = _normalize_location_name(raw)
+    # Inset tetap ditampilkan sebagai NTT, tetapi filter Kab/Kota mengikuti
+    # nama wilayah pada data responden, yaitu Kupang.
+    if simple in {"ntt", "nusa tenggara timur"} or "kupang" in simple:
+        return "Kupang"
+    if "kota malang" in raw or "kodya malang" in raw:
+        return "Kota Malang"
+    if simple in {"malang", "batu"}:
+        return "Malang"
+    merged_names = {
+        "mojokerto": "Mojokerto", "kediri": "Kediri",
+        "probolinggo": "Probolinggo", "pasuruan": "Pasuruan",
+        "madiun": "Madiun", "blitar": "Kab-Kodya Blitar",
+    }
+    if simple in merged_names:
+        return merged_names[simple]
+    return simple.title()
+
+
+def _set_map_region_filter(df, cols, key_prefix, region):
+    """Memindahkan hasil klik peta ke state filter sebelum widget dibuat."""
+    kab_col = cols.get("kab_kota") if cols else None
+    md_col = cols.get("main_dealer") if cols else None
+    kar_col = cols.get("karesidenan") if cols else None
+    canonical_region = _dashboard_region_name(region)
+    if not canonical_region or not kab_col or kab_col not in df.columns:
+        return False
+    region_rows = df.loc[df[kab_col].apply(_dashboard_region_name) == canonical_region]
+    if region_rows.empty:
+        return False
+    st.session_state[f"{key_prefix}_kab"] = canonical_region
+
+    # Pilih Main Dealer dari scope Tahun dan Semester yang sedang aktif agar
+    # wilayah hasil klik tetap tersedia pada rangkaian filter bertingkat.
+    scoped_region_rows = region_rows
+    year_col = cols.get("year")
+    sem_col = cols.get("semester")
+    selected_year = st.session_state.get(f"{key_prefix}_year")
+    selected_sem = st.session_state.get(f"{key_prefix}_sem")
+    if selected_year not in (None, "Semua") and year_col and year_col in scoped_region_rows.columns:
+        scoped_region_rows = scoped_region_rows[
+            scoped_region_rows[year_col].astype(str) == str(selected_year)
+        ]
+    if selected_sem in ("Semester 1", "Semester 2") and sem_col and sem_col in scoped_region_rows.columns:
+        sem_number = 1 if "1" in selected_sem else 2
+        scoped_region_rows = scoped_region_rows[
+            scoped_region_rows[sem_col].apply(_parse_semester) == sem_number
+        ]
+    if scoped_region_rows.empty:
+        scoped_region_rows = region_rows
+
+    if md_col and md_col in region_rows.columns:
+        region_mds = sorted(scoped_region_rows[md_col].dropna().astype(str).unique().tolist())
+        if region_mds:
+            st.session_state[f"{key_prefix}_md"] = region_mds[0]
+
+    # Karesidenan mengikuti kabupaten/kota yang dipilih lewat peta.
+    if kar_col and kar_col in scoped_region_rows.columns:
+        region_kars = sorted(
+            scoped_region_rows[kar_col].dropna().astype(str).unique().tolist()
+        )
+        if region_kars:
+            st.session_state[f"{key_prefix}_kar"] = region_kars[0]
+        else:
+            st.session_state[f"{key_prefix}_kar"] = "Semua"
+    else:
+        st.session_state[f"{key_prefix}_kar"] = "Semua"
+
+    for suffix in ("layer", "dealer"):
+        st.session_state[f"{key_prefix}_{suffix}"] = "Semua"
+    return True
+
+
 def _find_shp_col(gdf, candidates):
     if gdf is None or gdf.empty:
         return None
@@ -1178,7 +1314,7 @@ def add_karesidenan(df: pd.DataFrame, cols: dict) -> pd.DataFrame:
         return df
     df = df.copy()
     df["Karesidenan"] = df[kab_col].apply(
-        lambda x: KARESIDENAN_MAP.get(_norm(x), "Lainnya")
+        lambda x: KARESIDENAN_MAP.get(_dashboard_region_name(x), "Lainnya")
     )
     cols["karesidenan"] = "Karesidenan"
     return df
@@ -1300,35 +1436,40 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
     map_unit = str(st.query_params.get("map_unit", "")).strip().lower()
     map_click_token = str(st.query_params.get("map_click_token", "")).strip()
     last_click_token_key = f"{key_prefix}_last_map_click_token"
-    ntt_map_click = (
-        map_region == "NTT"
+    query_map_click = (
+        bool(map_region)
         and map_unit == str(key_prefix).lower()
         and bool(map_click_token)
         and st.session_state.get(last_click_token_key) != map_click_token
     )
-    if ntt_map_click:
+    if query_map_click:
         st.session_state[last_click_token_key] = map_click_token
-        for suffix in ["md", "layer", "kar", "dealer"]:
-            st.session_state[f"{key_prefix}_{suffix}"] = "Semua"
+        _set_map_region_filter(df, cols, key_prefix, map_region)
 
     with c1:
         years = _options(df, year_col)
         sel_year = st.selectbox("Tahun", ["Semua"] + years, key=f"{key_prefix}_year")
     with c2:
         sems = ["Semester 1", "Semester 2"]
-        sel_sem = st.selectbox("Periode", ["Semua"] + sems, key=f"{key_prefix}_sem")
+        sem_key = f"{key_prefix}_sem"
+        if st.session_state.get(sem_key) not in sems:
+            st.session_state[sem_key] = sems[0]
+        sel_sem = st.selectbox("Periode", sems, key=sem_key)
 
     df_scope = df.copy()
     if sel_year != "Semua" and year_col:
         df_scope = df_scope[df_scope[year_col].astype(str) == str(sel_year)]
-    if sel_sem != "Semua" and sem_col:
+    if sem_col:
         target_sem = 1 if "1" in sel_sem else 2
         df_scope = df_scope[df_scope[sem_col].apply(_parse_semester) == target_sem]
 
     with c3:
         mds = _options(df_scope, md_col)
-        sel_md = st.selectbox("Main Dealer", ["Semua"] + mds, key=f"{key_prefix}_md")
-    if sel_md != "Semua" and md_col:
+        md_key = f"{key_prefix}_md"
+        if mds and st.session_state.get(md_key) not in mds:
+            st.session_state[md_key] = mds[0]
+        sel_md = st.selectbox("Main Dealer", mds, key=md_key) if mds else None
+    if sel_md is not None and md_col:
         df_scope = df_scope[df_scope[md_col].astype(str) == sel_md]
 
     with c4:
@@ -1344,22 +1485,17 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
         df_scope = df_scope[df_scope[kar_col].astype(str) == sel_kar]
 
     with c6:
-        kabs = _options(df_scope, kab_col)
-        if ntt_map_click:
-            ntt_option = next(
-                (
-                    option for option in kabs
-                    if "kupang" in _normalize_location_name(option)
-                    or "nusa tenggara timur" in str(option).strip().lower()
-                    or str(option).strip().lower() == "ntt"
-                ),
-                None,
-            )
-            if ntt_option is not None:
-                st.session_state[f"{key_prefix}_kab"] = ntt_option
-        sel_kab = st.selectbox("Kab / Kota", ["Semua"] + kabs, key=f"{key_prefix}_kab")
+        kabs = sorted({
+            _dashboard_region_name(value)
+            for value in df_scope[kab_col].dropna().tolist()
+            if _dashboard_region_name(value)
+        }) if kab_col and kab_col in df_scope.columns else []
+        kab_key = f"{key_prefix}_kab"
+        if st.session_state.get(kab_key) not in (["Semua"] + kabs):
+            st.session_state[kab_key] = "Semua"
+        sel_kab = st.selectbox("Kab / Kota", ["Semua"] + kabs, key=kab_key)
     if sel_kab != "Semua" and kab_col:
-        df_scope = df_scope[df_scope[kab_col].astype(str) == sel_kab]
+        df_scope = df_scope[df_scope[kab_col].apply(_dashboard_region_name) == sel_kab]
 
     with c7:
         deals = _options(df_scope, dealer_col)
@@ -1367,8 +1503,8 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
 
     filters = {
         "year": None if sel_year == "Semua" else sel_year,
-        "semester": None if sel_sem == "Semua" else (1 if "1" in sel_sem else 2),
-        "main_dealer": None if sel_md == "Semua" else sel_md,
+        "semester": 1 if "1" in sel_sem else 2,
+        "main_dealer": sel_md,
         "layer": None if sel_layer == "Semua" else sel_layer,
         "karesidenan": None if sel_kar == "Semua" else sel_kar,
         "kab_kota": None if sel_kab == "Semua" else sel_kab,
@@ -1402,13 +1538,20 @@ def apply_filters(df: pd.DataFrame, cols: dict, filters: dict,
         ("main_dealer", cols.get("main_dealer")),
         ("layer", cols.get("layer")),
         ("karesidenan", cols.get("karesidenan")),
-        ("kab_kota", cols.get("kab_kota")),
         ("dealer", cols.get("dealer_code")),
     ]
     for key, col in mapping:
         val = filters.get(key)
         if val is not None and col and col in out.columns:
             out = out[out[col].astype(str) == str(val)]
+
+    kab_val = filters.get("kab_kota")
+    kab_col = cols.get("kab_kota")
+    if kab_val is not None and kab_col and kab_col in out.columns:
+        out = out[
+            out[kab_col].apply(_dashboard_region_name)
+            == _dashboard_region_name(kab_val)
+        ]
     return out
 
 
@@ -2246,6 +2389,40 @@ def create_map_legacy(df: pd.DataFrame, cols: dict, indicator_cols: list, key: s
 # ============================================================
 # MAP SATISFACTION: JAWA TIMUR + INSET NTT
 # ============================================================
+@st.cache_data(show_spinner=False)
+def _load_h123_by_location():
+    """Hitung %CSL H123 per wilayah sekali dan gunakan kembali saat rerun."""
+    result = {}
+    unit_sources = [
+        ("sales", "sales_respondent", ["Indicator_metadata_H1", "Indikator_metadata_H1"]),
+        ("service", "service_respondent", ["Indicator_metadata_H2", "Indikator_metadata_H2"]),
+        ("parts", "parts_respondent", ["Indicator_metadata_H3", "Indikator_metadata_H3"]),
+    ]
+    for source_unit, source_sheet, metadata_sheets in unit_sources:
+        source_df = try_read_sheet(source_sheet)
+        if source_df.empty:
+            continue
+        source_cols = detect_columns(source_df, source_unit)
+        source_location = source_cols.get("kab_kota")
+        if not source_location or source_location not in source_df.columns:
+            continue
+        source_meta = pd.DataFrame()
+        for metadata_sheet in metadata_sheets:
+            source_meta = try_read_sheet(metadata_sheet)
+            if not source_meta.empty:
+                break
+        source_indicators = indicator_columns(source_df, source_meta)
+        source_region_data = source_df.dropna(subset=[source_location]).copy()
+        source_region_data["__map_region"] = source_region_data[source_location].apply(
+            _dashboard_region_name
+        )
+        for location, location_group in source_region_data.groupby("__map_region"):
+            location_sat = calculate_satisfaction(location_group, source_indicators)
+            if location_sat is not None:
+                result.setdefault(location, []).append(float(location_sat))
+    return result
+
+
 def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
     """Peta utama Jawa Timur dengan inset NTT dan warna berbasis satisfaction."""
     gdf_raw = load_shapefile()
@@ -2281,12 +2458,9 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
         return
 
     is_ntt = gdf["__prov"].str.contains(r"nusa tenggara timur|\bntt\b", regex=True, na=False)
-    gdf["Kabupaten_Kota"] = gdf[kab_shape_col].astype(str).str.strip()
-
-    # Sesuai logika dashboard sebelumnya: Kota Batu tergabung ke Kabupaten Malang.
-    batu_mask = (~is_ntt) & gdf["Kabupaten_Kota"].str.lower().str.contains("batu", na=False)
-    gdf.loc[batu_mask, "Kabupaten_Kota"] = "Kabupaten Malang"
-    gdf.loc[is_ntt, "Kabupaten_Kota"] = "Nusa Tenggara Timur"
+    # Nama geometri disamakan dengan nama pada data dan pilihan filter.
+    gdf["Kabupaten_Kota"] = gdf[kab_shape_col].apply(_dashboard_region_name)
+    gdf.loc[is_ntt, "Kabupaten_Kota"] = "NTT"
 
     try:
         gdf = gdf.dissolve(by="Kabupaten_Kota", as_index=False)
@@ -2299,8 +2473,10 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
     h_label = {"sales": "H1", "service": "H2", "parts": "H3"}.get(unit_from_key, "")
 
     # Hitung satisfaction dan profil dominan langsung dari scope hasil filter.
-    exact_stats, simple_stats = {}, {}
-    for location, group in df.dropna(subset=[location_col]).groupby(location_col):
+    region_data = df.dropna(subset=[location_col]).copy()
+    region_data["__map_region"] = region_data[location_col].apply(_dashboard_region_name)
+    region_stats = {}
+    for location, group in region_data.groupby("__map_region"):
         sat = calculate_satisfaction(group, indicator_cols)
         if sat is None:
             continue
@@ -2311,27 +2487,16 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
             if not profile_values.empty:
                 dominant_profile = profile_values.value_counts().index[0]
 
-        info = {"satisfaction": float(sat), "profile": dominant_profile}
-        exact_stats[str(location).strip().lower()] = info
-        exact_key = _normalize_exact_location(location)
-        simple_key = _normalize_location_name(location)
-        if exact_key:
-            exact_stats[exact_key] = info
-        if simple_key:
-            simple_stats[simple_key] = info
-
-        # Data Kupang mewakili seluruh NTT pada dashboard ini.
-        if "kupang" in simple_key or "nusa tenggara timur" in simple_key or simple_key == "ntt":
-            exact_stats["nusa tenggara timur"] = info
+        region_stats[location] = {
+            "satisfaction": float(sat),
+            "profile": dominant_profile,
+        }
 
     def lookup_stats(name):
-        raw = str(name).strip().lower()
-        if raw in exact_stats:
-            return exact_stats[raw]
-        exact_key = _normalize_exact_location(name)
-        if exact_key in exact_stats:
-            return exact_stats[exact_key]
-        return simple_stats.get(_normalize_location_name(name), {"satisfaction": None, "profile": "-"})
+        return region_stats.get(
+            _dashboard_region_name(name),
+            {"satisfaction": None, "profile": "-"},
+        )
 
     info_rows = gdf["Kabupaten_Kota"].apply(lookup_stats)
     gdf["Satisfaction"] = [x["satisfaction"] for x in info_rows]
@@ -2339,39 +2504,10 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
 
     # %CSL H123 = rata-rata satisfaction H1, H2, dan H3 per wilayah.
     # Sheet dibaca melalui cache sehingga tidak mengulang unduhan setiap rerun.
-    h123_by_location = {}
-    unit_sources = [
-        ("sales", "sales_respondent", ["Indicator_metadata_H1", "Indikator_metadata_H1"]),
-        ("service", "service_respondent", ["Indicator_metadata_H2", "Indikator_metadata_H2"]),
-        ("parts", "parts_respondent", ["Indicator_metadata_H3", "Indikator_metadata_H3"]),
-    ]
-    for source_unit, source_sheet, metadata_sheets in unit_sources:
-        source_df = try_read_sheet(source_sheet)
-        if source_df.empty:
-            continue
-        source_cols = detect_columns(source_df, source_unit)
-        source_location = source_cols.get("kab_kota")
-        if not source_location or source_location not in source_df.columns:
-            continue
-        source_meta = pd.DataFrame()
-        for metadata_sheet in metadata_sheets:
-            source_meta = try_read_sheet(metadata_sheet)
-            if not source_meta.empty:
-                break
-        source_indicators = indicator_columns(source_df, source_meta)
-        for location, location_group in source_df.dropna(subset=[source_location]).groupby(source_location):
-            location_sat = calculate_satisfaction(location_group, source_indicators)
-            if location_sat is None:
-                continue
-            loc_key = _normalize_location_name(location)
-            if "kupang" in loc_key or loc_key in {"ntt", "nusa tenggara timur"}:
-                loc_key = "nusa tenggara timur"
-            h123_by_location.setdefault(loc_key, []).append(float(location_sat))
+    h123_by_location = _load_h123_by_location()
 
     def lookup_h123(name):
-        loc_key = _normalize_location_name(name)
-        if loc_key in {"ntt", "nusa tenggara timur"}:
-            loc_key = "nusa tenggara timur"
+        loc_key = _dashboard_region_name(name)
         values = h123_by_location.get(loc_key, [])
         return float(np.mean(values)) if values else None
 
@@ -2401,7 +2537,7 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
         return "#{:02X}{:02X}{:02X}".format(*rgb)
 
     gdf_jatim = gdf[gdf["__prov"].astype(str).str.contains("jawa timur", na=False)].copy()
-    gdf_ntt = gdf[gdf["Kabupaten_Kota"] == "Nusa Tenggara Timur"].copy()
+    gdf_ntt = gdf[gdf["Kabupaten_Kota"] == "NTT"].copy()
     if gdf_jatim.empty:
         st.warning("Geometri Jawa Timur tidak tersedia.")
         return
@@ -2432,6 +2568,7 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
                 "type": "Feature",
                 "properties": {
                     "Kabupaten_Kota": str(row["Kabupaten_Kota"]),
+                    "Filter_Region": _dashboard_region_name(row["Kabupaten_Kota"]),
                     "Satisfaction_Page": sat_text,
                     "CSL_H123": csl_h123_text,
                 },
@@ -2474,26 +2611,41 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
     main_map.fit_bounds(
         JATIM_BOUNDS,
         padding_top_left=[15, 15],
-        padding_bottom_right=[15, 15],
+        # Sisakan ruang kanan untuk inset NTT agar tidak menutupi wilayah
+        # Jember dan Banyuwangi pada tampilan awal.
+        padding_bottom_right=[320, 15],
         max_zoom=8,
     )
 
-    # Inset NTT dibuat sebagai SVG mandiri. Cara ini lebih stabil daripada
-    # membuat instance Leaflet kedua di dalam iframe st_folium (terutama saat
-    # tab Service dan Spare Part baru dibuka).
+    # Inset NTT adalah Marker Folium asli yang diposisikan tetap di kanan bawah.
+    # Karena marker itu sendiri yang diklik, tidak diperlukan JavaScript perantara.
     if not gdf_ntt.empty:
-        ntt_color = satisfaction_color(gdf_ntt.iloc[0]["Satisfaction"])
-        ntt_sat = gdf_ntt.iloc[0]["Satisfaction"]
-        ntt_sat_text = f"{float(ntt_sat):.1f}%" if ntt_sat is not None and not pd.isna(ntt_sat) else "Tidak ada data"
-        inset_id = f"ntt_inset_{re.sub(r'[^a-zA-Z0-9_]', '_', key)}"
+        ntt_row = gdf_ntt.iloc[0]
+        ntt_color = satisfaction_color(ntt_row["Satisfaction"])
+        ntt_sat = ntt_row["Satisfaction"]
+        ntt_sat_text = (
+            f"{float(ntt_sat):.1f}%"
+            if ntt_sat is not None and not pd.isna(ntt_sat)
+            else "Tidak ada data"
+        )
+        ntt_h123 = ntt_row.get("CSL_H123")
+        ntt_h123_text = (
+            f"{float(ntt_h123):.1f}%"
+            if ntt_h123 is not None and not pd.isna(ntt_h123)
+            else "Tidak ada data"
+        )
 
         geom = gdf_ntt.geometry.unary_union
         minx_n, miny_n, maxx_n, maxy_n = geom.bounds
         svg_w, svg_h, svg_pad = 330.0, 175.0, 10.0
-        span_x, span_y = max(maxx_n - minx_n, 1e-9), max(maxy_n - miny_n, 1e-9)
-        scale = min((svg_w - 2 * svg_pad) / span_x, (svg_h - 2 * svg_pad) / span_y)
-        x_off = (svg_w - span_x * scale) / 2
-        y_off = (svg_h - span_y * scale) / 2
+        span_x = max(maxx_n - minx_n, 1e-9)
+        span_y = max(maxy_n - miny_n, 1e-9)
+        svg_scale = min(
+            (svg_w - 2 * svg_pad) / span_x,
+            (svg_h - 2 * svg_pad) / span_y,
+        )
+        x_offset = (svg_w - span_x * svg_scale) / 2
+        y_offset = (svg_h - span_y * svg_scale) / 2
 
         def polygon_svg_path(poly):
             rings = [poly.exterior] + list(poly.interiors)
@@ -2503,36 +2655,67 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
                 if not coords:
                     continue
                 points = [
-                    (x_off + (x - minx_n) * scale, y_off + (maxy_n - y) * scale)
+                    (
+                        x_offset + (x - minx_n) * svg_scale,
+                        y_offset + (maxy_n - y) * svg_scale,
+                    )
                     for x, y in coords
                 ]
-                commands.append("M " + " L ".join(f"{x:.2f} {y:.2f}" for x, y in points) + " Z")
+                commands.append(
+                    "M " + " L ".join(f"{x:.2f} {y:.2f}" for x, y in points) + " Z"
+                )
             return " ".join(commands)
 
         polygons = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
         svg_paths = "".join(
-            f'<path d="{polygon_svg_path(poly)}" fill="{ntt_color}" fill-opacity="0.94" '
-            'stroke="#FFFFFF" stroke-width="1.2" fill-rule="evenodd"/>'
-            for poly in polygons if getattr(poly, "geom_type", "") == "Polygon"
+            f'<path d="{polygon_svg_path(poly)}" fill="{ntt_color}" '
+            'fill-opacity="0.94" stroke="#FFFFFF" stroke-width="1.2" '
+            'fill-rule="evenodd"/>'
+            for poly in polygons
+            if getattr(poly, "geom_type", "") == "Polygon"
         )
+
+        # Overlay selalu terlihat dan tidak dipengaruhi transform/pan Leaflet.
+        # Klik dikirim langsung sebagai event map dengan latitude sentinel.
+        map_js_name = main_map.get_name()
+        inset_id = f"ntt_inset_{re.sub(r'[^a-zA-Z0-9_]', '_', key)}"
         inset_html = f"""
         {{% macro html(this, kwargs) %}}
-        <div id="{inset_id}" title="Klik untuk memfilter NTT" onclick="filter_{inset_id}()"
-             style="position:absolute;right:14px;bottom:18px;width:29%;min-width:255px;height:198px;z-index:9997;border:3px solid white;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);overflow:hidden;background:#E9EEF2;cursor:pointer">
+        <button type="button" id="{inset_id}" title="Klik untuk memfilter Kupang"
+             style="position:absolute;right:14px;bottom:18px;width:29%;min-width:255px;max-width:330px;height:198px;z-index:99999;border:3px solid #FFFFFF;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);overflow:hidden;background:#E9EEF2;cursor:pointer;box-sizing:border-box;padding:0;pointer-events:auto">
           <div style="position:absolute;left:10px;top:8px;z-index:2;background:rgba(255,255,255,.95);padding:4px 8px;border-radius:5px;font:700 11px Arial;color:#262626">NTT · {ntt_sat_text}</div>
-          <svg viewBox="0 0 {svg_w:.0f} {svg_h:.0f}" preserveAspectRatio="xMidYMid meet" style="position:absolute;left:0;right:0;bottom:0;width:100%;height:176px;background:#E9EEF2">
+          <svg viewBox="0 0 {svg_w:.0f} {svg_h:.0f}" preserveAspectRatio="xMidYMid meet"
+               style="position:absolute;left:0;right:0;bottom:0;width:100%;height:176px;background:#E9EEF2;pointer-events:none">
             {svg_paths}
           </svg>
-        </div>
-        <script>
-          function filter_{inset_id}(){{
-            var target = new URL(window.parent.location.href);
-            target.searchParams.set('map_region','NTT');
-            target.searchParams.set('map_unit','{key.split('_')[0]}');
-            target.searchParams.set('map_click_token',Date.now().toString());
-            window.parent.location.href = target.toString();
-          }}
-        </script>
+        </button>
+        {{% endmacro %}}
+        {{% macro script(this, kwargs) %}}
+        (function() {{
+          var insetButton = document.getElementById('{inset_id}');
+          if (!insetButton) return;
+          L.DomEvent.disableClickPropagation(insetButton);
+          L.DomEvent.disableScrollPropagation(insetButton);
+          insetButton.addEventListener('click', function(evt) {{
+            evt.preventDefault();
+            evt.stopPropagation();
+            var uniqueLng = (Date.now() % 1000000) / 1000000;
+            var sentinel = {{lat:-89, lng:uniqueLng}};
+            if (window.__GLOBAL_DATA__) {{
+              window.__GLOBAL_DATA__.lat_lng_clicked = sentinel;
+            }}
+            if (window.Streamlit && window.Streamlit.setComponentValue) {{
+              window.Streamlit.setComponentValue({{
+                last_object_clicked_tooltip: null,
+                last_object_clicked_count:
+                  (window.__GLOBAL_DATA__ && window.__GLOBAL_DATA__.last_object_clicked_count) || 0,
+                last_clicked: sentinel
+              }});
+            }} else {{
+              {map_js_name}.fire('click', {{latlng:L.latLng(-89, uniqueLng)}});
+            }}
+          }});
+        }})();
         {{% endmacro %}}
         """
         inset = MacroElement()
@@ -2552,7 +2735,38 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
     legend._template = Template(legend_html)
     main_map.get_root().add_child(legend)
 
-    st_folium(main_map, height=560, use_container_width=True, key=key, returned_objects=[])
+    map_result = st_folium(
+        main_map,
+        height=560,
+        use_container_width=True,
+        key=key,
+        returned_objects=[
+            "last_object_clicked_tooltip",
+            "last_object_clicked_count",
+            "last_clicked",
+        ],
+    )
+
+    # Hanya teks tooltip dan penghitung klik yang dikirim kembali. Ini jauh
+    # lebih kecil daripada mengirim seluruh geometri polygon pada setiap klik.
+    tooltip_text = str((map_result or {}).get("last_object_clicked_tooltip") or "")
+    last_clicked = (map_result or {}).get("last_clicked") or {}
+    is_ntt_inset_click = float(last_clicked.get("lat", 0) or 0) < -80
+    clicked_match = re.search(
+        r"Kabupaten/Kota:\s*(.*?)\s*Satisfaction",
+        tooltip_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if is_ntt_inset_click:
+        clicked_region = "NTT"
+    else:
+        clicked_region = clicked_match.group(1).strip() if clicked_match else None
+    click_count = (map_result or {}).get("last_object_clicked_count", 0)
+    click_token = f"{clicked_region}|{click_count}|{last_clicked.get('lng')}"
+    click_state_key = f"{unit_from_key}_last_polygon_click"
+    if clicked_region and st.session_state.get(click_state_key) != click_token:
+        st.session_state[click_state_key] = click_token
+        _set_map_region_filter(df, cols, unit_from_key, clicked_region)
 # ============================================================
 # RENDER: KPI
 # ============================================================
@@ -3171,8 +3385,10 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             st.info("Data matriks tidak tersedia.")
             return
 
-        x_mid = round(sum(xs) / len(xs), 2)
-        y_mid = round(sum(ys) / len(ys), 2)
+        # Garis tengah kuadran menggunakan median agar tidak tertarik oleh
+        # satu nilai Importance ekstrem seperti yang terjadi pada Pasuruan.
+        x_mid = round(float(np.median(xs)), 2)
+        y_mid = round(float(np.median(ys)), 2)
 
         QUADRANTS = {
             "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": ORANGE,
@@ -3238,8 +3454,8 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
 
             x_min, x_max = min(xs), max(xs)
             y_min, y_max = min(ys), max(ys)
-            x_pad = max(0.25, (x_max - x_min) * 0.14)
-            y_pad = max(0.6, (y_max - y_min) * 0.14)
+            x_pad = max(0.50, (x_max - x_min) * 0.08)
+            y_pad = max(0.80, (y_max - y_min) * 0.10)
             x_lo, x_hi = max(0.0, x_min - x_pad), x_max + x_pad
             y_lo, y_hi = max(0.0, y_min - y_pad), min(105.0, y_max + y_pad)
 
@@ -3265,11 +3481,13 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
 
             point_names = [indicator_name_map.get(c.upper(), "Nama indikator belum tersedia") for c in codes]
             fig.add_trace(go.Scatter(
-                x=xs, y=ys, mode="markers+text", text=codes, textposition="top center",
+                # Kode indikator tidak ditulis permanen di atas titik karena
+                # wilayah dengan Importance berdekatan membuat label bertabrakan.
+                # Kode dan nama lengkap tetap muncul saat titik di-hover.
+                x=xs, y=ys, mode="markers", text=codes,
                 customdata=point_names,
-                textfont=dict(size=11),
                 marker=dict(
-                    size=14, color=colors, opacity=marker_opacity,
+                    size=12, color=colors, opacity=marker_opacity,
                     line=dict(width=marker_line_width, color="white"),
                 ),
                 hovertemplate="<b>%{text} · %{customdata}</b><br><b>Importance:</b> %{x:.2f}<br><b>Satisfaction:</b> %{y:.2f}%<extra></extra>",
@@ -3281,7 +3499,8 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             fig.update_layout(
                 xaxis=dict(title="Importance", range=[x_lo, x_hi], tickformat=".2f", gridcolor="#F0F1F3"),
                 yaxis=dict(title="Satisfaction (%)", range=[y_lo, y_hi], tickformat=".1f", gridcolor="#F0F1F3"),
-                margin=dict(l=20, r=20, t=10, b=20), height=440,
+                margin=dict(l=42, r=26, t=20, b=42), height=480,
+                hovermode="closest",
                 clickmode="event+select",
                 annotations=[
                     dict(x=x_lo, y=y_hi, text=f"{QUADRANTS['low']['roman']} · Prioritas Rendah", showarrow=False, font=dict(color=GREEN, size=11), xanchor="left", yanchor="top"),
@@ -5164,112 +5383,331 @@ def render_top_navigation():
 
 
 def render_framework_placeholder():
-    """Tampilkan alur analisis CSL berdasarkan notebook proyek H1."""
-    steps = [
+    """Alur analitik CSL: (A) Perhitungan Matrix Satisfaction x Importance,
+    (B) Customer Profiling dengan GMM/LPA, ditutup (C) insight praktis dari dashboard."""
+
+    # ========================================================
+    # BAGIAN A — PERHITUNGAN MATRIX (SATISFACTION x IMPORTANCE)
+    # Gaya, ikon, dan isi langkah dipertahankan sama seperti versi awal.
+    # ========================================================
+    matrix_steps = [
         {
-            "no": "01", "icon": "▤", "title": "DATA PREPARATION &<br>SATISFACTION SCORE",
+            "no": "01", "icon": "fa-solid fa-chart-column", "title": "STEP 1<br>SATISFACTION SCORE<br>CALCULATION",
             "items": [
-                ("Persiapan data", "Membaca data, memilih indikator, mengubah skor menjadi numerik, dan menangani missing value."),
-                ("Score atribut", "Menghitung rata-rata, standar deviasi, serta jumlah data valid setiap atribut."),
-                ("Score MOT", "Mengelompokkan atribut berdasarkan Moment of Truth dan menghitung rata-ratanya."),
-                ("Total CSL Score", "Menghitung rata-rata seluruh score MOT untuk setiap responden dan wilayah."),
+                ("fa-solid fa-chart-column", "1. Hitung rata-rata score setiap atribut", "A1–Axx, B1–Bxx, dan seterusnya."),
+                ("fa-solid fa-sitemap", "2. Kelompokkan atribut berdasarkan Moment of Truth (MOT)", "Setiap atribut dikelompokkan ke dalam MOT yang sesuai."),
+                ("fa-solid fa-chart-line", "3. Hitung rata-rata score masing-masing MOT", "Rata-rata atribut membentuk score setiap MOT."),
+                ("fa-solid fa-chart-pie", "4. Hitung Total Score", "Total Score merupakan rata-rata seluruh MOT."),
             ],
-            "output": ["Score atribut", "Score MOT", "Total CSL Score"],
+            "output": ["Score Total", "Score MOT", "Score Atribut"],
         },
         {
-            "no": "02", "icon": "⌁", "title": "SATISFACTION DRIVER<br>MODELLING",
+            "no": "02", "icon": "fa-solid fa-bullseye", "title": "STEP 2<br>CUSTOMER SATISFACTION<br>DRIVER MODELLING",
             "items": [
-                ("Target & predictor", "Total CSL Score sebagai target dan seluruh atribut kepuasan sebagai predictor."),
-                ("Random Forest", "Membagi data training–testing 80:20, melatih model, lalu mengevaluasi R², MAE, dan RMSE."),
-                ("SHAP Analysis", "Menghitung mean absolute SHAP value untuk melihat besar pengaruh setiap atribut."),
-                ("Driver ranking", "Mengurutkan atribut berdasarkan kontribusi terhadap kepuasan secara total dan per wilayah."),
+                ("fa-solid fa-bullseye", "Target", "Total CSL Score."),
+                ("fa-solid fa-table-cells", "Predictor", "Seluruh atribut CSL."),
+                ("fa-solid fa-tree", "Random Forest Regression", "Model hubungan atribut dengan Total CSL Score."),
+                ("fa-solid fa-braille", "SHAP Analysis", "Mengukur kontribusi masing-masing atribut."),
+                ("fa-solid fa-magnifying-glass-chart", "Hitung Mean Absolute SHAP Value", "Besarnya pengaruh rata-rata setiap atribut."),
+                ("fa-solid fa-trophy", "Ranking Satisfaction Driver", "Urutan atribut berdasarkan pengaruhnya."),
             ],
-            "output": ["SHAP importance", "Satisfaction driver rank"],
+            "output": ["SHAP Importance", "Satisfaction Rank"],
         },
         {
-            "no": "03", "icon": "★", "title": "CUSTOMER IMPORTANCE<br>ANALYSIS",
+            "no": "03", "icon": "fa-solid fa-users", "title": "STEP 3<br>CUSTOMER IMPORTANCE<br>ANALYSIS",
             "items": [
-                ("Data ranking", "Menggunakan lima atribut yang dipilih pelanggan pada TOP 1 sampai TOP 5."),
-                ("Pembobotan", "TOP 1 = 5, TOP 2 = 4, TOP 3 = 3, TOP 4 = 2, dan TOP 5 = 1."),
-                ("Weighted score", "Mengalikan frekuensi pemilihan atribut dengan bobot posisi ranking."),
-                ("Importance rank", "Menormalisasi score menjadi Importance Index dan menyusun peringkat atribut."),
+                ("fa-solid fa-users", "Data", "Transformasi rank dari Top 5 Importance Attributes: 5 = paling penting, 4 = rank kedua, 3 = rank ketiga, 2 = rank keempat, 1 = rank kelima, dan 0 = tidak dipilih."),
+                ("fa-solid fa-scale-balanced", "Weighted Ranking Method", "Memberikan bobot berdasarkan posisi atribut."),
+                ("fa-solid fa-chart-column", "Weighting Score", "Menghitung score hasil pembobotan."),
+                ("fa-solid fa-list-ol", "Importance Rank", "Mengurutkan atribut berdasarkan weighting score."),
             ],
-            "output": ["Importance score", "Importance index & rank"],
+            "output": ["Importance Score", "Importance Rank"],
         },
         {
-            "no": "04", "icon": "⊞", "title": "PRIORITY IMPROVEMENT<br>MATRIX",
+            "no": "04", "icon": "fa-solid fa-sliders", "title": "STEP 4<br>PRIORITY IMPROVEMENT<br>MATRIX",
             "items": [
-                ("Integrasi hasil", "Menggabungkan satisfaction score, SHAP driver, dan importance index per atribut."),
-                ("Sumbu matriks", "Sumbu X menggunakan Importance Index dan sumbu Y menggunakan Mean Absolute SHAP."),
-                ("Batas kuadran", "Median importance dan median satisfaction driver menjadi garis pembagi matriks."),
-                ("Prioritas", "Atribut dipetakan ke empat kuadran untuk menentukan area yang dipertahankan atau diperbaiki."),
+                ("fa-solid fa-xmarks-lines", "Input", "X Axis = Importance Rank; Y Axis = Satisfaction Driver Rank."),
+                ("fa-solid fa-sliders", "Hitung Median Importance Rank", "Median menjadi garis pembagi vertikal."),
+                ("fa-solid fa-sliders", "Hitung Median Satisfaction Rank", "Median menjadi garis pembagi horizontal."),
+                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Optimalisasi, III Prioritas Perbaikan, dan IV Prioritas Rendah."),
             ],
-            "output": ["Matriks 4 kuadran", "Daftar fokus perbaikan"],
+            "output": ["Matriks 4 Kuadran", "Daftar Prioritas"],
         },
         {
-            "no": "05", "icon": "◉", "title": "CUSTOMER PROFILE<br>MODELLING",
+            "no": "05", "icon": "fa-solid fa-cart-shopping", "title": "STEP 5<br>INTERACTIVE<br>DASHBOARD",
             "items": [
-                ("Eksplorasi", "Memeriksa missing value, distribusi indikator, dan korelasi antarvariabel."),
-                ("Standardisasi", "Mengisi missing value dengan median dan menstandardisasi indikator kepuasan."),
-                ("Gaussian Mixture", "Menguji beberapa jumlah profile menggunakan covariance full."),
-                ("Evaluasi profile", "Membandingkan AIC, BIC, dan Silhouette untuk memilih jumlah profile terbaik."),
+                ("fa-solid fa-cart-shopping", "Sales [H1]", "Analisis kepuasan pembelian unit."),
+                ("fa-solid fa-screwdriver-wrench", "Service [H2]", "Analisis kepuasan layanan AHASS."),
+                ("fa-solid fa-gears", "Spare Part [H3]", "Analisis kepuasan suku cadang."),
+                ("fa-solid fa-users", "TOTAL (ALL)", "Ringkasan performa keseluruhan."),
+                ("fa-solid fa-store", "MAIN DEALER", "M2Z dan M3Z."),
+                ("fa-solid fa-layer-group", "LAYER", "Reguler H123, Reguler H23, Wing, dan Big Wing."),
+                ("fa-solid fa-location-dot", "KARESIDENAN", "Surabaya, Kediri, Madiun, dan wilayah lainnya."),
             ],
-            "output": ["Customer profile", "Posterior probability", "Profile confidence"],
+            "output_label": "OUTPUT DASHBOARD",
+            "output": ["Quadrant Matrix", "Focus Item Table", "Analysis Summary"],
         },
         {
-            "no": "06", "icon": "⌖", "title": "PROFILE INTERPRETATION &<br>INTERACTIVE DASHBOARD",
+            "no": "06", "icon": "fa-solid fa-bullseye", "title": "STEP 6<br>FOCUS ITEM<br>IDENTIFICATION",
             "items": [
-                ("Interpretasi profile", "Membandingkan rata-rata profile dengan rata-rata keseluruhan melalui profile gap dan heatmap."),
-                ("Karakteristik", "Menganalisis gender, usia, SES, pendidikan, pekerjaan, tipe motor, NPS, dan retention."),
-                ("Analisis wilayah", "Menyajikan hasil per main dealer, layer, karesidenan, kabupaten/kota, dan dealer unit."),
-                ("Dashboard", "Mengintegrasikan CSL performance, matriks prioritas, customer profile, dan focus item."),
+                ("fa-solid fa-bullseye", "Ambil atribut pada Kuadran III", "Priority Improvement."),
+                ("fa-solid fa-chart-line", "Importance Tinggi × Satisfaction Rendah", "Menentukan atribut yang paling perlu diperbaiki."),
+                ("fa-solid fa-clipboard-check", "Generate Focus Item List", "Menyusun daftar akhir fokus perbaikan."),
             ],
-            "output": ["Insight customer profile", "Focus item", "Dashboard interaktif"],
+            "output": ["Top Priority Attributes", "Focus Improvement Area"],
         },
     ]
 
-    cards = []
-    for step in steps:
-        item_html = "".join(
-            f'<div class="fw-item"><div class="fw-mini-icon">{step["icon"]}</div>'
-            f'<div><b>{html.escape(label)}</b><span>{html.escape(desc)}</span></div></div>'
-            for label, desc in step["items"]
-        )
-        output_html = "".join(f"<li>{html.escape(value)}</li>" for value in step["output"])
-        cards.append(
-            f'''<article class="fw-step">
-                <div class="fw-step-head"><span>{step["no"]}</span><h3>{step["title"]}</h3></div>
-                <div class="fw-step-body">{item_html}<div class="fw-output"><b>OUTPUT</b><ul>{output_html}</ul></div></div>
-            </article>'''
-        )
+    # ========================================================
+    # BAGIAN B — CUSTOMER PROFILING (CLUSTERING / GMM-LPA)
+    # Disusun berdasarkan alur notebook (EDA → model selection AIC/BIC/
+    # Silhouette → fit GMM final → posterior probability → profile gap).
+    # Ditulis lebih rinci & bahasa awam supaya mudah dipahami.
+    # ========================================================
+    profiling_steps = [
+        {
+            "no": "01", "icon": "☰", "title": "STEP 1<br>PERSIAPAN<br>DATA",
+            "items": [
+                ("Kumpulkan indikator kepuasan", "Seluruh atribut satisfaction (A1–H23, dst) dijadikan variabel input clustering."),
+                ("Bersihkan data kosong", "Nilai kosong/spasi diubah menjadi missing value agar tidak mengganggu model."),
+                ("Cek kelengkapan data", "Menghitung jumlah & persentase data hilang tiap indikator sebagai kontrol kualitas."),
+            ],
+            "output": ["Dataset indikator siap dianalisis"],
+        },
+        {
+            "no": "02", "icon": "⌕", "title": "STEP 2<br>EKSPLORASI<br>DATA (EDA)",
+            "items": [
+                ("Lihat sebaran jawaban", "Distribusi tiap indikator diperiksa untuk memahami pola respon pelanggan."),
+                ("Cek hubungan antar indikator", "Correlation matrix dipakai agar tidak ada indikator yang terlalu tumpang tindih."),
+            ],
+            "output": ["Pola distribusi & korelasi indikator"],
+        },
+        {
+            "no": "03", "icon": "⚖", "title": "STEP 3<br>PENENTUAN JUMLAH<br>PROFIL (MODEL SELECTION)",
+            "items": [
+                ("Coba beberapa jumlah kelompok", "Gaussian Mixture Model (GMM) dijalankan untuk k = 2 sampai 8 kelompok pelanggan."),
+                ("Bandingkan 3 ukuran kualitas", "AIC & BIC (semakin rendah semakin baik) serta Silhouette Score (semakin tinggi semakin baik)."),
+                ("Pilih jumlah terbaik", "Kombinasi ketiga ukuran menunjukkan 5 kelompok sebagai jumlah Customer Profile paling optimal."),
+            ],
+            "output": ["Jumlah profil optimal (k = 5)"],
+        },
+        {
+            "no": "04", "icon": "◈", "title": "STEP 4<br>PEMBENTUKAN PROFIL<br>(GMM / LATENT PROFILE)",
+            "items": [
+                ("Latih model final", "GMM dilatih dengan 5 kelompok dan covariance type \"full\" agar tiap kelompok punya pola sebarannya sendiri."),
+                ("Beri label profil", "Setiap pelanggan diberi label Profile 1–5 sesuai kelompok yang paling mungkin ia miliki."),
+                ("Hitung tingkat keyakinan", "Posterior probability & Confidence Score menunjukkan seberapa yakin model menempatkan pelanggan pada profil tersebut."),
+            ],
+            "output": ["Label Customer Profile 1–5", "Confidence score"],
+        },
+        {
+            "no": "05", "icon": "▦", "title": "STEP 5<br>INTERPRETASI<br>KARAKTERISTIK PROFIL",
+            "items": [
+                ("Hitung profile gap", "Rata-rata tiap indikator per profil dibandingkan dengan rata-rata seluruh pelanggan."),
+                ("Visualisasi heatmap", "Merah menunjukkan indikator di bawah rata-rata, hijau menunjukkan di atas rata-rata."),
+                ("Lengkapi dengan demografi", "Gender, usia, SES, tipe motor, NPS, dan retention dianalisis untuk melengkapi karakter tiap profil."),
+            ],
+            "output": ["Heatmap profile gap", "Insight karakteristik tiap profil"],
+        },
+        {
+            "no": "06", "icon": "⌖", "title": "STEP 6<br>PEMETAAN WILAYAH<br>& VALIDASI",
+            "items": [
+                ("Hitung proporsi profil per wilayah", "Persentase Profile 1–5 dihitung untuk tiap kabupaten/kota."),
+                ("Bandingkan dengan cluster wilayah", "Dicocokkan dengan Cluster Karakteristik Wilayah (BPS) dan Kelompok Budaya."),
+                ("Ukur kemiripan distribusi", "Jensen–Shannon Similarity dipakai untuk melihat seberapa konsisten profil dalam satu cluster/budaya."),
+            ],
+            "output": ["Distribusi profil per wilayah", "Tingkat kemiripan cluster/budaya"],
+        },
+    ]
 
+    def _build_cards(steps):
+        cards = []
+        for step in steps:
+            item_parts = []
+            for item in step["items"]:
+                if len(item) == 3:
+                    item_icon, label, desc = item
+                    icon_html = f'<i class="{html.escape(item_icon)}"></i>'
+                else:
+                    label, desc = item
+                    icon_html = html.escape(step["icon"])
+                item_parts.append(
+                    f'<div class="fw-item"><div class="fw-mini-icon">{icon_html}</div>'
+                    f'<div><b>{html.escape(label)}</b><span>{html.escape(desc)}</span></div></div>'
+                )
+            item_html = "".join(item_parts)
+            output_html = "".join(f"<li>{html.escape(value)}</li>" for value in step["output"])
+            output_label = html.escape(step.get("output_label", "OUTPUT"))
+            cards.append(
+                f'''<article class="fw-step">
+                    <div class="fw-step-head"><span>{step["no"]}</span><h3>{step["title"]}</h3></div>
+                    <div class="fw-step-body">{item_html}<div class="fw-output"><b>{output_label}</b><ul>{output_html}</ul></div></div>
+                </article>'''
+            )
+        return "".join(cards)
+
+    matrix_cards_html = _build_cards(matrix_steps)
+    profiling_cards_html = _build_cards(profiling_steps)
+
+    # ========================================================
+    # BAGIAN C — INSIGHT YANG BISA DIDAPAT DARI DASHBOARD
+    # Disusun berdasarkan fitur yang benar-benar ada di app.py:
+    # peta satisfaction, gap target, matrix kuadran, NPS, profil
+    # wilayah, dan demografi.
+    # ========================================================
+    insights = [
+        {
+            "icon": "↗", "color": RED,
+            "title": "Bandingkan Performa Antar Semester",
+            "desc": "Chart \"Selisih Satisfaction Antar Semester\" dan KPI Improvement pada Section 1 menunjukkan atribut mana yang naik/turun dibanding semester sebelumnya, sehingga tren performa terlihat jelas.",
+        },
+        {
+            "icon": "⚑", "color": ORANGE,
+            "title": "Temukan Wilayah / Dealer yang Butuh Perhatian",
+            "desc": "Peta Satisfaction diwarnai merah–kuning–hijau berdasarkan nilai kepuasan tiap kabupaten/kota. Klik wilayahnya (termasuk inset NTT) atau pakai filter Dealer/AHASS/Part Shop untuk fokus ke titik terlemah.",
+        },
+        {
+            "icon": "◉", "color": YELLOW,
+            "title": "Prioritaskan Atribut yang Perlu Diperbaiki",
+            "desc": "Kuadran III \"Prioritas Utama\" pada Matrix Satisfaction x Importance (Section 2) menunjukkan atribut dengan importance tinggi tapi satisfaction rendah.",
+        },
+        {
+            "icon": "⌦", "color": GREEN,
+            "title": "Pantau Capaian terhadap Target",
+            "desc": "Chart \"Capaian terhadap Target Atribut\" membandingkan nilai satisfaction aktual dengan target Main Dealer/Layer, sehingga atribut yang belum mencapai standar langsung terlihat.",
+        },
+        {
+            "icon": "◐", "color": BLUE_OUTLINE,
+            "title": "Kenali Karakteristik Dominan Tiap Wilayah",
+            "desc": "Heatmap Customer Profile (Section 3) dan halaman Profil Wilayah menunjukkan tipe pelanggan dominan pada tiap kabupaten/kota, dealer, dan karesidenan.",
+        },
+        {
+            "icon": "◔", "color": "#00897B",
+            "title": "Ukur Loyalitas Pelanggan (NPS & Retention)",
+            "desc": "Gauge NPS Unit/Dealer/AHASS/Part Shop serta chart Retention menunjukkan seberapa besar pelanggan yang loyal dan berpotensi merekomendasikan dealer ke orang lain.",
+        },
+        {
+            "icon": "❖", "color": "#8E24AA",
+            "title": "Sesuaikan Strategi dengan Budaya & Karakter Wilayah",
+            "desc": "Halaman Profil Wilayah membandingkan distribusi Customer Profile dengan Cluster Karakteristik Wilayah (BPS) dan Kelompok Budaya, lengkap dengan tingkat kemiripan antar wilayah dalam satu cluster.",
+        },
+        {
+            "icon": "◆", "color": "#C9A400",
+            "title": "Pahami Profil Demografis Pelanggan",
+            "desc": "Chart gender, usia, SES, tipe motor, dan metode pembayaran pada Section 3 membantu memetakan segmen pasar tiap dealer, wilayah, maupun customer profile.",
+        },
+    ]
+
+    insight_cards_html = "".join(
+        f'''<article class="fw-insight" style="--c:{item['color']}">
+            <div class="fw-insight-icon">{item['icon']}</div>
+            <div class="fw-insight-title">{html.escape(item['title'])}</div>
+            <div class="fw-insight-desc">{html.escape(item['desc'])}</div>
+        </article>'''
+        for item in insights
+    )
+
+    # ========================================================
+    # STYLE + RENDER
+    # ========================================================
     st.markdown(
         """
         <style>
-        .fw-shell{background:#fff;border:1px solid #ececec;border-radius:18px;padding:22px 18px 24px;margin:10px 0 24px;box-shadow:0 8px 24px rgba(36,20,10,.06)}
-        .fw-title{text-align:center;margin:0;color:#222;font-size:25px;font-weight:800;letter-spacing:.2px}
-        .fw-subtitle{text-align:center;color:#777;font-size:13px;margin:6px 0 22px}
-        .fw-grid{display:grid;grid-template-columns:repeat(6,minmax(205px,1fr));gap:14px;overflow-x:auto;padding:2px 2px 12px;scrollbar-color:#ff7a1a #fff1e8}
-        .fw-step{--accent:#e60012;--tint:#fff3f3;min-width:205px;border:1.5px solid var(--accent);border-radius:15px;background:#fff;overflow:hidden;box-shadow:0 5px 14px rgba(80,34,10,.08)}
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css');
+
+        /* Seluruh elemen pada halaman Framework menggunakan font Poppins. */
+        .fw-shell,
+        .fw-shell * {
+            font-family:"Poppins",sans-serif!important;
+            box-sizing:border-box;
+            text-align:center!important;
+        }
+
+        .fw-shell{background:#fff;border:1px solid #ececec;border-radius:18px;padding:22px 18px 24px;margin:10px 0 22px;box-shadow:0 8px 24px rgba(36,20,10,.06)}
+        .fw-title{display:block!important;width:100%!important;text-align:center!important;margin:0!important;color:#222;font-size:23px;font-weight:800;letter-spacing:.2px}
+        .fw-title a,.fw-title svg,.fw-title [data-testid="stHeaderActionElements"]{display:none!important}
+        .fw-subtitle{position:relative!important;left:50%!important;transform:translateX(-50%)!important;display:block!important;width:min(760px,calc(100% - 32px))!important;max-width:none!important;text-align:center!important;color:#777;font-size:13px;margin:6px 0 22px!important;line-height:1.55}
+        .fw-subtitle-gmm{width:min(940px,calc(100% - 32px))!important;max-width:none!important;text-align:center!important;text-align-last:center!important;line-height:1.75;color:#666;margin:8px 0 24px!important}
+        .fw-grid{display:grid;gap:14px;overflow-x:auto;padding:2px 2px 12px;scrollbar-color:#ff7a1a #fff1e8}
+        .fw-grid-a{grid-template-columns:repeat(6,minmax(185px,1fr));gap:26px}
+        .fw-grid-b{grid-template-columns:repeat(6,minmax(200px,1fr))}
+        .fw-step{--accent:#e60012;--tint:#fff3f3;position:relative;min-width:200px;border:1.5px solid var(--accent);border-radius:15px;background:#fff;overflow:hidden;box-shadow:0 5px 14px rgba(80,34,10,.08);display:flex;flex-direction:column}
         .fw-step:nth-child(even){--accent:#ff6b00;--tint:#fff6ee}
-        .fw-step-head{min-height:92px;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex;align-items:center;gap:10px;padding:14px 12px}
+        .fw-grid-b .fw-step{--accent:#E60012;--tint:#FFF3F3;border-color:#E60012}
+        .fw-grid-b .fw-step:nth-child(even){--accent:#FF6B00;--tint:#FFF5EC;border-color:#FF6B00}
+        .fw-step-head{position:relative;min-height:100px;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex;align-items:center;justify-content:center;padding:14px 52px}
         .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#c90012,#f13a20)}
-        .fw-step-head>span{display:grid;place-items:center;flex:0 0 36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-size:15px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.13)}
-        .fw-step-head h3{margin:0;font-size:13px;line-height:1.35;font-weight:800;color:#fff}
-        .fw-step-body{padding:11px;background:linear-gradient(180deg,var(--tint),#fff 28%)}
-        .fw-item{display:flex;gap:8px;align-items:flex-start;border:1px solid color-mix(in srgb,var(--accent) 24%,white);border-radius:10px;background:#fff;padding:9px 8px;margin-bottom:9px;min-height:78px}
+        .fw-grid-b .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#C8102E 0%,#E60012 55%,#F13A20 100%)!important}
+        .fw-grid-b .fw-step:nth-child(even) .fw-step-head{background:linear-gradient(135deg,#E65100 0%,#FF6B00 55%,#FF9A3D 100%)!important}
+        .fw-step-head>span{position:absolute;left:12px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-size:15px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.13)}
+        .fw-step-head h3{display:block;width:100%;margin:0;font-size:13px;line-height:1.35;font-weight:800;color:#fff;text-align:center!important}
+        .fw-step-body{padding:11px;background:linear-gradient(180deg,var(--tint),#fff 28%);display:flex;flex:1;flex-direction:column;border-radius:0 0 13px 13px}
+        .fw-item{display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:flex-start;border:1px solid color-mix(in srgb,var(--accent) 24%,white);border-radius:10px;background:#fff;padding:9px 8px;margin-bottom:9px;min-height:78px}
+        .fw-item>div:last-child{width:100%;text-align:center!important}
         .fw-mini-icon{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:8px;background:var(--tint);color:var(--accent);font-weight:900;font-size:16px}
-        .fw-item b{display:block;color:#343434;font-size:11.5px;line-height:1.25;margin:1px 0 4px}
-        .fw-item span{display:block;color:#666;font-size:10.5px;line-height:1.38}
-        .fw-output{border-radius:10px;background:var(--tint);border:1px solid color-mix(in srgb,var(--accent) 30%,white);padding:10px 11px;min-height:92px}
-        .fw-output b{color:var(--accent);font-size:11px}.fw-output ul{margin:6px 0 0 16px;padding:0;color:#444;font-size:10.5px;line-height:1.55}
-        @media(max-width:1100px){.fw-grid{grid-template-columns:repeat(3,minmax(220px,1fr))}}
-        @media(max-width:720px){.fw-grid{grid-template-columns:1fr;overflow-x:visible}.fw-step{min-width:0}.fw-shell{padding:17px 12px}.fw-title{font-size:21px}}
+        .fw-mini-icon i{font-family:"Font Awesome 6 Free"!important;font-weight:900!important}
+        .fw-item b{display:block;width:100%;color:#343434;font-size:11.5px;line-height:1.25;margin:1px 0 4px;text-align:center!important}
+        .fw-item span{display:block;width:100%;color:#666;font-size:10.5px;line-height:1.38;text-align:center!important}
+        .fw-output{border-radius:10px;background:var(--tint);border:1px solid color-mix(in srgb,var(--accent) 30%,white);padding:10px 11px;min-height:70px;margin-top:0}
+        .fw-output b{display:block;width:100%;color:var(--accent);font-size:11px;text-align:center!important}.fw-output ul{list-style:none;margin:6px 0 0;padding:0;color:#444;font-size:10.5px;line-height:1.55;text-align:center!important}
+        .fw-output li{text-align:center!important;padding:0}
+        .fw-insight-grid{display:grid;grid-template-columns:repeat(4,minmax(230px,1fr));gap:14px}
+        .fw-insight{border:1px solid #eee;border-left:5px solid var(--c);border-radius:12px;background:#fff;padding:14px 15px;box-shadow:0 3px 10px rgba(20,20,20,.05)}
+        .fw-insight-icon{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 14%,white);color:var(--c);font-weight:900;font-size:16px;margin:0 auto 8px}
+        .fw-insight-title{font-size:12.5px;font-weight:800;color:#262626;margin-bottom:5px;line-height:1.3}
+        .fw-insight-desc{font-size:11px;color:#666;line-height:1.55}
+        /* Alur Matrix dibuat seperti referensi: enam kolom, ikon proses,
+           panah vertikal di dalam card, dan panah penghubung antar-step. */
+        .fw-grid-a .fw-step{min-width:185px;overflow:visible}
+        .fw-grid-a .fw-step-head{border-radius:13px 13px 0 0}
+        .fw-grid-a .fw-step:not(:last-child)::after{content:"➜";position:absolute;right:-24px;top:38px;z-index:8;color:#181818;font-size:24px;font-weight:900;line-height:1}
+        .fw-grid-a .fw-item{position:relative;flex-direction:row;align-items:center;justify-content:flex-start;min-height:82px;margin-bottom:22px;padding:10px 8px}
+        .fw-grid-a .fw-item>div:last-child{flex:1;min-width:0}
+        .fw-grid-a .fw-mini-icon{flex:0 0 36px;width:36px;height:36px;border-radius:50%;font-size:19px}
+        .fw-grid-a .fw-item:not(:last-child)::after{content:"↓";position:absolute;left:50%;bottom:-20px;transform:translateX(-50%);color:#181818;font-size:17px;font-weight:900;line-height:1}
+        @media(max-width:1100px){.fw-grid-a{grid-template-columns:repeat(2,minmax(220px,1fr))}.fw-grid-b{grid-template-columns:repeat(3,minmax(220px,1fr))}.fw-insight-grid{grid-template-columns:repeat(2,minmax(220px,1fr))}}
+        @media(max-width:720px){.fw-grid-a,.fw-grid-b{grid-template-columns:1fr;overflow-x:visible}.fw-insight-grid{grid-template-columns:1fr}.fw-step{min-width:0}.fw-shell{padding:17px 12px}.fw-title{font-size:19px}}
         </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Section A — Perhitungan Matrix
+    st.markdown(
+        f"""
         <section class="fw-shell">
-          <h2 class="fw-title">CUSTOMER SATISFACTION LEVEL ANALYTICAL FRAMEWORK</h2>
-          <p class="fw-subtitle">Alur pengolahan data, analisis prioritas perbaikan, customer profiling, dan penyajian insight</p>
-          <div class="fw-grid">""" + "".join(cards) + """</div>
+          <h2 class="fw-title">ALUR PERHITUNGAN MATRIX SATISFACTION x IMPORTANCE</h2>
+          <p class="fw-subtitle">Empat tahap pengolahan data survei kepuasan menjadi Priority Improvement Matrix,
+          mulai dari perhitungan skor sampai pemetaan atribut ke dalam empat kuadran prioritas.</p>
+          <div class="fw-grid fw-grid-a">{matrix_cards_html}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Section B — Customer Profiling (GMM)
+    st.markdown(
+        f"""
+        <section class="fw-shell">
+          <h2 class="fw-title">ALUR CUSTOMER PROFILING (CLUSTERING GMM)</h2>
+          <p class="fw-subtitle fw-subtitle-gmm">Pengelompokan pelanggan menjadi 5 Customer Profile menggunakan
+          <b>Gaussian Mixture Model (GMM)</b>, yaitu metode clustering yang mengelompokkan pelanggan
+          berdasarkan kemiripan pola jawaban survei. Selanjutnya, setiap pelanggan ditempatkan pada
+          profil yang paling sesuai dengan karakteristiknya beserta tingkat keyakinan hasil
+          pengelompokannya.</p>
+          <div class="fw-grid fw-grid-b">{profiling_cards_html}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Section C — Insight dari Dashboard
+    st.markdown(
+        f"""
+        <section class="fw-shell">
+          <h2 class="fw-title">APA YANG BISA DIDAPATKAN DARI DASHBOARD INI?</h2>
+          <div class="fw-insight-grid">{insight_cards_html}</div>
         </section>
         """,
         unsafe_allow_html=True,
