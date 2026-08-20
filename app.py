@@ -882,6 +882,22 @@ def inject_css():
             box-sizing: border-box !important;
         }
         div[class*="st-key-"][class*="_heatmap_scroll"]{max-height:520px;overflow-y:auto;overflow-x:hidden}div[class*="st-key-"][class*="_scroll_chart_card"]::-webkit-scrollbar,div[class*="st-key-"][class*="_heatmap_scroll"]::-webkit-scrollbar{width:7px;height:7px}div[class*="st-key-"][class*="_scroll_chart_card"]::-webkit-scrollbar-thumb,div[class*="st-key-"][class*="_heatmap_scroll"]::-webkit-scrollbar-thumb{background:#D8DBDF;border-radius:20px}
+
+        /* SES dan Retention memakai tinggi outline yang sama. */
+        div[class*="st-key-"][class*="_fixed_chart_card"] {
+            height: 190px !important;
+            min-height: 190px !important;
+            max-height: 190px !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+        }
+        div[class*="st-key-"][class*="_fixed_chart_card"]
+        > div[data-testid="stVerticalBlockBorderWrapper"] {
+            height: 100% !important;
+            min-height: 100% !important;
+            max-height: 100% !important;
+            box-sizing: border-box !important;
+        }
         @media(max-width:700px){.csl-header-note{display:none}.csl-brand h1{font-size:15px}.custom-section-text{font-size:13px}[data-testid="stAppViewContainer"]>.main .block-container{padding:.2rem .65rem 2rem;}div[class*="st-key-top_header"]{padding:12px!important;}.csl-update-time{text-align:left;}div[class*="st-key-page_selector_card"] div[data-testid="stSegmentedControl"] button{padding:0 12px!important;}}
         /* Menyamakan tinggi kotak Heatmap, Daftar Profil, dan Penjelasan Profil */
         div[class*="st-key-"][class*="_profile_equal_height"] {
@@ -892,10 +908,17 @@ def inject_css():
             box-sizing: border-box !important;
         }
 
-        /* Konten heatmap dapat di-scroll jika terlalu panjang */
+        /* Scroll hanya berada pada konten heatmap bagian dalam. Pembungkus
+           kartu luar tidak lagi membuat scrollbar kedua. */
         div[class*="st-key-"][class*="_profile_heatmap_column"] {
-            overflow-y: auto !important;
+            overflow-y: hidden !important;
             overflow-x: hidden !important;
+        }
+
+        /* Geser keterangan pembaruan sedikit mendekati tombol Refresh Data. */
+        .csl-update-time {
+            position: relative;
+            left: 8px;
         }
 
         /* Daftar profil dapat di-scroll jika profilnya terlalu panjang */
@@ -1370,16 +1393,44 @@ def kab_to_provinsi(kab_value):
 # INDICATOR METADATA
 # ============================================================
 
-def indicator_columns(df: pd.DataFrame, meta_df: pd.DataFrame):
+# Indikator berikut hanya ditambahkan ke metadata agar nama/keterangan dapat
+# ditampilkan pada matriks. Indikator tidak boleh masuk ke perhitungan CSL,
+# target gap, improvement, peta, maupun visual profiling/heatmap.
+EXCLUDED_CALCULATION_INDICATORS = {
+    "sales": {"E16", "E17", "F19", "F20", "B8", "C13"},
+    "service": {"D14", "C11", "A4"},
+    "parts": {"G21", "D10", "D12", "D14", "D13"},
+}
+
+
+def _canonical_unit_key(unit_key: str) -> str:
+    unit = str(unit_key or "").strip().lower()
+    return {
+        "h1": "sales",
+        "h2": "service",
+        "h3": "parts",
+    }.get(unit, unit)
+
+
+def excluded_calculation_indicators(unit_key: str) -> set:
+    """Kode yang hanya boleh digunakan sebagai metadata matriks per unit."""
+    return EXCLUDED_CALCULATION_INDICATORS.get(_canonical_unit_key(unit_key), set())
+
+
+def indicator_columns(df: pd.DataFrame, meta_df: pd.DataFrame, unit_key: str = None):
     if df is None or df.empty:
         return []
+    excluded = excluded_calculation_indicators(unit_key)
     if meta_df is not None and not meta_df.empty:
         code_col = find_col(meta_df, ["kode_indicator", "code", "kode", "atribut", "attribute"])
         if code_col:
             codes = [str(c).strip() for c in meta_df[code_col].dropna().unique()]
-            return [c for c in codes if c in df.columns]
+            return [c for c in codes if c in df.columns and c.upper() not in excluded]
     pattern = re.compile(r"^[A-Za-z]\d{1,2}$")
-    return [c for c in df.columns if pattern.match(str(c).strip())]
+    return [
+        c for c in df.columns
+        if pattern.match(str(c).strip()) and str(c).strip().upper() not in excluded
+    ]
 
 
 def get_target_col(meta_df: pd.DataFrame, main_dealer: str, layer: str):
@@ -2437,7 +2488,9 @@ def _load_h123_by_location():
             source_meta = try_read_sheet(metadata_sheet)
             if not source_meta.empty:
                 break
-        source_indicators = indicator_columns(source_df, source_meta)
+        source_indicators = indicator_columns(
+            source_df, source_meta, unit_key=source_unit
+        )
         source_region_data = source_df.dropna(subset=[source_location]).copy()
         source_region_data["__map_region"] = source_region_data[source_location].apply(
             _dashboard_region_name
@@ -2853,7 +2906,7 @@ def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
         max_val = max(vals) if vals else 100
         fig = go.Figure(go.Bar(
             x=vals, y=codes, orientation="h",
-            marker=dict(color=vals, colorscale=[[0, "#FFAB91"], [1, "#B71C1C"]]),
+            marker=dict(color=RED),
             text=[f"{v:.0f}%" for v in vals], textposition="outside",
             customdata=np.array(names, dtype=object).reshape(-1, 1),
             hovertemplate=(
@@ -3298,11 +3351,11 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             "mean satisfaction", "rata-rata satisfaction", "avg performance",
         ])
         rank_sat_col = find_col(mat_df, [
-            "Rank Satisfaction", "rank_satisfaction", "satisfaction rank",
+            "Satisfaction_Rank", "satisfaction_rank", "Rank Satisfaction", "rank_satisfaction", "satisfaction rank",
             "peringkat satisfaction", "rank performance",
         ])
         rank_imp_col = find_col(mat_df, [
-            "Rank Importance", "rank_importance", "importance rank",
+            "Importance_Rank", "importance_rank", "Rank Importance", "rank_importance", "importance rank",
             "peringkat importance", "rank weighting",
         ])
 
@@ -3577,10 +3630,10 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 hovermode="closest",
                 clickmode="event+select",
                 annotations=[
-                    dict(x=x_lo, y=y_hi, text=f"{QUADRANTS['priority']['roman']} · Prioritas Utama", showarrow=False, font=dict(color=RED, size=11), xanchor="left", yanchor="top"),
-                    dict(x=x_hi, y=y_hi, text=f"{QUADRANTS['keep']['roman']} · Pertahankan", showarrow=False, font=dict(color=ORANGE, size=11), xanchor="right", yanchor="top"),
-                    dict(x=x_lo, y=y_lo, text=f"{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap", showarrow=False, font=dict(color="#C9A400", size=11), xanchor="left", yanchor="bottom"),
-                    dict(x=x_hi, y=y_lo, text=f"{QUADRANTS['low']['roman']} · Prioritas Rendah", showarrow=False, font=dict(color=GREEN, size=11), xanchor="right", yanchor="bottom"),
+                    dict(x=x_lo, y=y_hi, text=f"<b>{QUADRANTS['priority']['roman']} · Prioritas Utama</b>", showarrow=False, font=dict(color=RED, size=14), xanchor="left", yanchor="top"),
+                    dict(x=x_hi, y=y_hi, text=f"<b>{QUADRANTS['keep']['roman']} · Pertahankan</b>", showarrow=False, font=dict(color=ORANGE, size=14), xanchor="right", yanchor="top"),
+                    dict(x=x_lo, y=y_lo, text=f"<b>{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap</b>", showarrow=False, font=dict(color="#C9A400", size=14), xanchor="left", yanchor="bottom"),
+                    dict(x=x_hi, y=y_lo, text=f"<b>{QUADRANTS['low']['roman']} · Prioritas Rendah</b>", showarrow=False, font=dict(color=GREEN, size=14), xanchor="right", yanchor="bottom"),
                 ],
             )
             st.plotly_chart(
@@ -3691,6 +3744,14 @@ def render_profile_heatmap(unit_key: str, key: str):
         p_col = find_col(hm_df, ["Profile", "profile", "p", "profil"])
         k_col = find_col(hm_df, ["Kode_Indikator", "kode_indicator", "kode", "code", "attribute", "indikator"])
         v_col = find_col(hm_df, ["Nilai", "nilai", "value", "val", "selisih", "gap"])
+
+        # Indikator metadata-only tetap tersedia untuk nama/tooltip matriks,
+        # tetapi tidak boleh muncul pada heatmap atau visual profiling.
+        excluded_heatmap_codes = excluded_calculation_indicators(unit_key)
+        if k_col and excluded_heatmap_codes:
+            hm_df = hm_df[
+                ~hm_df[k_col].astype(str).str.strip().str.upper().isin(excluded_heatmap_codes)
+            ].copy()
 
         profiles_label = []
         attr_codes = []
@@ -4184,6 +4245,24 @@ def _stacked_pct(df, col, title, key, is_ses=False, is_retention=False):
                 return 4
             return None
 
+        # Normalisasi dahulu sebelum menghitung persentase. Nilai mentah seperti
+        # 4, 4.0, "4 ", dan "Mungkin membeli kembali" harus menjadi satu
+        # kategori yang sama, bukan beberapa segmen dengan label 4.
+        if is_retention:
+            normalized_retention = (
+                df[col]
+                .dropna()
+                .map(retention_score)
+                .dropna()
+                .astype(int)
+            )
+            if normalized_retention.empty:
+                st.info("Data tidak tersedia.")
+                return
+            counts = normalized_retention.value_counts()
+            total = counts.sum()
+            pct = (counts / total * 100).round(0)
+
         items = list(pct.items())
         if is_retention:
             items = sorted(items, key=lambda item: retention_score(item[0]) or 0, reverse=True)
@@ -4407,7 +4486,7 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
 
     cols = detect_columns(df_raw, unit_key)
     df_raw = add_karesidenan(df_raw, cols)
-    indicator_cols = indicator_columns(df_raw, meta_df)
+    indicator_cols = indicator_columns(df_raw, meta_df, unit_key=unit_key)
 
     key_prefix = f"{unit_key}"
 
