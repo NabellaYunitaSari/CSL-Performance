@@ -2597,6 +2597,7 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
                     "Filter_Region": _dashboard_region_name(row["Kabupaten_Kota"]),
                     "Satisfaction_Page": sat_text,
                     "CSL_H123": csl_h123_text,
+                    "Dominan_Profile": str(row.get("Dominan_Profile", "-") or "-"),
                 },
                 "geometry": row.geometry.__geo_interface__,
             }
@@ -2605,8 +2606,8 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
                 style_function=lambda _, c=color: {"fillColor": c, "color": "#FFFFFF", "weight": 1.5, "fillOpacity": 0.92},
                 highlight_function=lambda _, c=color: {"fillColor": c, "color": "#262626", "weight": 2.5, "fillOpacity": 1},
                 tooltip=folium.GeoJsonTooltip(
-                    fields=["Kabupaten_Kota", "Satisfaction_Page", "CSL_H123"],
-                    aliases=["Kabupaten/Kota:", f"Satisfaction {h_label}:", "%CSL H123:"],
+                    fields=["Kabupaten_Kota", "Satisfaction_Page", "CSL_H123", "Dominan_Profile"],
+                    aliases=["Kabupaten/Kota:", f"Satisfaction {h_label}:", "%CSL H123:", "Profile Dominan:"],
                     sticky=True,
                     style="background:#fff;border:0;border-radius:8px;box-shadow:0 3px 12px rgba(0,0,0,.18);color:#262626;font-family:Arial;font-size:13px;padding:8px 10px;",
                 ),
@@ -3266,7 +3267,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
         )
         st.markdown(
             "Matriks ini menunjukkan posisi setiap atribut berdasarkan tingkat "
-            "Satisfaction (Y) dan Importance (X)."
+            "Satisfaction (X) dan Importance (Y)."
         )
 
         u_str = str(unit_key).strip().lower()
@@ -3292,6 +3293,18 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
         code_col = find_col(mat_df, ["Attribute", "attribute", "Kode_Indicator", "kode_indicator", "kode", "kode atribut", "code"])
         sat_col = find_col(mat_df, ["Performance", "performance", "satisfaction", "nilai satisfaction"])
         imp_col = find_col(mat_df, ["Relative_Importance", "relative_importance", "Weighting", "weighting", "importance", "nilai importance"])
+        avg_sat_col = find_col(mat_df, [
+            "AVG Satisfaction", "avg_satisfaction", "average satisfaction",
+            "mean satisfaction", "rata-rata satisfaction", "avg performance",
+        ])
+        rank_sat_col = find_col(mat_df, [
+            "Rank Satisfaction", "rank_satisfaction", "satisfaction rank",
+            "peringkat satisfaction", "rank performance",
+        ])
+        rank_imp_col = find_col(mat_df, [
+            "Rank Importance", "rank_importance", "importance rank",
+            "peringkat importance", "rank weighting",
+        ])
 
         if not code_col or not sat_col or not imp_col:
             st.warning("Kolom Kode, Satisfaction, atau Importance tidak ditemukan pada worksheet matriks.")
@@ -3387,6 +3400,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             df_sub = mat_df.copy()
 
         codes, xs, ys = [], [], []
+        avg_sats, raw_sats, rank_sats, rank_imps = [], [], [], []
         grouped = df_sub.groupby(code_col, as_index=False)
         for c_code, group in grouped:
             try:
@@ -3399,12 +3413,31 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 if pd.isna(avg_perf) or pd.isna(avg_imp):
                     continue
 
-                y_val = round((avg_perf / 5.0 * 100), 1) if avg_perf <= 10 else round(avg_perf, 1)
-                x_val = round(avg_imp, 2)
+                # Sumbu X = Satisfaction dan sumbu Y = Importance.
+                x_val = round((avg_perf / 5.0 * 100), 1) if avg_perf <= 10 else round(avg_perf, 1)
+                y_val = round(avg_imp, 2)
+
+                avg_sat_series = (
+                    pd.to_numeric(group[avg_sat_col].astype(str).str.replace("%", "").str.replace(",", "."), errors="coerce")
+                    if avg_sat_col else perf_series
+                )
+                avg_sat_value = avg_sat_series.mean()
+                if pd.notna(avg_sat_value) and avg_sat_value <= 10:
+                    avg_sat_value = avg_sat_value / 5.0 * 100
+
+                def first_numeric(column):
+                    if not column:
+                        return np.nan
+                    values = pd.to_numeric(group[column], errors="coerce").dropna()
+                    return float(values.iloc[0]) if not values.empty else np.nan
 
                 codes.append(str(c_code).strip())
                 xs.append(x_val)
                 ys.append(y_val)
+                avg_sats.append(float(avg_sat_value) if pd.notna(avg_sat_value) else x_val)
+                raw_sats.append(float(avg_perf))
+                rank_sats.append(first_numeric(rank_sat_col))
+                rank_imps.append(first_numeric(rank_imp_col))
             except Exception:
                 continue
 
@@ -3420,11 +3453,11 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
         QUADRANTS = {
             "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": ORANGE,
                      "test": lambda x, y: x >= x_mid and y >= y_mid},
-            "low": {"label": "Prioritas Rendah", "roman": "Kuadran II", "color": GREEN,
+            "priority": {"label": "Prioritas Utama", "roman": "Kuadran II", "color": RED,
                     "test": lambda x, y: x < x_mid and y >= y_mid},
             "gradual": {"label": "Perbaikan Bertahap", "roman": "Kuadran III", "color": "#C9A400",
                         "test": lambda x, y: x < x_mid and y < y_mid},
-            "priority": {"label": "Prioritas Utama", "roman": "Kuadran IV", "color": RED,
+            "low": {"label": "Prioritas Rendah", "roman": "Kuadran IV", "color": GREEN,
                          "test": lambda x, y: x >= x_mid and y < y_mid},
         }
 
@@ -3436,12 +3469,14 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
 
         quadrant_of_code = {}
         points_by_quadrant = {qk: [] for qk in QUADRANTS}
-        for c_code, x_val, y_val in zip(codes, xs, ys):
+        for idx, (c_code, x_val, y_val) in enumerate(zip(codes, xs, ys)):
             qk = classify(x_val, y_val)
             quadrant_of_code[c_code] = qk
             points_by_quadrant[qk].append({
                 "code": c_code, "name": indicator_name_map.get(c_code.upper(), "Nama indikator belum tersedia"),
                 "x": x_val, "y": y_val,
+                "avg_sat": avg_sats[idx], "raw_sat": raw_sats[idx],
+                "rank_sat": rank_sats[idx], "rank_imp": rank_imps[idx],
             })
 
         colors = [QUADRANTS[quadrant_of_code[c]]["color"] for c in codes]
@@ -3489,10 +3524,10 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             fig = go.Figure()
 
             quad_bounds = {
-                "low": (x_lo, x_mid, y_mid, y_hi),
+                "priority": (x_lo, x_mid, y_mid, y_hi),
                 "keep": (x_mid, x_hi, y_mid, y_hi),
                 "gradual": (x_lo, x_mid, y_lo, y_mid),
-                "priority": (x_mid, x_hi, y_lo, y_mid),
+                "low": (x_mid, x_hi, y_lo, y_mid),
             }
             for qk, (rx0, rx1, ry0, ry1) in quad_bounds.items():
                 is_sel = qk == selected_qk
@@ -3507,33 +3542,45 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             marker_line_width = [2 if quadrant_of_code[c] == selected_qk else 0.8 for c in codes]
 
             point_names = [indicator_name_map.get(c.upper(), "Nama indikator belum tersedia") for c in codes]
+            hover_data = np.column_stack([
+                point_names, avg_sats, raw_sats, rank_sats, rank_imps,
+            ])
             fig.add_trace(go.Scatter(
                 # Kode indikator tidak ditulis permanen di atas titik karena
                 # wilayah dengan Importance berdekatan membuat label bertabrakan.
                 # Kode dan nama lengkap tetap muncul saat titik di-hover.
                 x=xs, y=ys, mode="markers", text=codes,
-                customdata=point_names,
+                customdata=hover_data,
                 marker=dict(
                     size=12, color=colors, opacity=marker_opacity,
                     line=dict(width=marker_line_width, color="white"),
                 ),
-                hovertemplate="<b>%{text} · %{customdata}</b><br><b>Importance:</b> %{x:.2f}<br><b>Satisfaction:</b> %{y:.2f}%<extra></extra>",
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "<b>Nama indikator:</b> %{customdata[0]}<br>"
+                    "<b>AVG Satisfaction:</b> %{customdata[1]:.2f}%<br>"
+                    "<b>Satisfaction:</b> %{customdata[2]:.2f}<br>"
+                    "<b>Importance:</b> %{y:.2f}<br>"
+                    "<b>Rank Satisfaction:</b> %{customdata[3]}<br>"
+                    "<b>Rank Importance:</b> %{customdata[4]}"
+                    "<extra></extra>"
+                ),
             ))
 
             fig.add_vline(x=x_mid, line_dash="dash", line_width=1, line_color="#9AA0A6")
             fig.add_hline(y=y_mid, line_dash="dash", line_width=1, line_color="#9AA0A6")
 
             fig.update_layout(
-                xaxis=dict(title="Importance", range=[x_lo, x_hi], tickformat=".2f", gridcolor="#F0F1F3"),
-                yaxis=dict(title="Satisfaction (%)", range=[y_lo, y_hi], tickformat=".1f", gridcolor="#F0F1F3"),
+                xaxis=dict(title="Satisfaction (%)", range=[x_lo, x_hi], tickformat=".1f", gridcolor="#F0F1F3"),
+                yaxis=dict(title="Importance", range=[y_lo, y_hi], tickformat=".2f", gridcolor="#F0F1F3"),
                 margin=dict(l=42, r=26, t=20, b=42), height=480,
                 hovermode="closest",
                 clickmode="event+select",
                 annotations=[
-                    dict(x=x_lo, y=y_hi, text=f"{QUADRANTS['low']['roman']} · Prioritas Rendah", showarrow=False, font=dict(color=GREEN, size=11), xanchor="left", yanchor="top"),
+                    dict(x=x_lo, y=y_hi, text=f"{QUADRANTS['priority']['roman']} · Prioritas Utama", showarrow=False, font=dict(color=RED, size=11), xanchor="left", yanchor="top"),
                     dict(x=x_hi, y=y_hi, text=f"{QUADRANTS['keep']['roman']} · Pertahankan", showarrow=False, font=dict(color=ORANGE, size=11), xanchor="right", yanchor="top"),
                     dict(x=x_lo, y=y_lo, text=f"{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap", showarrow=False, font=dict(color="#C9A400", size=11), xanchor="left", yanchor="bottom"),
-                    dict(x=x_hi, y=y_lo, text=f"{QUADRANTS['priority']['roman']} · Prioritas Utama", showarrow=False, font=dict(color=RED, size=11), xanchor="right", yanchor="bottom"),
+                    dict(x=x_hi, y=y_lo, text=f"{QUADRANTS['low']['roman']} · Prioritas Rendah", showarrow=False, font=dict(color=GREEN, size=11), xanchor="right", yanchor="bottom"),
                 ],
             )
             st.plotly_chart(
@@ -3566,7 +3613,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                                 <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{safe_name}</span>
                             </span>
                             <span style="font-size:11px;color:#666;text-align:right;">
-                                Sat {p['y']:.2f}%<br>Imp {p['x']:.2f}
+                                Sat {p['x']:.2f}%<br>Imp {p['y']:.2f}
                             </span>
                         </div>
                         """
@@ -4083,7 +4130,7 @@ def _simple_hbar(df, col, title, key):
         st.plotly_chart(fig, use_container_width=True, key=key)
 
 
-def _stacked_pct(df, col, title, key, is_ses=False):
+def _stacked_pct(df, col, title, key, is_ses=False, is_retention=False):
     with st.container(key=f"{key}_fixed_chart_card", border=True):
         st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
         if not col or df is None or df.empty or col not in df.columns:
@@ -4103,25 +4150,90 @@ def _stacked_pct(df, col, title, key, is_ses=False):
             "C2": "1,25 – 1,75 Juta", "D": "0,9 – 1,25 Juta",
             "E": "≤ 0,9 Juta",
         }
-        for i, (label, v) in enumerate(pct.items()):
+        retention_labels = {
+            5: "Sangat mungkin membeli kembali",
+            4: "Mungkin membeli kembali",
+            3: "Cukup mungkin membeli kembali",
+            2: "Kurang mungkin membeli kembali",
+            1: "Sangat tidak mungkin membeli kembali",
+        }
+        # Gunakan tone warna utama dashboard agar chart Retention menyatu
+        # dengan seluruh visual H1, H2, dan H3.
+        retention_colors = {
+            5: GREEN,
+            4: YELLOW,
+            3: ORANGE,
+            2: RED,
+            1: "#C8102E",  # merah tua dari colorway dashboard
+        }
+
+        def retention_score(value):
+            text = str(value).strip().lower()
+            numeric = pd.to_numeric(text.replace(",", "."), errors="coerce")
+            if pd.notna(numeric) and 1 <= int(round(float(numeric))) <= 5:
+                return int(round(float(numeric)))
+            if "sangat mungkin" in text:
+                return 5
+            if "cukup" in text:
+                return 3
+            if "sangat tidak" in text or "tidak mungkin" in text:
+                return 1
+            if "kurang" in text:
+                return 2
+            if "mungkin" in text:
+                return 4
+            return None
+
+        items = list(pct.items())
+        if is_retention:
+            items = sorted(items, key=lambda item: retention_score(item[0]) or 0, reverse=True)
+
+        ses_color_map = {}
+        for i, (label, v) in enumerate(items):
             label_text = str(label).strip()
             range_text = ses_ranges.get(label_text.upper(), "Rentang tidak tersedia")
             respondents = int(counts.get(label, 0))
+            score = retention_score(label) if is_retention else None
+            display_label = str(score) if score else label_text
+            bar_color = retention_colors.get(score, palette[i % len(palette)])
+            if is_ses:
+                ses_color_map[label_text.upper()] = bar_color
             fig.add_trace(go.Bar(x=[v], y=[""], orientation="h", name=str(label),
-                                  marker=dict(color=palette[i % len(palette)]),
-                                  text=f"{v:.0f}%<br>{label}", textposition="inside",
+                                  marker=dict(color=bar_color),
+                                  text=f"{v:.0f}%<br>{display_label}", textposition="inside",
                                   customdata=[[range_text, respondents]],
                                   hovertemplate=(
                                       f"<b>{label_text}: %{{customdata[0]}}</b><br>"
                                       "Persentase: %{x:.1f}%<br>"
                                       "Responden: %{customdata[1]} orang<extra></extra>"
                                   ) if is_ses else (
-                                      f"<b>{label_text}</b><br>Persentase: %{{x:.1f}}%<br>"
+                                      f"<b>{display_label}: {retention_labels.get(score, label_text)}</b><br>"
+                                      "Persentase: %{x:.1f}%<br>"
                                       "Responden: %{customdata[1]} orang<extra></extra>"
                                   )))
         fig.update_layout(barmode="stack", showlegend=False, height=110,
                            margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(visible=False), yaxis=dict(visible=False))
         st.plotly_chart(fig, use_container_width=True, key=key)
+        if is_ses:
+            available_levels = [str(x).strip().upper() for x in counts.index]
+            legend_items = []
+            for level in ["A", "A1", "A2", "B", "C1", "C2", "D", "E"]:
+                if level in available_levels and level in ses_ranges:
+                    box_color = ses_color_map.get(level, "#D0D5DD")
+                    legend_items.append(
+                        '<span style="display:inline-flex;align-items:center;gap:5px;'
+                        'white-space:nowrap;margin:2px 14px 2px 0;">'
+                        f'<span style="display:inline-block;width:10px;height:10px;'
+                        f'border-radius:1px;background:{box_color};flex:0 0 10px;"></span>'
+                        f'<span><b>{level}</b>: {ses_ranges[level]}</span></span>'
+                    )
+            if legend_items:
+                st.markdown(
+                    '<div style="display:flex;flex-wrap:wrap;align-items:center;'
+                    'font-size:10.5px;line-height:1.45;color:#667085;'
+                    'padding:0 4px 4px;">' + "".join(legend_items) + "</div>",
+                    unsafe_allow_html=True,
+                )
 
 
 
@@ -4190,7 +4302,10 @@ def render_demographic_charts(
     with r2c1:
         _stacked_pct(df_prof, cols.get("ses"), "SES", key=f"{key_prefix}_ses", is_ses=True)
     with r2c2:
-        _stacked_pct(df_prof, cols.get("retention"), "Retention", key=f"{key_prefix}_retention")
+        _stacked_pct(
+            df_prof, cols.get("retention"), "Retention",
+            key=f"{key_prefix}_retention", is_retention=True,
+        )
 
     unit = str(unit_key or key_prefix).strip().lower()
     nps_col = cols.get("nps")
@@ -4237,19 +4352,14 @@ def render_demographic_charts(
             )
 
     else:
-        # Spare Part: tiga gauge, tanpa tipe pembayaran.
-        r3c1, r3c2, r3c3 = st.columns(3)
+        # Spare Part: hanya NPS Unit dan NPS Part, sejajar dalam dua kolom.
+        r3c1, r3c2 = st.columns(2)
         with r3c1:
-            render_nps_gauge(
-                nps_value(nps_col), "NPS",
-                key=f"{key_prefix}_nps",
-            )
-        with r3c2:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
             )
-        with r3c3:
+        with r3c2:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS Part",
                 key=f"{key_prefix}_nps_dealer",
