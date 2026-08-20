@@ -14,9 +14,11 @@ import io
 import json
 import math
 import html
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import time
 from typing import Any
+
+WIB = timezone(timedelta(hours=7))
 
 import requests
 import numpy as np
@@ -2692,29 +2694,28 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
         {{% endmacro %}}
         {{% macro script(this, kwargs) %}}
         (function() {{
-          var insetButton = document.getElementById('{inset_id}');
-          if (!insetButton) return;
-          L.DomEvent.disableClickPropagation(insetButton);
-          L.DomEvent.disableScrollPropagation(insetButton);
-          insetButton.addEventListener('click', function(evt) {{
-            evt.preventDefault();
-            evt.stopPropagation();
-            var uniqueLng = (Date.now() % 1000000) / 1000000;
-            var sentinel = {{lat:-89, lng:uniqueLng}};
-            if (window.__GLOBAL_DATA__) {{
-              window.__GLOBAL_DATA__.lat_lng_clicked = sentinel;
-            }}
-            if (window.Streamlit && window.Streamlit.setComponentValue) {{
-              window.Streamlit.setComponentValue({{
-                last_object_clicked_tooltip: null,
-                last_object_clicked_count:
-                  (window.__GLOBAL_DATA__ && window.__GLOBAL_DATA__.last_object_clicked_count) || 0,
-                last_clicked: sentinel
-              }});
-            }} else {{
-              {map_js_name}.fire('click', {{latlng:L.latLng(-89, uniqueLng)}});
-            }}
-          }});
+            var insetButton = document.getElementById('{inset_id}');
+            if (!insetButton) return;
+
+            L.DomEvent.disableClickPropagation(insetButton);
+            L.DomEvent.disableScrollPropagation(insetButton);
+
+            insetButton.addEventListener('click', function(evt) {{
+                evt.preventDefault();
+                evt.stopPropagation();
+
+                // Longitude dibuat unik agar setiap klik dianggap sebagai event baru.
+                var uniqueLng = (Date.now() % 1000000) / 1000000;
+
+                // Gunakan latitude khusus sebagai penanda klik inset NTT.
+                var sentinelLatLng = L.latLng(-89, uniqueLng);
+
+                // Kirim klik melalui event Leaflet.
+                // st_folium akan menangkapnya sebagai "last_clicked".
+                {map_js_name}.fire('click', {{
+                    latlng: sentinelLatLng
+                }});
+            }});
         }})();
         {{% endmacro %}}
         """
@@ -5335,11 +5336,26 @@ PAGE_OPTIONS = ["H1 SALES", "H2 SERVICE", "H3 SPARE PART", "PROFIL WILAYAH", "FR
 
 
 def _format_update_time(value):
-    """Format waktu pembaruan terakhir menggunakan waktu lokal server."""
+    """Format waktu pembaruan terakhir menggunakan WIB / GMT+7."""
     if not isinstance(value, datetime):
-        value = datetime.now()
-    month_names = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
-    return f"{value.day:02d} {month_names[value.month - 1]} {value.year}, {value:%H:%M}"
+        value = datetime.now(WIB)
+
+    # Jika datetime belum memiliki timezone, anggap sebagai WIB.
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=WIB)
+    else:
+        value = value.astimezone(WIB)
+
+    month_names = [
+        "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+        "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
+    ]
+
+    return (
+        f"{value.day:02d} "
+        f"{month_names[value.month - 1]} "
+        f"{value.year}, {value:%H:%M} WIB"
+    )
 
 
 def _reset_active_page_filters(selected_page):
@@ -5359,28 +5375,78 @@ def _reset_active_page_filters(selected_page):
 
 def render_top_navigation():
     """Render header dan navigasi utama seperti rancangan dashboard."""
+
     if "last_data_refresh" not in st.session_state:
-        st.session_state.last_data_refresh = datetime.now()
-    active_page = st.session_state.get("main_page_selector", "H1 SALES")
+        st.session_state.last_data_refresh = datetime.now(WIB)
+
+    active_page = st.session_state.get(
+        "main_page_selector",
+        "H1 SALES"
+    )
+
     with st.container(key="top_header"):
-        brand_col, time_col, refresh_col, reset_col = st.columns([6.8, 1.55, 1.15, 1.05], vertical_alignment="center", gap="small")
+
+        brand_col, time_col, refresh_col, reset_col = st.columns(
+            [7.4, 1.20, 1.20, 1.05],
+            vertical_alignment="center",
+            gap="small"
+        )
+
         with brand_col:
-            st.markdown('''<div class="csl-header-brand"><div class="csl-logo">CSL</div><div class="csl-brand"><div><h1>CUSTOMER SATISFACTION LEVEL ANALYTICS</h1></div></div></div>''', unsafe_allow_html=True)
+            st.markdown(
+                '''
+                <div class="csl-header-brand">
+                    <div class="csl-logo">CSL</div>
+
+                    <div class="csl-brand">
+                        <div>
+                            <h1>
+                                CUSTOMER SATISFACTION LEVEL ANALYTICS
+                            </h1>
+                        </div>
+                    </div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+
         with time_col:
-            st.markdown('<div class="csl-update-time">Data terakhir diperbarui<br>' f'<b>{_format_update_time(st.session_state.last_data_refresh)}</b></div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="csl-update-time">'
+                'Data terakhir diperbarui<br>'
+                f'<b>{_format_update_time(st.session_state.last_data_refresh)}</b>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
         with refresh_col:
-            if st.button("⟳  Refresh Data", key="header_refresh", use_container_width=True):
+            if st.button(
+                "⟳  Refresh Data",
+                key="header_refresh",
+                use_container_width=True
+            ):
                 st.cache_data.clear()
-                st.session_state.last_data_refresh = datetime.now()
+                st.session_state.last_data_refresh = datetime.now(WIB)
                 st.rerun()
+
         with reset_col:
-            if st.button("Reset Filter", key="header_reset", use_container_width=True):
+            if st.button(
+                "Reset Filter",
+                key="header_reset",
+                use_container_width=True
+            ):
                 _reset_active_page_filters(active_page)
                 st.rerun()
 
     with st.container(key="page_selector_card"):
-        return st.segmented_control("Pilih Page", options=PAGE_OPTIONS, default="H1 SALES", key="main_page_selector", label_visibility="collapsed")
 
+        return st.segmented_control(
+            "Pilih Page",
+            options=PAGE_OPTIONS,
+            default="H1 SALES",
+            key="main_page_selector",
+            label_visibility="collapsed"
+        )
 
 def render_framework_placeholder():
     """Alur analitik CSL: (A) Perhitungan Matrix Satisfaction x Importance,
