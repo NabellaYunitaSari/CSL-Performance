@@ -5471,7 +5471,7 @@ def render_framework_placeholder():
                 ("fa-solid fa-xmarks-lines", "Input", "X Axis = Importance Rank; Y Axis = Satisfaction Driver Rank."),
                 ("fa-solid fa-sliders", "Hitung Median Importance Rank", "Median menjadi garis pembagi vertikal."),
                 ("fa-solid fa-sliders", "Hitung Median Satisfaction Rank", "Median menjadi garis pembagi horizontal."),
-                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Optimalisasi, III Prioritas Perbaikan, dan IV Prioritas Rendah."),
+                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Prioritas Rendah, III Perbaikan Bertahap, dan IV Prioritas Utama."),
             ],
             "output": ["Matriks 4 Kuadran", "Daftar Prioritas"],
         },
