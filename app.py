@@ -923,6 +923,46 @@ def inject_css():
         div[class*="st-key-"][class*="_profile_equal_height"]::-webkit-scrollbar-track {
             background: transparent;
         }
+
+        /* NTT click overlay: invisible Streamlit button above the visual inset */
+        div[class*="st-key-"][class*="_map_interaction_wrapper"] {
+            position: relative !important;
+            overflow: visible !important;
+        }
+        div[class*="st-key-"][class*="_ntt_overlay_click"] {
+            position: absolute !important;
+            right: 14px !important;
+            bottom: 18px !important;
+            width: 29% !important;
+            min-width: 255px !important;
+            max-width: 330px !important;
+            height: 198px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 2147483647 !important;
+            pointer-events: auto !important;
+        }
+        div[class*="st-key-"][class*="_ntt_overlay_click"] .element-container,
+        div[class*="st-key-"][class*="_ntt_overlay_click"] div[data-testid="stButton"] {
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        div[class*="st-key-"][class*="_ntt_overlay_click"] button {
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 198px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            color: transparent !important;
+            font-size: 0 !important;
+            opacity: 0 !important;
+            cursor: pointer !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -1431,22 +1471,6 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
     kar_col = cols.get("karesidenan")
     kab_col = cols.get("kab_kota")
     dealer_col = cols.get("dealer_code")
-
-    # Klik inset NTT mengirim query map_region=NTT dan map_unit sesuai tab.
-    # Proses sebelum widget dibuat supaya session_state aman diperbarui.
-    map_region = str(st.query_params.get("map_region", "")).strip().upper()
-    map_unit = str(st.query_params.get("map_unit", "")).strip().lower()
-    map_click_token = str(st.query_params.get("map_click_token", "")).strip()
-    last_click_token_key = f"{key_prefix}_last_map_click_token"
-    query_map_click = (
-        bool(map_region)
-        and map_unit == str(key_prefix).lower()
-        and bool(map_click_token)
-        and st.session_state.get(last_click_token_key) != map_click_token
-    )
-    if query_map_click:
-        st.session_state[last_click_token_key] = map_click_token
-        _set_map_region_filter(df, cols, key_prefix, map_region)
 
     with c1:
         years = _options(df, year_col)
@@ -2677,46 +2701,20 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
             if getattr(poly, "geom_type", "") == "Polygon"
         )
 
-        # Overlay selalu terlihat dan tidak dipengaruhi transform/pan Leaflet.
-        # Klik dikirim langsung sebagai event map dengan latitude sentinel.
-        map_js_name = main_map.get_name()
+        # Inset NTT tetap sama secara visual. Klik tidak lagi ditangani
+        # dari JavaScript di dalam iframe Folium, melainkan oleh tombol
+        # Streamlit transparan yang ditumpuk tepat di atas inset ini.
         inset_id = f"ntt_inset_{re.sub(r'[^a-zA-Z0-9_]', '_', key)}"
         inset_html = f"""
         {{% macro html(this, kwargs) %}}
-        <button type="button" id="{inset_id}" title="Klik untuk memfilter Kupang"
-             style="position:absolute;right:14px;bottom:18px;width:29%;min-width:255px;max-width:330px;height:198px;z-index:99999;border:3px solid #FFFFFF;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);overflow:hidden;background:#E9EEF2;cursor:pointer;box-sizing:border-box;padding:0;pointer-events:auto">
+        <div id="{inset_id}" title="Klik untuk memfilter Kupang"
+             style="position:absolute;right:14px;bottom:18px;width:29%;min-width:255px;max-width:330px;height:198px;z-index:99999;border:3px solid #FFFFFF;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);overflow:hidden;background:#E9EEF2;box-sizing:border-box;padding:0;pointer-events:none">
           <div style="position:absolute;left:10px;top:8px;z-index:2;background:rgba(255,255,255,.95);padding:4px 8px;border-radius:5px;font:700 11px Arial;color:#262626">NTT · {ntt_sat_text}</div>
           <svg viewBox="0 0 {svg_w:.0f} {svg_h:.0f}" preserveAspectRatio="xMidYMid meet"
                style="position:absolute;left:0;right:0;bottom:0;width:100%;height:176px;background:#E9EEF2;pointer-events:none">
             {svg_paths}
           </svg>
-        </button>
-        {{% endmacro %}}
-        {{% macro script(this, kwargs) %}}
-        (function() {{
-            var insetButton = document.getElementById('{inset_id}');
-            if (!insetButton) return;
-
-            L.DomEvent.disableClickPropagation(insetButton);
-            L.DomEvent.disableScrollPropagation(insetButton);
-
-            insetButton.addEventListener('click', function(evt) {{
-                evt.preventDefault();
-                evt.stopPropagation();
-
-                // Longitude dibuat unik agar setiap klik dianggap sebagai event baru.
-                var uniqueLng = (Date.now() % 1000000) / 1000000;
-
-                // Gunakan latitude khusus sebagai penanda klik inset NTT.
-                var sentinelLatLng = L.latLng(-89, uniqueLng);
-
-                // Kirim klik melalui event Leaflet.
-                // st_folium akan menangkapnya sebagai "last_clicked".
-                {map_js_name}.fire('click', {{
-                    latlng: sentinelLatLng
-                }});
-            }});
-        }})();
+        </div>
         {{% endmacro %}}
         """
         inset = MacroElement()
@@ -2736,38 +2734,66 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
     legend._template = Template(legend_html)
     main_map.get_root().add_child(legend)
 
-    map_result = st_folium(
-        main_map,
-        height=560,
-        use_container_width=True,
-        key=key,
-        returned_objects=[
-            "last_object_clicked_tooltip",
-            "last_object_clicked_count",
-            "last_clicked",
-        ],
-    )
+    # ========================================================
+    # TAMPILKAN PETA + AREA KLIK NTT
+    # ========================================================
+    with st.container(key=f"{unit_from_key}_map_interaction_wrapper"):
+        map_result = st_folium(
+            main_map,
+            height=560,
+            use_container_width=True,
+            key=key,
+            returned_objects=[
+                "last_object_clicked_tooltip",
+                "last_object_clicked_count",
+                "last_clicked",
+            ],
+        )
 
-    # Hanya teks tooltip dan penghitung klik yang dikirim kembali. Ini jauh
-    # lebih kecil daripada mengirim seluruh geometri polygon pada setiap klik.
+        # Tombol ini transparan dan diletakkan tepat di atas gambar NTT kecil.
+        # Karena ini widget Streamlit asli, klik masuk langsung ke Python.
+        ntt_clicked = st.button(
+            "Pilih Kupang",
+            key=f"{unit_from_key}_ntt_overlay_click",
+            help="Klik untuk menampilkan data Kupang",
+            use_container_width=True,
+        )
+
+    # create_map() dipanggil sebelum render_filters(), jadi state filter dapat
+    # diubah pada run yang sama sebelum dropdown Kab/Kota dibuat.
+    if ntt_clicked:
+        _set_map_region_filter(
+            df,
+            cols,
+            unit_from_key,
+            "NTT",
+        )
+        return
+
+    # Klik polygon Jawa Timur tetap ditangani oleh st_folium seperti sebelumnya.
     tooltip_text = str((map_result or {}).get("last_object_clicked_tooltip") or "")
     last_clicked = (map_result or {}).get("last_clicked") or {}
-    is_ntt_inset_click = float(last_clicked.get("lat", 0) or 0) < -80
+
     clicked_match = re.search(
         r"Kabupaten/Kota:\s*(.*?)\s*Satisfaction",
         tooltip_text,
         flags=re.IGNORECASE | re.DOTALL,
     )
-    if is_ntt_inset_click:
-        clicked_region = "NTT"
-    else:
-        clicked_region = clicked_match.group(1).strip() if clicked_match else None
+    clicked_region = clicked_match.group(1).strip() if clicked_match else None
+
     click_count = (map_result or {}).get("last_object_clicked_count", 0)
     click_token = f"{clicked_region}|{click_count}|{last_clicked.get('lng')}"
     click_state_key = f"{unit_from_key}_last_polygon_click"
+
     if clicked_region and st.session_state.get(click_state_key) != click_token:
         st.session_state[click_state_key] = click_token
-        _set_map_region_filter(df, cols, unit_from_key, clicked_region)
+        _set_map_region_filter(
+            df,
+            cols,
+            unit_from_key,
+            clicked_region,
+        )
+
 # ============================================================
 # RENDER: KPI
 # ============================================================
@@ -5375,78 +5401,28 @@ def _reset_active_page_filters(selected_page):
 
 def render_top_navigation():
     """Render header dan navigasi utama seperti rancangan dashboard."""
-
     if "last_data_refresh" not in st.session_state:
         st.session_state.last_data_refresh = datetime.now(WIB)
-
-    active_page = st.session_state.get(
-        "main_page_selector",
-        "H1 SALES"
-    )
-
+    active_page = st.session_state.get("main_page_selector", "H1 SALES")
     with st.container(key="top_header"):
-
-        brand_col, time_col, refresh_col, reset_col = st.columns(
-            [7.4, 1.20, 1.20, 1.05],
-            vertical_alignment="center",
-            gap="small"
-        )
-
+        brand_col, time_col, refresh_col, reset_col = st.columns([6.8, 1.55, 1.15, 1.05], vertical_alignment="center", gap="small")
         with brand_col:
-            st.markdown(
-                '''
-                <div class="csl-header-brand">
-                    <div class="csl-logo">CSL</div>
-
-                    <div class="csl-brand">
-                        <div>
-                            <h1>
-                                CUSTOMER SATISFACTION LEVEL ANALYTICS
-                            </h1>
-                        </div>
-                    </div>
-                </div>
-                ''',
-                unsafe_allow_html=True
-            )
-
+            st.markdown('''<div class="csl-header-brand"><div class="csl-logo">CSL</div><div class="csl-brand"><div><h1>CUSTOMER SATISFACTION LEVEL ANALYTICS</h1></div></div></div>''', unsafe_allow_html=True)
         with time_col:
-            st.markdown(
-                '<div class="csl-update-time">'
-                'Data terakhir diperbarui<br>'
-                f'<b>{_format_update_time(st.session_state.last_data_refresh)}</b>'
-                '</div>',
-                unsafe_allow_html=True
-            )
-
+            st.markdown('<div class="csl-update-time">Data terakhir diperbarui<br>' f'<b>{_format_update_time(st.session_state.last_data_refresh)}</b></div>', unsafe_allow_html=True)
         with refresh_col:
-            if st.button(
-                "⟳  Refresh Data",
-                key="header_refresh",
-                use_container_width=True
-            ):
+            if st.button("⟳  Refresh Data", key="header_refresh", use_container_width=True):
                 st.cache_data.clear()
                 st.session_state.last_data_refresh = datetime.now(WIB)
                 st.rerun()
-
         with reset_col:
-            if st.button(
-                "Reset Filter",
-                key="header_reset",
-                use_container_width=True
-            ):
+            if st.button("Reset Filter", key="header_reset", use_container_width=True):
                 _reset_active_page_filters(active_page)
                 st.rerun()
 
     with st.container(key="page_selector_card"):
+        return st.segmented_control("Pilih Page", options=PAGE_OPTIONS, default="H1 SALES", key="main_page_selector", label_visibility="collapsed")
 
-        return st.segmented_control(
-            "Pilih Page",
-            options=PAGE_OPTIONS,
-            default="H1 SALES",
-            key="main_page_selector",
-            label_visibility="collapsed"
-        )
 
 def render_framework_placeholder():
     """Alur analitik CSL: (A) Perhitungan Matrix Satisfaction x Importance,
