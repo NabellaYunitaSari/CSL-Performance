@@ -1433,17 +1433,59 @@ def indicator_columns(df: pd.DataFrame, meta_df: pd.DataFrame, unit_key: str = N
     ]
 
 
+def _canonical_main_dealer(value) -> str:
+    """Nilai baku Main Dealer untuk filter data dan nama kolom target."""
+    normalized = re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+    if normalized in {"M2Z", "M3Z"}:
+        return normalized
+    # Nilai kosong dan pilihan gabungan sama-sama memakai target Semua.
+    return "Semua"
+
+
+def _canonical_target_layer(value) -> str:
+    """Menyamakan variasi penulisan Layer dengan suffix kolom metadata."""
+    normalized = re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+    aliases = {
+        "BIGWING": "BigWing",
+        "WING": "Wing",
+        "REGULERH123": "RegulerH123",
+        "REGULARH123": "RegulerH123",
+        "REGULER123": "RegulerH123",
+        "REGULERH23": "RegulerH23",
+        "REGULARH23": "RegulerH23",
+        "REGULER23": "RegulerH23",
+    }
+    return aliases.get(normalized, "")
+
+
+def _find_target_col(meta_df: pd.DataFrame, candidates) -> str:
+    """Pencarian exact yang toleran terhadap spasi/underscore pada header."""
+    if meta_df is None or meta_df.empty:
+        return None
+    normalized_columns = {
+        re.sub(r"[^a-z0-9]", "", str(column).lower()): column
+        for column in meta_df.columns
+    }
+    for candidate in candidates:
+        normalized_candidate = re.sub(r"[^a-z0-9]", "", candidate.lower())
+        if normalized_candidate in normalized_columns:
+            return normalized_columns[normalized_candidate]
+    return None
+
+
 def get_target_col(meta_df: pd.DataFrame, main_dealer: str, layer: str):
+    """Pilih target sesuai MD dan Layer tanpa jatuh ke target MD lain."""
+    md = _canonical_main_dealer(main_dealer)
+    layer_suffix = _canonical_target_layer(layer)
+
     candidates = []
-    md = (main_dealer or "").upper().replace(" ", "")
-    ly = (layer or "").upper().replace(" ", "")
-    if md and ly:
-        candidates.append(f"Target_{md}_{ly}")
-    if md:
-        candidates += [f"Target_{md}_BigWing", f"Target_{md}_Wing",
-                        f"Target_{md}_RegulerH123", f"Target_{md}"]
-    candidates += ["Target_MPM_RegulerH123", "Target_M2Z", "Target_M3Z", "Target"]
-    return find_col(meta_df, candidates)
+    if layer_suffix:
+        candidates.append(f"Target_{md}_{layer_suffix}")
+    candidates.append(f"Target_{md}")
+
+    # Kolom generik hanya menjadi fallback terakhir untuk kompatibilitas data lama.
+    candidates.append("Target")
+    return _find_target_col(meta_df, candidates)
 
 
 # ============================================================
@@ -1542,11 +1584,14 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
 
     with c3:
         mds = _options(df_scope, md_col)
+        mds = [value for value in mds if value.strip().lower() != "semua"]
         md_key = f"{key_prefix}_md"
-        if mds and st.session_state.get(md_key) not in mds:
-            st.session_state[md_key] = mds[0]
-        sel_md = st.selectbox("Main Dealer", mds, key=md_key) if mds else None
-    if sel_md is not None and md_col:
+        md_options = ["Semua"] + mds
+        if st.session_state.get(md_key) not in md_options:
+            st.session_state[md_key] = "Semua"
+        sel_md = st.selectbox("Main Dealer", md_options, key=md_key)
+    # "Semua" tidak menyaring kolom Main Dealer sehingga M2Z dan M3Z tergabung.
+    if sel_md != "Semua" and md_col:
         df_scope = df_scope[df_scope[md_col].astype(str) == sel_md]
 
     with c4:
@@ -1619,7 +1664,7 @@ def apply_filters(df: pd.DataFrame, cols: dict, filters: dict,
     ]
     for key, col in mapping:
         val = filters.get(key)
-        if val is not None and col and col in out.columns:
+        if val not in (None, "Semua") and col and col in out.columns:
             out = out[out[col].astype(str) == str(val)]
 
     kab_val = filters.get("kab_kota")
@@ -3428,7 +3473,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 elif filters.get("layer"):
                     target_type = "LAYER"
                     target_cat = str(filters["layer"])
-                elif filters.get("main_dealer") and str(filters["main_dealer"]).strip().upper() in ["M2Z", "M3Z"]:
+                elif filters.get("main_dealer") and str(filters["main_dealer"]).strip().upper() in ["M2Z", "M3Z", "SEMUA"]:
                     target_type = "MAIN DEALER"
                     target_cat = str(filters["main_dealer"]).strip().upper()
                 else:
@@ -3442,10 +3487,22 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                     target_type = "MAIN DEALER"
 
                 if target_type and target_cat:
-                    m = df_sub[
-                        (df_sub[cat_type_col].astype(str).str.upper() == target_type) &
-                        (df_sub[cat_col].astype(str).str.upper().str.contains(target_cat.upper(), na=False))
-                    ]
+                    category_type = df_sub[cat_type_col].astype(str).str.strip().str.upper()
+                    category = df_sub[cat_col].astype(str).str.strip().str.upper()
+                    if target_type == "MAIN DEALER" and target_cat == "SEMUA":
+                        # Utamakan baris agregat SEMUA bila tersedia. Jika worksheet
+                        # matriks hanya memiliki M2Z dan M3Z, gabungkan keduanya.
+                        m = df_sub[(category_type == target_type) & (category == "SEMUA")]
+                        if m.empty:
+                            m = df_sub[
+                                (category_type == target_type)
+                                & (category.isin(["M2Z", "M3Z"]))
+                            ]
+                    else:
+                        m = df_sub[
+                            (category_type == target_type)
+                            & (category == target_cat.upper())
+                        ]
                     if not m.empty:
                         df_sub = m
 
