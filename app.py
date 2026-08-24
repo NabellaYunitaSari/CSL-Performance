@@ -4675,7 +4675,7 @@ def render_demographic_charts(
             )
 
     else:
-        future_purchase_col = _find_exact_data_col(df_prof, "Future Purchase Part")
+        future_purchase_col = _find_exact_data_col(df_prof, "Future Purchase Part Location")
         retention_unit_col = _find_exact_data_col(df_prof, "Retention Unit")
         retention_part_col = _find_exact_data_col(df_prof, "Retention Part")
 
@@ -4688,7 +4688,7 @@ def render_demographic_charts(
             )
         with r2c2:
             _stacked_pct(
-                df_prof, future_purchase_col, "Future Purchase Part",
+                df_prof, future_purchase_col, "Future Purchase Part Location",
                 key=f"{key_prefix}_future_purchase_part",
             )
 
