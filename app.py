@@ -53,7 +53,14 @@ pio.templates["csl_performance"] = go.layout.Template(
         font=dict(family="Inter, Segoe UI, Arial, sans-serif", color="#262626", size=12),
         paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
         colorway=[RED, ORANGE, YELLOW, GREEN, BLUE_OUTLINE, "#C8102E"],
-        hoverlabel=dict(bgcolor="#262626", font=dict(color="#FFFFFF"), bordercolor="#262626"),
+        # Seluruh hover Plotly diratakan ke kiri secara global, sehingga
+        # berlaku konsisten pada chart H1, H2, H3, profil, dan profil wilayah.
+        hoverlabel=dict(
+            bgcolor="#262626",
+            font=dict(color="#FFFFFF"),
+            bordercolor="#262626",
+            align="left",
+        ),
         xaxis=dict(gridcolor="#F0F1F3", zerolinecolor="#C7C9CD", linecolor="#E7E9EC"),
         yaxis=dict(gridcolor="#F0F1F3", zerolinecolor="#C7C9CD", linecolor="#E7E9EC"),
         legend=dict(bgcolor="rgba(255,255,255,0)", font=dict(size=11)),
@@ -2259,6 +2266,7 @@ def create_map_legacy(df: pd.DataFrame, cols: dict, indicator_cols: list, key: s
                     font-family: Arial;
                     font-size: 13px;
                     padding: 8px 10px;
+                    text-align: left;
                 """
             )
 
@@ -2707,7 +2715,7 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
                     fields=["Kabupaten_Kota", "Satisfaction_Page", "CSL_H123", "Dominan_Profile"],
                     aliases=["Kabupaten/Kota:", f"Satisfaction {h_label}:", "%CSL H123:", "Profile Dominan:"],
                     sticky=True,
-                    style="background:#fff;border:0;border-radius:8px;box-shadow:0 3px 12px rgba(0,0,0,.18);color:#262626;font-family:Arial;font-size:13px;padding:8px 10px;",
+                    style="background:#fff;border:0;border-radius:8px;box-shadow:0 3px 12px rgba(0,0,0,.18);color:#262626;font-family:Arial;font-size:13px;padding:8px 10px;text-align:left;",
                 ),
             ).add_to(target_map)
 
