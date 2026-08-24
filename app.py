@@ -215,6 +215,9 @@ def inject_css():
             background: #FFFFFF !important;
             border: 1px solid #D0D0D0 !important;
             border-radius: 8px !important;
+            height: 64px !important;
+            min-height: 64px !important;
+            max-height: 64px !important;
             padding: 0 !important;
             margin-bottom: 6px !important;
             box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
@@ -244,8 +247,11 @@ def inject_css():
         .profile-card-inner {
             display: flex !important;
             flex-direction: column !important;
+            justify-content: center !important;
             gap: 5px !important;
             width: 100%% !important;
+            height: 100%% !important;
+            min-height: 62px !important;
             padding: 8px 12px 8px 12px !important;
             box-sizing: border-box !important;
         }
@@ -3975,7 +3981,12 @@ def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
                     """,
                     unsafe_allow_html=True,
                 )
-                if st.button(" ", key=f"{key_prefix}_btn_select_{p}", use_container_width=True):
+                if st.button(
+                    " ",
+                    key=f"{key_prefix}_btn_select_{p}",
+                    use_container_width=True,
+                    help=f"Profil {p_num} – {name}: {int(count)} orang ({pct:.0f}%)",
+                ):
                     st.session_state[f"{key_prefix}_selected_profile"] = p
                     selected = p
         return selected
@@ -4342,19 +4353,29 @@ def _stacked_pct(df, col, title, key, is_ses=False, is_retention=False):
             bar_color = retention_colors.get(score, palette[i % len(palette)])
             if is_ses:
                 ses_color_map[label_text.upper()] = bar_color
+            if is_ses:
+                segment_hover = (
+                    f"<b>{label_text}: %{{customdata[0]}}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[1]} orang<extra></extra>"
+                )
+            elif is_retention:
+                segment_hover = (
+                    f"<b>{display_label}: {retention_labels.get(score, label_text)}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[1]} orang<extra></extra>"
+                )
+            else:
+                segment_hover = (
+                    f"<b>{label_text}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[1]} orang<extra></extra>"
+                )
             fig.add_trace(go.Bar(x=[v], y=[""], orientation="h", name=str(label),
                                   marker=dict(color=bar_color),
                                   text=f"{v:.0f}%<br>{display_label}", textposition="inside",
                                   customdata=[[range_text, respondents]],
-                                  hovertemplate=(
-                                      f"<b>{label_text}: %{{customdata[0]}}</b><br>"
-                                      "Persentase: %{x:.1f}%<br>"
-                                      "Responden: %{customdata[1]} orang<extra></extra>"
-                                  ) if is_ses else (
-                                      f"<b>{display_label}: {retention_labels.get(score, label_text)}</b><br>"
-                                      "Persentase: %{x:.1f}%<br>"
-                                      "Responden: %{customdata[1]} orang<extra></extra>"
-                                  )))
+                                  hovertemplate=segment_hover))
         fig.update_layout(barmode="stack", showlegend=False, height=110,
                            margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(visible=False), yaxis=dict(visible=False))
         st.plotly_chart(fig, use_container_width=True, key=key)
@@ -4378,6 +4399,88 @@ def _stacked_pct(df, col, title, key, is_ses=False, is_retention=False):
                     'padding:0 4px 4px;">' + "".join(legend_items) + "</div>",
                     unsafe_allow_html=True,
                 )
+
+
+def _find_exact_data_col(df: pd.DataFrame, column_name: str):
+    """Cari nama kolom secara exact tanpa tertukar dengan suffix seperti .1."""
+    if df is None or not column_name:
+        return None
+    exact_columns = {
+        re.sub(r"\s+", " ", str(column).strip().lower()): column
+        for column in df.columns
+    }
+    normalized_name = re.sub(r"\s+", " ", str(column_name).strip().lower())
+    return exact_columns.get(normalized_name)
+
+
+def _top_reasons_hbar(df, col, title, key, top_n=5, separator=";"):
+    """Tampilkan alasan multijawaban yang paling sering dipilih."""
+    with st.container(key=f"{key}_demographic_chart_card", border=True):
+        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+
+        with st.container(key=f"{key}_chart_viewport"):
+            if not col or df is None or df.empty or col not in df.columns:
+                st.info("Data tidak tersedia.")
+                return
+
+            reason_labels = {}
+            normalized_reasons = []
+            for raw_value in df[col].dropna():
+                for raw_reason in str(raw_value).split(separator):
+                    clean_reason = re.sub(r"\s+", " ", raw_reason).strip(" ;,.-")
+                    if not clean_reason or clean_reason.lower() in {"nan", "none", "-"}:
+                        continue
+                    normalized_reason = clean_reason.casefold()
+                    reason_labels.setdefault(normalized_reason, clean_reason)
+                    normalized_reasons.append(normalized_reason)
+
+            if not normalized_reasons:
+                st.info("Data tidak tersedia.")
+                return
+
+            counts = pd.Series(normalized_reasons).value_counts().head(top_n)
+            labels = [reason_labels[index] for index in counts.index]
+            total_respondents = max(int(df[col].notna().sum()), 1)
+            percentages = (counts / total_respondents * 100).round(1)
+
+            # Urutan dibalik untuk horizontal bar sehingga alasan terpopuler
+            # tampil di posisi paling atas.
+            labels = labels[::-1]
+            count_values = counts.to_numpy(dtype=int)[::-1]
+            percentage_values = percentages.to_numpy(dtype=float)[::-1]
+            max_count = int(max(count_values)) if len(count_values) else 1
+            chart_height = max(300, 48 * len(labels) + 70)
+
+            fig = go.Figure(go.Bar(
+                x=count_values,
+                y=labels,
+                orientation="h",
+                marker=dict(color=ORANGE),
+                # Label yang selalu terlihat menggunakan persentase. Jumlah
+                # frekuensi tetap tersedia di dalam hover.
+                text=[f"{value:.1f}%" for value in percentage_values],
+                textposition="outside",
+                customdata=np.array(percentage_values, dtype=float).reshape(-1, 1),
+                hovertemplate=(
+                    "<b>Alasan:</b> %{y}<br>"
+                    "<b>Frekuensi dipilih:</b> %{x} kali<br>"
+                    "<b>Persentase responden:</b> %{customdata[0]:.1f}%"
+                    "<extra></extra>"
+                ),
+            ))
+            fig.update_layout(
+                xaxis=dict(range=[0, max_count * 1.25], title="Frekuensi Dipilih"),
+                yaxis=dict(automargin=True),
+                margin=dict(l=10, r=45, t=10, b=35),
+                height=chart_height,
+                showlegend=False,
+            )
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=key,
+                config={"displayModeBar": False},
+            )
 
 
 
@@ -4440,17 +4543,6 @@ def render_demographic_charts(
     with r1c3:
         _motor_type_hbar(df_prof, cols.get("motor_type"), "Tipe Motor", key=f"{key_prefix}_motor")
 
-    # SES dan Retention selalu satu baris berisi dua chart agar keduanya
-    # memperoleh ruang yang sama dan lebih mudah dibandingkan.
-    r2c1, r2c2 = st.columns(2)
-    with r2c1:
-        _stacked_pct(df_prof, cols.get("ses"), "SES", key=f"{key_prefix}_ses", is_ses=True)
-    with r2c2:
-        _stacked_pct(
-            df_prof, cols.get("retention"), "Retention",
-            key=f"{key_prefix}_retention", is_retention=True,
-        )
-
     unit = str(unit_key or key_prefix).strip().lower()
     nps_col = cols.get("nps")
     nps_unit_col = cols.get("nps_unit")
@@ -4462,51 +4554,182 @@ def render_demographic_charts(
         return compute_nps(df_prof[column])
 
     if unit == "sales":
-        # Sales: pembayaran ditempatkan bersama dua gauge NPS.
-        r3c1, r3c2, r3c3 = st.columns(3)
+        # Baris SES dan Retention lama tetap dipertahankan.
+        r2c1, r2c2 = st.columns(2)
+        with r2c1:
+            _stacked_pct(
+                df_prof, cols.get("ses"), "SES",
+                key=f"{key_prefix}_ses", is_ses=True,
+            )
+        with r2c2:
+            _stacked_pct(
+                df_prof, cols.get("retention"), "Retention",
+                key=f"{key_prefix}_retention", is_retention=True,
+            )
+
+        # Grafik tambahan Sales: Period berada di bawah SES dan Showroom
+        # berada tepat di sisi kanannya.
+        period_col = _find_exact_data_col(df_prof, "Period")
+        showroom_col = _find_exact_data_col(df_prof, "Showroom")
+        r3c1, r3c2 = st.columns(2)
         with r3c1:
+            _stacked_pct(
+                df_prof, period_col, "Periode Pembelian",
+                key=f"{key_prefix}_purchase_period",
+            )
+        with r3c2:
+            _stacked_pct(
+                df_prof, showroom_col, "Showroom",
+                key=f"{key_prefix}_showroom",
+            )
+
+        # Sales: pembayaran ditempatkan bersama dua gauge NPS.
+        r4c1, r4c2, r4c3 = st.columns(3)
+        with r4c1:
             _simple_pie(
                 df_prof, cols.get("payment"), "Distribusi Tipe Pembayaran",
                 key=f"{key_prefix}_payment",
                 colors=[RED, ORANGE, YELLOW, GREEN, "#1E88E5"],
             )
-        with r3c2:
+        with r4c2:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
             )
-        with r3c3:
+        with r4c3:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS Dealer",
                 key=f"{key_prefix}_nps_dealer",
             )
 
+        reason_unit_col = _find_exact_data_col(df_prof, "Reasons_Unit")
+        reason_dealer_col = _find_exact_data_col(df_prof, "Reasons_Dealer")
+        r5c1, r5c2 = st.columns(2)
+        with r5c1:
+            _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r5c2:
+            _top_reasons_hbar(
+                df_prof, reason_dealer_col, "Top 5 Reason Dealer",
+                key=f"{key_prefix}_reason_dealer",
+            )
+
     elif unit == "service":
-        # Service tidak menampilkan tipe pembayaran.
+        frequency_col = _find_exact_data_col(df_prof, "Frequency Visit to AHASS")
+        retention_unit_col = _find_exact_data_col(df_prof, "Retention Unit")
+        retention_service_col = _find_exact_data_col(df_prof, "Retention Service")
+
+        # Frequency Visit to AHASS ditempatkan di sisi kanan SES.
+        r2c1, r2c2 = st.columns(2)
+        with r2c1:
+            _stacked_pct(
+                df_prof, cols.get("ses"), "SES",
+                key=f"{key_prefix}_ses", is_ses=True,
+            )
+        with r2c2:
+            _stacked_pct(
+                df_prof, frequency_col, "Frequency Visit to AHASS",
+                key=f"{key_prefix}_frequency_ahass",
+            )
+
+        # Kedua jenis retention ditampilkan bersampingan pada baris berikutnya.
         r3c1, r3c2 = st.columns(2)
         with r3c1:
+            _stacked_pct(
+                df_prof, retention_unit_col, "Retention Unit",
+                key=f"{key_prefix}_retention_unit", is_retention=True,
+            )
+        with r3c2:
+            _stacked_pct(
+                df_prof, retention_service_col, "Retention Service",
+                key=f"{key_prefix}_retention_service", is_retention=True,
+            )
+
+        # Service tidak menampilkan tipe pembayaran.
+        r4c1, r4c2 = st.columns(2)
+        with r4c1:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
             )
-        with r3c2:
+        with r4c2:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS AHASS",
                 key=f"{key_prefix}_nps_dealer",
             )
 
+        reason_unit_col = _find_exact_data_col(df_prof, "Reasons NPS.1")
+        reason_ahass_col = _find_exact_data_col(df_prof, "Reasons NPS")
+        r5c1, r5c2 = st.columns(2)
+        with r5c1:
+            _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r5c2:
+            _top_reasons_hbar(
+                df_prof, reason_ahass_col, "Top 5 Reason AHASS",
+                key=f"{key_prefix}_reason_ahass",
+            )
+
     else:
-        # Spare Part: hanya NPS Unit dan NPS Part, sejajar dalam dua kolom.
+        future_purchase_col = _find_exact_data_col(df_prof, "Future Purchase Part")
+        retention_unit_col = _find_exact_data_col(df_prof, "Retention Unit")
+        retention_part_col = _find_exact_data_col(df_prof, "Retention Part")
+
+        # Future Purchase Part ditempatkan di sisi kanan SES.
+        r2c1, r2c2 = st.columns(2)
+        with r2c1:
+            _stacked_pct(
+                df_prof, cols.get("ses"), "SES",
+                key=f"{key_prefix}_ses", is_ses=True,
+            )
+        with r2c2:
+            _stacked_pct(
+                df_prof, future_purchase_col, "Future Purchase Part",
+                key=f"{key_prefix}_future_purchase_part",
+            )
+
+        # Retention Unit dan Retention Parts berada pada satu baris.
         r3c1, r3c2 = st.columns(2)
         with r3c1:
+            _stacked_pct(
+                df_prof, retention_unit_col, "Retention Unit",
+                key=f"{key_prefix}_retention_unit", is_retention=True,
+            )
+        with r3c2:
+            _stacked_pct(
+                df_prof, retention_part_col, "Retention Parts",
+                key=f"{key_prefix}_retention_parts", is_retention=True,
+            )
+
+        # Spare Part: hanya NPS Unit dan NPS Part, sejajar dalam dua kolom.
+        r4c1, r4c2 = st.columns(2)
+        with r4c1:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
             )
-        with r3c2:
+        with r4c2:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS Part",
                 key=f"{key_prefix}_nps_dealer",
+            )
+
+        reason_unit_col = _find_exact_data_col(df_prof, "Reasons NPS.1")
+        reason_parts_col = _find_exact_data_col(df_prof, "Reasons NPS")
+        r5c1, r5c2 = st.columns(2)
+        with r5c1:
+            _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r5c2:
+            _top_reasons_hbar(
+                df_prof, reason_parts_col, "Top 5 Reason Parts",
+                key=f"{key_prefix}_reason_parts",
             )
 
 
