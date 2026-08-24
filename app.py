@@ -3097,7 +3097,7 @@ def render_performance_section(
             """
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px;">
                 <div style="font-size:12px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.3px;">
-                    Peta Satisfaction
+                    Satisfaction Map
                 </div>
                 <div style="font-size:10.5px;font-weight:700;color:#C8102E;background:#FFF1F1;border:1px solid #FFD8D8;padding:4px 9px;border-radius:20px;">
                     CLICK MAP TO FILTER
