@@ -2954,7 +2954,7 @@ def render_kpi_cards(sat_s1, sat_s2, n_responden):
 
 def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
-        st.markdown('<div class="chart-title">Nilai Satisfaction per Atribut</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Satisfaction Score by Attribute</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Data ditampilkan berdasarkan filter yang dipilih</div>', unsafe_allow_html=True)
         if not attr_sat:
             st.info("Data tidak tersedia.")
@@ -2985,7 +2985,7 @@ def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
 
 def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, key: str):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
-        st.markdown('<div class="chart-title">Capaian vs Target Atribut</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Performance vs Attribute Target</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Data ditampilkan berdasarkan filter yang dipilih</div>', unsafe_allow_html=True)
         if not gaps:
             st.info("Data tidak tersedia.")
@@ -3778,7 +3778,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
 
 def render_profile_heatmap(unit_key: str, key: str):
     with st.container(key=f"{key}_heatmap_scroll"):
-        st.markdown('<div class="chart-title">Heatmap Customer Profile vs Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Customer Profile Heatmap vs Overall Average</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Kesenjangan Karakteristik Tiap Customer Profile Terhadap Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
 
         u_str = str(unit_key).strip().lower()
@@ -3931,7 +3931,7 @@ def render_profile_heatmap(unit_key: str, key: str):
 
 def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
     with st.container(border=True):
-        st.markdown('<div class="chart-title">Daftar Profil</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Profile List</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Klik kartu profil untuk memilih</div>', unsafe_allow_html=True)
 
         profile_col = cols.get("profile") if cols else None
@@ -4019,7 +4019,7 @@ def render_profile_explanation(profile_meta_df, selected_profile):
                     if reco_col and pd.notna(row.get(reco_col)):
                         reco = str(row.get(reco_col)).strip()
 
-        st.markdown(f'<div class="chart-title" style="font-size:14px; margin-bottom:10px;">Penjelasan Profil: Profil {p_num} – {name}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chart-title" style="font-size:14px; margin-bottom:10px;">Profile Description: Profile {p_num} – {name}</div>', unsafe_allow_html=True)
 
         insight_text = insight if insight and insight.lower() != "nan" else "Business insight tidak tersedia untuk profil ini."
         st.markdown(
@@ -4536,12 +4536,12 @@ def render_demographic_charts(
 
     r1c1, r1c2, r1c3 = st.columns(3)
     with r1c1:
-        _simple_pie(df_prof, cols.get("gender"), "Jumlah Responden Berdasarkan Jenis Kelamin",
+        _simple_pie(df_prof, cols.get("gender"), "Number of Respondents by Gender",
                     key=f"{key_prefix}_gender", colors=[RED, ORANGE])
     with r1c2:
-        _age_group_hbar(df_prof, cols.get("age"), "Jumlah Responden Berdasarkan Usia", key=f"{key_prefix}_age")
+        _age_group_hbar(df_prof, cols.get("age"), "Number of Respondents by Age", key=f"{key_prefix}_age")
     with r1c3:
-        _motor_type_hbar(df_prof, cols.get("motor_type"), "Tipe Motor", key=f"{key_prefix}_motor")
+        _motor_type_hbar(df_prof, cols.get("motor_type"), "Motor Type", key=f"{key_prefix}_motor")
 
     unit = str(unit_key or key_prefix).strip().lower()
     nps_col = cols.get("nps")
@@ -4574,12 +4574,12 @@ def render_demographic_charts(
         r3c1, r3c2 = st.columns(2)
         with r3c1:
             _stacked_pct(
-                df_prof, period_col, "Periode Pembelian",
+                df_prof, period_col, "Next Purchase Period",
                 key=f"{key_prefix}_purchase_period",
             )
         with r3c2:
             _stacked_pct(
-                df_prof, showroom_col, "Showroom",
+                df_prof, showroom_col, "Next Purchase Location",
                 key=f"{key_prefix}_showroom",
             )
 
@@ -4587,7 +4587,7 @@ def render_demographic_charts(
         r4c1, r4c2, r4c3 = st.columns(3)
         with r4c1:
             _simple_pie(
-                df_prof, cols.get("payment"), "Distribusi Tipe Pembayaran",
+                df_prof, cols.get("payment"), "Payment Type Distribution",
                 key=f"{key_prefix}_payment",
                 colors=[RED, ORANGE, YELLOW, GREEN, "#1E88E5"],
             )
@@ -4607,12 +4607,12 @@ def render_demographic_charts(
         r5c1, r5c2 = st.columns(2)
         with r5c1:
             _top_reasons_hbar(
-                df_prof, reason_unit_col, "Top 5 Reason Unit",
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
                 key=f"{key_prefix}_reason_unit",
             )
         with r5c2:
             _top_reasons_hbar(
-                df_prof, reason_dealer_col, "Top 5 Reason Dealer",
+                df_prof, reason_dealer_col, "Top 5 Reason NPS Dealer",
                 key=f"{key_prefix}_reason_dealer",
             )
 
@@ -4665,12 +4665,12 @@ def render_demographic_charts(
         r5c1, r5c2 = st.columns(2)
         with r5c1:
             _top_reasons_hbar(
-                df_prof, reason_unit_col, "Top 5 Reason Unit",
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
                 key=f"{key_prefix}_reason_unit",
             )
         with r5c2:
             _top_reasons_hbar(
-                df_prof, reason_ahass_col, "Top 5 Reason AHASS",
+                df_prof, reason_ahass_col, "Top 5 Reason NPS AHASS",
                 key=f"{key_prefix}_reason_ahass",
             )
 
@@ -4723,12 +4723,12 @@ def render_demographic_charts(
         r5c1, r5c2 = st.columns(2)
         with r5c1:
             _top_reasons_hbar(
-                df_prof, reason_unit_col, "Top 5 Reason Unit",
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
                 key=f"{key_prefix}_reason_unit",
             )
         with r5c2:
             _top_reasons_hbar(
-                df_prof, reason_parts_col, "Top 5 Reason Parts",
+                df_prof, reason_parts_col, "Top 5 Reason NPS Parts",
                 key=f"{key_prefix}_reason_parts",
             )
 
