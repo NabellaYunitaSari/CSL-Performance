@@ -4675,7 +4675,7 @@ def render_demographic_charts(
             )
 
     else:
-        future_purchase_col = _find_exact_data_col(df_prof, "Future Purchase Part Location")
+        future_purchase_col = _find_exact_data_col(df_prof, "Future Purchase Part")
         retention_unit_col = _find_exact_data_col(df_prof, "Retention Unit")
         retention_part_col = _find_exact_data_col(df_prof, "Retention Part")
 
