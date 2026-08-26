@@ -4795,6 +4795,15 @@ def render_demographic_charts(
         if not matched.empty:
             df_prof = matched
 
+    r1c1, r1c2, r1c3 = st.columns(3)
+    with r1c1:
+        _simple_pie(df_prof, cols.get("gender"), "Number of Respondents by Gender",
+                    key=f"{key_prefix}_gender", colors=[RED, ORANGE])
+    with r1c2:
+        _age_group_hbar(df_prof, cols.get("age"), "Number of Respondents by Age", key=f"{key_prefix}_age")
+    with r1c3:
+        _motor_type_hbar(df_prof, cols.get("motor_type"), "Motor Type", key=f"{key_prefix}_motor")
+
     unit = str(unit_key or key_prefix).strip().lower()
 
     # H1 mempunyai data Payment, sehingga baris demografi dibuat 4 kolom.
@@ -4860,6 +4869,13 @@ def render_demographic_charts(
         reason_unit_col = _find_exact_data_col(df_prof, "Reasons_Unit")
         reason_dealer_col = _find_exact_data_col(df_prof, "Reasons_Dealer")
         with r4c1:
+            _simple_pie(
+                df_prof, cols.get("payment"), "Payment Type Distribution",
+                key=f"{key_prefix}_payment",
+                colors=[RED, ORANGE, YELLOW, GREEN, "#1E88E5"],
+            )
+        with r4c2:
+
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
@@ -4876,6 +4892,12 @@ def render_demographic_charts(
             )
         with r4c4:
             _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r5c2:
+            _top_reasons_hbar(
+
                 df_prof, reason_dealer_col, "Top 5 Reason NPS Dealer",
                 key=f"{key_prefix}_reason_dealer",
             )
@@ -4932,6 +4954,12 @@ def render_demographic_charts(
             )
         with r4c4:
             _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r5c2:
+            _top_reasons_hbar(
+
                 df_prof, reason_ahass_col, "Top 5 Reason NPS AHASS",
                 key=f"{key_prefix}_reason_ahass",
             )
@@ -4988,6 +5016,12 @@ def render_demographic_charts(
             )
         with r4c4:
             _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r5c2:
+            _top_reasons_hbar(
+
                 df_prof, reason_parts_col, "Top 5 Reason NPS Parts",
                 key=f"{key_prefix}_reason_parts",
             )
