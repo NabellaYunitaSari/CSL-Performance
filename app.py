@@ -288,6 +288,24 @@ def inject_css():
             color: #1565C0 !important;
         }
 
+        /* Profil 0%% tetap terlihat sebagai informasi, tetapi bukan kontrol. */
+        div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"] {
+            background: #F7F7F7 !important;
+            border-color: #E2E2E2 !important;
+            box-shadow: none !important;
+            cursor: default !important;
+        }
+        div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"]:hover {
+            background: #F7F7F7 !important;
+            border-color: #E2E2E2 !important;
+        }
+        div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"] .profile-card-inner {
+            opacity: 0.55 !important;
+        }
+        div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"] button {
+            cursor: default !important;
+        }
+
         .profile-bar-bg {
             background: #E0E0E0 !important;
             border-radius: 6px !important;
@@ -819,6 +837,7 @@ def inject_css():
         .kpi-card{min-height:132px;text-align:left;background:#fff;border:1px solid var(--csl-border);border-radius:10px;padding:16px;box-shadow:var(--csl-shadow);position:relative;overflow:hidden}.kpi-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#E60012}.kpi-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.3px}.kpi-value{font-size:34px;color:#262626;font-weight:800;line-height:1.1;margin:8px 0 4px}.kpi-sub{display:inline-block;font-size:10.5px;font-weight:800;background:#F0F1F3;padding:3px 9px;border-radius:20px}
         .chart-title{font-size:12px;font-weight:800;color:#666;letter-spacing:.3px;text-transform:uppercase;margin-bottom:4px}.chart-subtitle{font-size:11.5px;color:#666;margin-bottom:8px}.stSelectbox label,.stMultiSelect label{font-size:10px!important;font-weight:700!important;color:#666!important;text-transform:uppercase;letter-spacing:.4px}div[data-baseweb="select"]>div{border-color:var(--csl-border);border-radius:7px;background:#fff}.stButton>button{border-radius:8px;border:1px solid var(--csl-border);font-size:12.5px;font-weight:700}
         div[class*="st-key-"][class*="_prof_card_"]{border:1px solid var(--csl-border)!important;border-radius:8px!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"]:hover{border-color:#E60012!important;background:#FFF6F6!important}div[class*="st-key-"][class*="_active"]{background:#FFF1F1!important;border:1.5px solid #E60012!important;box-shadow:none!important}div[class*="st-key-"][class*="_active"] .profile-card-title,div[class*="st-key-"][class*="_active"] .profile-card-pct{color:#C8102E!important}
+        div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"],div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"]:hover{background:#F7F7F7!important;border-color:#E2E2E2!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"] .profile-card-inner{opacity:.55!important}
         .insight-box{background:#FFF6F6!important;border:1px solid #FFDADA!important;border-left:4px solid #E60012!important;border-radius:8px!important;box-shadow:none!important}.insight-box-header{color:#C8102E!important;border-bottom-color:#FFDADA!important}.reco-box{background:#FFF8E8!important;border:1px solid #FCE7B8!important;border-left:4px solid #FF6B00!important;border-radius:8px!important;box-shadow:none!important}.reco-box-header{color:#B45300!important;border-bottom-color:#FCE7B8!important}
         /* Tinggi seluruh outline demographic chart disamakan */
         div[class*="st-key-"][class*="_demographic_chart_card"] {
@@ -1042,7 +1061,12 @@ def _gviz_csv_url(spreadsheet_url: str, sheet_name: str) -> str:
 @st.cache_data(ttl=600, show_spinner=False)
 def read_sheet(sheet_name: str) -> pd.DataFrame:
 
-    spreadsheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
+    spreadsheet_url = os.getenv("GOOGLE_SHEETS_URL", "").strip()
+
+        if not spreadsheet_url:
+            raise RuntimeError(
+                "Environment variable GOOGLE_SHEETS_URL belum tersedia."
+            )
     url = _gviz_csv_url(spreadsheet_url, sheet_name)
 
     headers = {
@@ -2954,7 +2978,7 @@ def render_kpi_cards(sat_s1, sat_s2, n_responden):
 
 def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
-        st.markdown('<div class="chart-title">Nilai Satisfaction per Atribut</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Satisfaction Score by Attribute</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Data ditampilkan berdasarkan filter yang dipilih</div>', unsafe_allow_html=True)
         if not attr_sat:
             st.info("Data tidak tersedia.")
@@ -2985,7 +3009,7 @@ def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
 
 def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, key: str):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
-        st.markdown('<div class="chart-title">Capaian vs Target Atribut</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Performance vs Attribute Target</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Data ditampilkan berdasarkan filter yang dipilih</div>', unsafe_allow_html=True)
         if not gaps:
             st.info("Data tidak tersedia.")
@@ -3097,7 +3121,7 @@ def render_performance_section(
             """
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px;">
                 <div style="font-size:12px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.3px;">
-                    Peta Satisfaction
+                    Satisfaction Map
                 </div>
                 <div style="font-size:10.5px;font-weight:700;color:#C8102E;background:#FFF1F1;border:1px solid #FFD8D8;padding:4px 9px;border-radius:20px;">
                     CLICK MAP TO FILTER
@@ -3778,7 +3802,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
 
 def render_profile_heatmap(unit_key: str, key: str):
     with st.container(key=f"{key}_heatmap_scroll"):
-        st.markdown('<div class="chart-title">Heatmap Customer Profile vs Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Customer Profile Heatmap vs Overall Average</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Kesenjangan Karakteristik Tiap Customer Profile Terhadap Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
 
         u_str = str(unit_key).strip().lower()
@@ -3931,7 +3955,7 @@ def render_profile_heatmap(unit_key: str, key: str):
 
 def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
     with st.container(border=True):
-        st.markdown('<div class="chart-title">Daftar Profil</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Profile List</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Klik kartu profil untuk memilih</div>', unsafe_allow_html=True)
 
         profile_col = cols.get("profile") if cols else None
@@ -3944,27 +3968,48 @@ def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
             if code_col and name_col:
                 for _, r in profile_meta_df.iterrows():
                     p_raw = str(r[code_col]).replace(".0", "").strip()
-                    p_key = f"P{p_raw}" if not p_raw.upper().startswith("P") else p_raw.upper()
+                    p_match = re.search(r"(\d+)", p_raw)
+                    if not p_match:
+                        continue
+                    p_key = f"P{p_match.group(1)}"
                     n_val = str(r[name_col]).strip()
                     if n_val and n_val.lower() != "nan":
                         meta_names[p_key] = n_val
 
         total = len(df_filtered) if df_filtered is not None else 0
-        for p in ["P1", "P2", "P3", "P4", "P5"]:
+        profile_codes = ["P1", "P2", "P3", "P4", "P5"]
+        profile_counts = {}
+
+        # Hitung jumlah profil setelah seluruh filter halaman diterapkan.
+        # Hasil ini sekaligus menentukan profil mana yang boleh dipilih.
+        for p in profile_codes:
             count = 0
             if profile_col and df_filtered is not None and not df_filtered.empty and profile_col in df_filtered.columns:
                 count = df_filtered[profile_col].astype(str).str.contains(p, case=False, na=False).sum()
                 if count == 0:
                     p_num = p.replace("P", "")
                     count = df_filtered[profile_col].astype(str).str.contains(rf"\b{p_num}\b", case=False, na=False).sum()
+            profile_counts[p] = int(count)
+
+        available_profiles = [p for p in profile_codes if profile_counts[p] > 0]
+
+        # Jika profil aktif menjadi 0% karena filter berubah, otomatis pilih
+        # profil pertama yang masih mempunyai responden.
+        if available_profiles and selected not in available_profiles:
+            selected = available_profiles[0]
+            st.session_state[f"{key_prefix}_selected_profile"] = selected
+
+        for p in profile_codes:
+            count = profile_counts[p]
 
             pct = round(count / total * 100, 0) if total > 0 else 0
-            is_active = (p == selected)
+            is_disabled = count == 0
+            is_active = (p == selected) and not is_disabled
             p_num = p.replace("P", "")
             name = meta_names.get(p, PROFILE_NAMES.get(p, f"Profil {p_num}"))
 
-            active_tag = "_active" if is_active else "_inactive"
-            card_key = f"{key_prefix}_prof_card_{p}{active_tag}"
+            state_tag = "_disabled" if is_disabled else ("_active" if is_active else "_inactive")
+            card_key = f"{key_prefix}_prof_card_{p}{state_tag}"
             
             with st.container(key=card_key):
                 st.markdown(
@@ -3985,7 +4030,12 @@ def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
                     " ",
                     key=f"{key_prefix}_btn_select_{p}",
                     use_container_width=True,
-                    help=f"Profil {p_num} – {name}: {int(count)} orang ({pct:.0f}%)",
+                    disabled=is_disabled,
+                    help=(
+                        f"Profil {p_num} – {name}: tidak tersedia pada filter ini"
+                        if is_disabled else
+                        f"Profil {p_num} – {name}: {int(count)} orang ({pct:.0f}%)"
+                    ),
                 ):
                     st.session_state[f"{key_prefix}_selected_profile"] = p
                     selected = p
@@ -4019,7 +4069,7 @@ def render_profile_explanation(profile_meta_df, selected_profile):
                     if reco_col and pd.notna(row.get(reco_col)):
                         reco = str(row.get(reco_col)).strip()
 
-        st.markdown(f'<div class="chart-title" style="font-size:14px; margin-bottom:10px;">Penjelasan Profil: Profil {p_num} – {name}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chart-title" style="font-size:14px; margin-bottom:10px;">Profile Description: Profile {p_num} – {name}</div>', unsafe_allow_html=True)
 
         insight_text = insight if insight and insight.lower() != "nan" else "Business insight tidak tersedia untuk profil ini."
         st.markdown(
@@ -4103,15 +4153,19 @@ def _simple_pie(df, col, title, key, colors=None):
             )
 
             fig.update_layout(
-                height=330,
-                margin=dict(l=10, r=10, t=5, b=5),
+                # Legenda dipindahkan ke bawah agar tidak menumpuk dengan pie
+                # ketika empat chart ditampilkan dalam satu baris.
+                height=315,
+                margin=dict(l=6, r=6, t=8, b=66),
                 showlegend=True,
                 legend=dict(
-                    orientation="v",
-                    x=1,
-                    xanchor="right",
-                    y=1,
+                    orientation="h",
+                    x=0.5,
+                    xanchor="center",
+                    y=-0.10,
                     yanchor="top",
+                    font=dict(size=10),
+                    itemwidth=30,
                 ),
             )
 
@@ -4519,6 +4573,213 @@ def render_nps_gauge(value, title, key):
         st.caption(f"Status NPS: {label} ({val_clamped:.1f})")
 
 
+def render_overall_profile_insight(
+    df_filtered, df_prof, cols, selected_profile, unit, key_prefix,
+    profile_meta_df=None,
+):
+    """Narasi singkat yang merangkum seluruh chart profil aktif."""
+    if df_prof is None or df_prof.empty:
+        st.info("Insight belum tersedia karena tidak ada responden pada filter ini.")
+        return
+
+    def dominant(column, transform=None):
+        if not column or column not in df_prof.columns:
+            return None
+        values = df_prof[column].dropna()
+        if transform is not None:
+            values = values.map(transform)
+        values = values.astype(str).str.strip()
+        values = values[~values.str.lower().isin(["", "nan", "none", "-"])]
+        if values.empty:
+            return None
+        counts = values.value_counts()
+        label = str(counts.index[0])
+        count = int(counts.iloc[0])
+        return label, count, count / len(values) * 100
+
+    def short_label(value, max_length=58):
+        value = re.sub(r"\s+", " ", str(value)).strip()
+        return value if len(value) <= max_length else value[:max_length - 1].rstrip() + "…"
+
+    def retention_text(value):
+        text = str(value).strip()
+        numeric = pd.to_numeric(text.replace(",", "."), errors="coerce")
+        labels = {
+            5: "sangat mungkin membeli kembali",
+            4: "mungkin membeli kembali",
+            3: "cukup mungkin membeli kembali",
+            2: "kurang mungkin membeli kembali",
+            1: "sangat tidak mungkin membeli kembali",
+        }
+        if pd.notna(numeric):
+            score = int(round(float(numeric)))
+            if score in labels:
+                return labels[score]
+        return text.lower() if text else text
+
+    def motor_group(value):
+        raw = str(value).strip()
+        norm = re.sub(r"[^a-z0-9]+", " ", raw.lower()).strip()
+        if re.search(r"\bbeat\b", norm):
+            return "Beat Series"
+        if re.search(r"\bpcx\b", norm):
+            return "PCX Series"
+        return raw
+
+    def top_reason(column):
+        if not column or column not in df_prof.columns:
+            return None
+        reasons = []
+        for value in df_prof[column].dropna():
+            for reason in str(value).split(";"):
+                reason = re.sub(r"\s+", " ", reason).strip(" ;,.-")
+                if reason and reason.lower() not in {"nan", "none", "-"}:
+                    reasons.append(reason)
+        if not reasons:
+            return None
+        normalized = pd.Series(reasons).str.casefold()
+        winner = normalized.value_counts().index[0]
+        return next(reason for reason in reasons if reason.casefold() == winner)
+
+    def nps_summary(column, label):
+        if not column or column not in df_prof.columns:
+            return None
+        value = compute_nps(df_prof[column])
+        return f"{label} {value:.1f}" if value is not None else None
+
+    total_filtered = len(df_filtered) if df_filtered is not None else 0
+    profile_count = len(df_prof)
+    profile_pct = profile_count / total_filtered * 100 if total_filtered else 0
+    profile_number = str(selected_profile or "").replace("P", "").strip()
+    profile_name = f"Profil {profile_number}"
+
+    # Nama profil wajib mengikuti metadata unit aktif, bukan konstanta bawaan.
+    if profile_meta_df is not None and not profile_meta_df.empty:
+        meta_profile_col = find_col(profile_meta_df, ["Profile", "Profil", "Code", "No"])
+        meta_name_col = find_col(profile_meta_df, ["Profile Name", "Nama Profil", "Profile_Name"])
+        if meta_profile_col and meta_name_col:
+            for _, meta_row in profile_meta_df[[meta_profile_col, meta_name_col]].iterrows():
+                raw_code = str(meta_row[meta_profile_col]).strip()
+                code_match = re.search(r"(\d+)", raw_code)
+                if not code_match or code_match.group(1) != profile_number:
+                    continue
+                raw_name = str(meta_row[meta_name_col]).strip()
+                if raw_name and raw_name.lower() not in {"nan", "none", "-"}:
+                    profile_name = raw_name
+                    break
+
+    gender = dominant(cols.get("gender"))
+    age = dominant(cols.get("age"))
+    motor = dominant(cols.get("motor_type"), motor_group)
+    ses = dominant(cols.get("ses"))
+
+    demographic_parts = []
+    if gender:
+        demographic_parts.append(f"{short_label(gender[0]).lower()} ({gender[2]:.1f}%)")
+    if age:
+        demographic_parts.append(f"berusia {short_label(age[0])} ({age[2]:.1f}%)")
+    if motor:
+        demographic_parts.append(f"menggunakan {short_label(motor[0])} ({motor[2]:.1f}%)")
+
+    sentence_1 = (
+        f"Pada cakupan yang dipilih, <b>Profil {profile_number} – {html.escape(profile_name)}</b> "
+        f"terdiri dari <b>{profile_count:,} responden</b> atau <b>{profile_pct:.1f}%</b> dari total pelanggan."
+    )
+
+    sentence_2 = ""
+    if demographic_parts:
+        sentence_2 = "Segmen ini terutama terdiri dari " + ", ".join(
+            html.escape(x) for x in demographic_parts
+        ) + "."
+
+    behavior_parts = []
+    if ses:
+        behavior_parts.append(f"berada pada SES {short_label(ses[0])} ({ses[2]:.1f}%)")
+    if unit == "sales":
+        payment = dominant(cols.get("payment"))
+        period = dominant(_find_exact_data_col(df_prof, "Period"))
+        showroom = dominant(_find_exact_data_col(df_prof, "Showroom"))
+        retention = dominant(cols.get("retention"), retention_text)
+        if payment:
+            behavior_parts.append(f"menggunakan pembayaran {short_label(payment[0]).lower()} ({payment[2]:.1f}%)")
+        if period:
+            behavior_parts.append(f"merencanakan pembelian berikutnya dalam {short_label(period[0]).lower()} ({period[2]:.1f}%)")
+        if showroom:
+            behavior_parts.append(f"memilih {short_label(showroom[0])} sebagai lokasi pembelian berikutnya ({showroom[2]:.1f}%)")
+        if retention:
+            behavior_parts.append(f"{short_label(retention[0])} ({retention[2]:.1f}%)")
+    elif unit == "service":
+        frequency = dominant(_find_exact_data_col(df_prof, "Frequency Visit to AHASS"))
+        retention_unit = dominant(_find_exact_data_col(df_prof, "Retention Unit"), retention_text)
+        retention_service = dominant(_find_exact_data_col(df_prof, "Retention Service"), retention_text)
+        if frequency:
+            behavior_parts.append(f"paling sering mengunjungi AHASS {short_label(frequency[0]).lower()} ({frequency[2]:.1f}%)")
+        if retention_unit:
+            behavior_parts.append(f"untuk unit, {short_label(retention_unit[0])} ({retention_unit[2]:.1f}%)")
+        if retention_service:
+            behavior_parts.append(f"untuk layanan, {short_label(retention_service[0])} ({retention_service[2]:.1f}%)")
+    else:
+        future_part = dominant(_find_exact_data_col(df_prof, "Future Purchase Part"))
+        retention_unit = dominant(_find_exact_data_col(df_prof, "Retention Unit"), retention_text)
+        retention_part = dominant(_find_exact_data_col(df_prof, "Retention Part"), retention_text)
+        if future_part:
+            behavior_parts.append(f"memilih {short_label(future_part[0])} untuk pembelian part berikutnya ({future_part[2]:.1f}%)")
+        if retention_unit:
+            behavior_parts.append(f"untuk unit, {short_label(retention_unit[0])} ({retention_unit[2]:.1f}%)")
+        if retention_part:
+            behavior_parts.append(f"untuk part, {short_label(retention_part[0])} ({retention_part[2]:.1f}%)")
+
+    if behavior_parts:
+        behavior_sentence = "Dari sisi perilaku, mayoritas pelanggan " + ", ".join(
+            html.escape(x) for x in behavior_parts
+        ) + "."
+        sentence_2 = (sentence_2 + " " + behavior_sentence).strip()
+
+    nps_items = [
+        nps_summary(cols.get("nps_unit"), "NPS Unit"),
+        nps_summary(cols.get("nps_dealer"), "NPS Dealer" if unit == "sales" else ("NPS AHASS" if unit == "service" else "NPS Part")),
+    ]
+    nps_items = [item for item in nps_items if item]
+    if unit == "sales":
+        reasons = [
+            ("unit", top_reason(_find_exact_data_col(df_prof, "Reasons_Unit"))),
+            ("dealer", top_reason(_find_exact_data_col(df_prof, "Reasons_Dealer"))),
+        ]
+    elif unit == "service":
+        reasons = [
+            ("unit", top_reason(_find_exact_data_col(df_prof, "Reasons NPS.1"))),
+            ("AHASS", top_reason(_find_exact_data_col(df_prof, "Reasons NPS"))),
+        ]
+    else:
+        reasons = [
+            ("unit", top_reason(_find_exact_data_col(df_prof, "Reasons NPS.1"))),
+            ("part", top_reason(_find_exact_data_col(df_prof, "Reasons NPS"))),
+        ]
+    reasons = [(label, value) for label, value in reasons if value]
+
+    sentence_3 = ""
+    if nps_items:
+        sentence_3 = "Tingkat loyalitas pelanggan tercermin dari " + " dan ".join(html.escape(x) for x in nps_items)
+        if reasons:
+            reason_text = " dan ".join(
+                f'{label} “{html.escape(short_label(value, 42))}”'
+                for label, value in reasons
+            )
+            sentence_3 += f"; faktor yang paling sering mendasari penilaian tersebut adalah {reason_text}"
+        sentence_3 += "."
+
+    narrative = " ".join(part for part in [sentence_1, sentence_2, sentence_3] if part)
+    st.markdown(
+        f"""
+        <div style="width:100%;box-sizing:border-box;margin:14px 0 4px;padding:14px 16px;background:linear-gradient(135deg,#FFF7F2,#FFFFFF);border:1px solid #FFD7BF;border-left:4px solid #FF6B00;border-radius:10px;color:#3F3F46;font-size:13px;line-height:1.65;">
+            <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:#C8102E;text-transform:uppercase;margin-bottom:5px;">Ringkasan Profil</div>
+            {narrative}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_demographic_charts(
     df_filtered, cols, dealer_label, key_prefix,
     selected_profile=None, unit_key=None,
@@ -4534,16 +4795,26 @@ def render_demographic_charts(
         if not matched.empty:
             df_prof = matched
 
-    r1c1, r1c2, r1c3 = st.columns(3)
-    with r1c1:
-        _simple_pie(df_prof, cols.get("gender"), "Jumlah Responden Berdasarkan Jenis Kelamin",
-                    key=f"{key_prefix}_gender", colors=[RED, ORANGE])
-    with r1c2:
-        _age_group_hbar(df_prof, cols.get("age"), "Jumlah Responden Berdasarkan Usia", key=f"{key_prefix}_age")
-    with r1c3:
-        _motor_type_hbar(df_prof, cols.get("motor_type"), "Tipe Motor", key=f"{key_prefix}_motor")
-
     unit = str(unit_key or key_prefix).strip().lower()
+
+    # H1 mempunyai data Payment, sehingga baris demografi dibuat 4 kolom.
+    # H2 dan H3 tetap 3 kolom karena tidak mempunyai chart Payment.
+    demographic_columns = st.columns(4 if unit == "sales" else 3, gap="small")
+    with demographic_columns[0]:
+        _simple_pie(df_prof, cols.get("gender"), "Number of Respondents by Gender",
+                    key=f"{key_prefix}_gender", colors=[RED, ORANGE])
+    with demographic_columns[1]:
+        _age_group_hbar(df_prof, cols.get("age"), "Number of Respondents by Age", key=f"{key_prefix}_age")
+    with demographic_columns[2]:
+        _motor_type_hbar(df_prof, cols.get("motor_type"), "Motor Type", key=f"{key_prefix}_motor")
+    if unit == "sales":
+        with demographic_columns[3]:
+            _simple_pie(
+                df_prof, cols.get("payment"), "Payment Type Distribution",
+                key=f"{key_prefix}_payment",
+                colors=[RED, ORANGE, YELLOW, GREEN, "#1E88E5"],
+            )
+
     nps_col = cols.get("nps")
     nps_unit_col = cols.get("nps_unit")
     nps_dealer_col = cols.get("nps_dealer")
@@ -4574,45 +4845,38 @@ def render_demographic_charts(
         r3c1, r3c2 = st.columns(2)
         with r3c1:
             _stacked_pct(
-                df_prof, period_col, "Periode Pembelian",
+                df_prof, period_col, "Next Purchase Period",
                 key=f"{key_prefix}_purchase_period",
             )
         with r3c2:
             _stacked_pct(
-                df_prof, showroom_col, "Showroom",
+                df_prof, showroom_col, "Next Purchase Location",
                 key=f"{key_prefix}_showroom",
             )
 
-        # Sales: pembayaran ditempatkan bersama dua gauge NPS.
-        r4c1, r4c2, r4c3 = st.columns(3)
+        # Baris paling bawah dibuat compact dalam 4 kolom:
+        # NPS Unit | Reason Unit | NPS Dealer | Reason Dealer.
+        r4c1, r4c2, r4c3, r4c4 = st.columns(4, gap="small")
+        reason_unit_col = _find_exact_data_col(df_prof, "Reasons_Unit")
+        reason_dealer_col = _find_exact_data_col(df_prof, "Reasons_Dealer")
         with r4c1:
-            _simple_pie(
-                df_prof, cols.get("payment"), "Distribusi Tipe Pembayaran",
-                key=f"{key_prefix}_payment",
-                colors=[RED, ORANGE, YELLOW, GREEN, "#1E88E5"],
-            )
-        with r4c2:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
+            )
+        with r4c2:
+            _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
+                key=f"{key_prefix}_reason_unit",
             )
         with r4c3:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS Dealer",
                 key=f"{key_prefix}_nps_dealer",
             )
-
-        reason_unit_col = _find_exact_data_col(df_prof, "Reasons_Unit")
-        reason_dealer_col = _find_exact_data_col(df_prof, "Reasons_Dealer")
-        r5c1, r5c2 = st.columns(2)
-        with r5c1:
+        with r4c4:
             _top_reasons_hbar(
-                df_prof, reason_unit_col, "Top 5 Reason Unit",
-                key=f"{key_prefix}_reason_unit",
-            )
-        with r5c2:
-            _top_reasons_hbar(
-                df_prof, reason_dealer_col, "Top 5 Reason Dealer",
+                df_prof, reason_dealer_col, "Top 5 Reason NPS Dealer",
                 key=f"{key_prefix}_reason_dealer",
             )
 
@@ -4647,30 +4911,28 @@ def render_demographic_charts(
                 key=f"{key_prefix}_retention_service", is_retention=True,
             )
 
-        # Service tidak menampilkan tipe pembayaran.
-        r4c1, r4c2 = st.columns(2)
+        # NPS dan alasannya berada dalam satu baris 4 kolom.
+        reason_unit_col = _find_exact_data_col(df_prof, "Reasons NPS.1")
+        reason_ahass_col = _find_exact_data_col(df_prof, "Reasons NPS")
+        r4c1, r4c2, r4c3, r4c4 = st.columns(4, gap="small")
         with r4c1:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
             )
         with r4c2:
+            _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r4c3:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS AHASS",
                 key=f"{key_prefix}_nps_dealer",
             )
-
-        reason_unit_col = _find_exact_data_col(df_prof, "Reasons NPS.1")
-        reason_ahass_col = _find_exact_data_col(df_prof, "Reasons NPS")
-        r5c1, r5c2 = st.columns(2)
-        with r5c1:
+        with r4c4:
             _top_reasons_hbar(
-                df_prof, reason_unit_col, "Top 5 Reason Unit",
-                key=f"{key_prefix}_reason_unit",
-            )
-        with r5c2:
-            _top_reasons_hbar(
-                df_prof, reason_ahass_col, "Top 5 Reason AHASS",
+                df_prof, reason_ahass_col, "Top 5 Reason NPS AHASS",
                 key=f"{key_prefix}_reason_ahass",
             )
 
@@ -4688,7 +4950,7 @@ def render_demographic_charts(
             )
         with r2c2:
             _stacked_pct(
-                df_prof, future_purchase_col, "Future Purchase Part",
+                df_prof, future_purchase_col, "Future Purchase Part Location",
                 key=f"{key_prefix}_future_purchase_part",
             )
 
@@ -4705,33 +4967,30 @@ def render_demographic_charts(
                 key=f"{key_prefix}_retention_parts", is_retention=True,
             )
 
-        # Spare Part: hanya NPS Unit dan NPS Part, sejajar dalam dua kolom.
-        r4c1, r4c2 = st.columns(2)
+        # NPS dan alasannya berada dalam satu baris 4 kolom.
+        reason_unit_col = _find_exact_data_col(df_prof, "Reasons NPS.1")
+        reason_parts_col = _find_exact_data_col(df_prof, "Reasons NPS")
+        r4c1, r4c2, r4c3, r4c4 = st.columns(4, gap="small")
         with r4c1:
             render_nps_gauge(
                 nps_value(nps_unit_col), "NPS Unit",
                 key=f"{key_prefix}_nps_unit",
             )
         with r4c2:
+            _top_reasons_hbar(
+                df_prof, reason_unit_col, "Top 5 Reason NPS Unit",
+                key=f"{key_prefix}_reason_unit",
+            )
+        with r4c3:
             render_nps_gauge(
                 nps_value(nps_dealer_col), "NPS Part",
                 key=f"{key_prefix}_nps_dealer",
             )
-
-        reason_unit_col = _find_exact_data_col(df_prof, "Reasons NPS.1")
-        reason_parts_col = _find_exact_data_col(df_prof, "Reasons NPS")
-        r5c1, r5c2 = st.columns(2)
-        with r5c1:
+        with r4c4:
             _top_reasons_hbar(
-                df_prof, reason_unit_col, "Top 5 Reason Unit",
-                key=f"{key_prefix}_reason_unit",
-            )
-        with r5c2:
-            _top_reasons_hbar(
-                df_prof, reason_parts_col, "Top 5 Reason Parts",
+                df_prof, reason_parts_col, "Top 5 Reason NPS Parts",
                 key=f"{key_prefix}_reason_parts",
             )
-
 
 # ============================================================
 # UNIT PAGE
@@ -4834,6 +5093,29 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
                 )
 
         # ============================================================
+        # INSIGHT DINAMIS, TEPAT DI BAWAH HEATMAP
+        # ============================================================
+        profile_col = cols.get("profile") if cols else None
+        df_profile_insight = df_filtered
+        if (
+            selected_profile and profile_col and
+            df_filtered is not None and not df_filtered.empty and
+            profile_col in df_filtered.columns
+        ):
+            selected_number = str(selected_profile).replace("P", "").strip()
+            profile_mask = (
+                df_filtered[profile_col].astype(str).str.contains(
+                    rf"\b{selected_number}\b", case=False, na=False
+                ) |
+                df_filtered[profile_col].astype(str).str.contains(
+                    selected_profile, case=False, na=False
+                )
+            )
+            matched_profile = df_filtered[profile_mask]
+            if not matched_profile.empty:
+                df_profile_insight = matched_profile
+
+        # ============================================================
         # PENJELASAN PROFIL
         # ============================================================
         with r1_col3:
@@ -4845,6 +5127,18 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
                     profile_meta_df,
                     selected_profile,
                 )
+
+        # Insight berada di luar context ketiga kolom sehingga lebarnya
+        # mengikuti seluruh area halaman, tepat di bawah baris heatmap.
+        render_overall_profile_insight(
+            df_filtered=df_filtered,
+            df_prof=df_profile_insight,
+            cols=cols,
+            selected_profile=selected_profile,
+            unit=unit_key,
+            key_prefix=key_prefix,
+            profile_meta_df=profile_meta_df,
+        )
 
         st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
         render_demographic_charts(
