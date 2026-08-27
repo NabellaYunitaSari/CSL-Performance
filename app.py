@@ -3060,36 +3060,156 @@ def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, k
         st.plotly_chart(fig, use_container_width=True, key=key)
 
 
-def render_semester_difference_chart(diffs, subtitle: str, key: str):
+def render_semester_difference_chart(
+    diffs,
+    subtitle: str,
+    key: str,
+    attr_sat: dict = None,
+    indicator_names: dict = None,
+):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
-        st.markdown('<div class="chart-title">Satisfaction Semester Ini vs Semester Sebelumnya</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chart-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="chart-title">Current Semester Satisfaction vs Previous Semester</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f'<div class="chart-subtitle">{subtitle}</div>',
+            unsafe_allow_html=True
+        )
+
         if diffs is None:
             st.info("Data periode sebelumnya tidak tersedia untuk filter ini.")
             return
+
         if not diffs:
             st.info("Data tidak tersedia.")
             return
+
+        attr_sat = attr_sat or {}
+        indicator_names = indicator_names or {}
+
         codes = list(diffs.keys())
         vals = list(diffs.values())
-        colors = [GREEN if v >= 0 else RED for v in vals]
-        texts = [f"+{v:.1f}%" if v >= 0 else f"{v:.1f}%" for v in vals]
+
+        colors = [
+            GREEN if value >= 0 else RED
+            for value in vals
+        ]
+
+        texts = [
+            f"+{value:.1f}%"
+            if value >= 0
+            else f"{value:.1f}%"
+            for value in vals
+        ]
+
+        # Nama indikator dan nilai satisfaction semester aktif
+        names = [
+            indicator_names.get(
+                str(code).strip().upper(),
+                "Nama indikator belum tersedia"
+            )
+            for code in codes
+        ]
+
+        current_satisfaction = [
+            attr_sat.get(code, np.nan)
+            for code in codes
+        ]
+
+        # Customdata:
+        # [0] = nama indikator
+        # [1] = satisfaction semester aktif
+        customdata = np.array(
+            [
+                [
+                    name,
+                    sat if sat is not None else np.nan,
+                ]
+                for name, sat in zip(
+                    names,
+                    current_satisfaction,
+                )
+            ],
+            dtype=object,
+        )
+
         max_val = max(vals) if vals else 0
         min_val = min(vals) if vals else 0
-        x_max = max(0.1, max_val + max(0.12, abs(max_val) * 0.25))
-        x_min = min(0, min_val - max(0.05, abs(min_val) * 0.25))
-        fig = go.Figure(go.Bar(
-            x=vals, y=codes, orientation="h", marker=dict(color=colors),
-            text=texts, textposition="outside",
-        ))
-        fig.add_vline(x=0, line_color="#999999")
-        fig.update_layout(
-            xaxis=dict(range=[x_min, x_max]),
-            yaxis=dict(autorange="reversed"),
-            margin=dict(l=10, r=30, t=10, b=10), height=max(280, 26 * len(codes)),
-            showlegend=False,
+
+        x_max = max(
+            0.1,
+            max_val + max(
+                0.12,
+                abs(max_val) * 0.25
+            )
         )
-        st.plotly_chart(fig, use_container_width=True, key=key)
+
+        x_min = min(
+            0,
+            min_val - max(
+                0.05,
+                abs(min_val) * 0.25
+            )
+        )
+
+        fig = go.Figure(
+            go.Bar(
+                x=vals,
+                y=codes,
+                orientation="h",
+                marker=dict(color=colors),
+                text=texts,
+                textposition="outside",
+                cliponaxis=False,
+                customdata=customdata,
+                hovertemplate=(
+                    "<b>Kode Indikator:</b> %{y}<br>"
+                    "<b>Nama Indikator:</b> %{customdata[0]}<br>"
+                    "<b>%Satisfaction:</b> %{customdata[1]:.1f}%<br>"
+                    "<b>%Gap semester sebelumnya:</b> %{x:+.1f}%"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+        fig.add_vline(
+            x=0,
+            line_color="#999999"
+        )
+
+        fig.update_layout(
+            xaxis=dict(
+                range=[x_min, x_max],
+                ticksuffix="%",
+            ),
+            yaxis=dict(
+                autorange="reversed"
+            ),
+            margin=dict(
+                l=10,
+                r=45,
+                t=10,
+                b=10
+            ),
+            height=max(
+                280,
+                26 * len(codes)
+            ),
+            showlegend=False,
+            hoverlabel=dict(
+                align="left"
+            ),
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key=key,
+            config={
+                "displayModeBar": True
+            },
+        )
 
 def render_performance_section(
     df_all,
@@ -3389,7 +3509,9 @@ def render_performance_section(
                 render_semester_difference_chart(
                     diffs,
                     subtitle,
-                    key=f"{key_prefix}_diff"
+                    key=f"{key_prefix}_diff",
+                    attr_sat=attr_sat,
+                    indicator_names=indicator_names,
                 )
 
     # ========================================================
