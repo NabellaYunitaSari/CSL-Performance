@@ -3069,7 +3069,7 @@ def render_semester_difference_chart(
 ):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
         st.markdown(
-            '<div class="chart-title">Current Semester Satisfaction vs Previous Semester</div>',
+            '<div class="chart-title">Satisfaction Semester Ini vs Semester Sebelumnya</div>',
             unsafe_allow_html=True
         )
         st.markdown(
@@ -5578,7 +5578,7 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
             unsafe_allow_html=True,
         )
         r1_col1, r1_col2, r1_col3 = st.columns(
-            [2.1, 1, 1.3],
+            [1, 1, 1],
             gap="medium",
             vertical_alignment="top",
         )
