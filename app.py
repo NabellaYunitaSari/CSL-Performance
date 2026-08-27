@@ -3787,14 +3787,21 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             for chip_col, (qk, info) in zip(chip_cols, QUADRANTS.items()):
                 with chip_col:
                     is_sel = qk == selected_qk
+
                     if st.button(
                         f"{'●' if is_sel else '○'} {info['roman']} ({len(points_by_quadrant[qk])})",
                         key=f"{key}_chip_{qk}",
                         use_container_width=True,
                         help=info["label"],
+                        type="primary" if is_sel else "secondary",
                     ):
                         st.session_state[sel_key] = qk
-                        selected_qk = qk
+
+                        # Rerun langsung agar:
+                        # 1. tombol yang dipilih langsung menjadi aktif,
+                        # 2. panel kanan sinkron,
+                        # 3. highlight grafik sinkron.
+                        st.rerun()
 
             x_min, x_max = min(xs), max(xs)
             y_min, y_max = min(ys), max(ys)
@@ -3813,15 +3820,45 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             }
             for qk, (rx0, rx1, ry0, ry1) in quad_bounds.items():
                 is_sel = qk == selected_qk
+
                 fig.add_shape(
-                    type="rect", x0=rx0, x1=rx1, y0=ry0, y1=ry1,
-                    fillcolor=QUADRANTS[qk]["color"], opacity=0.16 if is_sel else 0.055,
-                    line=dict(width=1.5 if is_sel else 0, color=QUADRANTS[qk]["color"]),
+                    type="rect",
+                    x0=rx0,
+                    x1=rx1,
+                    y0=ry0,
+                    y1=ry1,
+                    fillcolor=QUADRANTS[qk]["color"],
+
+                    # Kuadran aktif jauh lebih terlihat.
+                    opacity=0.26 if is_sel else 0.025,
+
+                    line=dict(
+                        width=2.4 if is_sel else 0.5,
+                        color=(
+                            QUADRANTS[qk]["color"]
+                            if is_sel
+                            else "rgba(180,180,180,0.30)"
+                        ),
+                    ),
                     layer="below",
                 )
 
-            marker_opacity = [1.0 if quadrant_of_code[c] == selected_qk else 0.38 for c in codes]
-            marker_line_width = [2 if quadrant_of_code[c] == selected_qk else 0.8 for c in codes]
+            # Titik pada kuadran aktif dibuat lebih kuat,
+            # titik kuadran lain dibuat lebih redup.
+            marker_opacity = [
+                1.0 if quadrant_of_code[c] == selected_qk else 0.16
+                for c in codes
+            ]
+
+            marker_line_width = [
+                2.8 if quadrant_of_code[c] == selected_qk else 0.5
+                for c in codes
+            ]
+
+            marker_size = [
+                15 if quadrant_of_code[c] == selected_qk else 9
+                for c in codes
+            ]
 
             point_names = [indicator_name_map.get(c.upper(), "Nama indikator belum tersedia") for c in codes]
             hover_data = np.column_stack([
@@ -3834,8 +3871,13 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 x=xs, y=ys, mode="markers", text=codes,
                 customdata=hover_data,
                 marker=dict(
-                    size=12, color=colors, opacity=marker_opacity,
-                    line=dict(width=marker_line_width, color="white"),
+                    size=marker_size,
+                    color=colors,
+                    opacity=marker_opacity,
+                    line=dict(
+                        width=marker_line_width,
+                        color="white",
+                    ),
                 ),
                 hovertemplate=(
                     "<b>%{text}</b><br>"
@@ -3859,10 +3901,46 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 hovermode="closest",
                 clickmode="event+select",
                 annotations=[
-                    dict(x=x_lo, y=y_hi, text=f"<b>{QUADRANTS['priority']['roman']} · Prioritas Utama</b>", showarrow=False, font=dict(color=RED, size=14), xanchor="left", yanchor="top"),
-                    dict(x=x_hi, y=y_hi, text=f"<b>{QUADRANTS['keep']['roman']} · Pertahankan</b>", showarrow=False, font=dict(color=ORANGE, size=14), xanchor="right", yanchor="top"),
-                    dict(x=x_lo, y=y_lo, text=f"<b>{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap</b>", showarrow=False, font=dict(color="#C9A400", size=14), xanchor="left", yanchor="bottom"),
-                    dict(x=x_hi, y=y_lo, text=f"<b>{QUADRANTS['low']['roman']} · Prioritas Rendah</b>", showarrow=False, font=dict(color=GREEN, size=14), xanchor="right", yanchor="bottom"),
+                    dict(
+                        x=x_lo, y=y_hi,
+                        text=f"<b>{QUADRANTS['priority']['roman']} · Prioritas Utama</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=RED if selected_qk == "priority" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "priority" else 12,
+                        ),
+                        xanchor="left", yanchor="top",
+                    ),
+                    dict(
+                        x=x_hi, y=y_hi,
+                        text=f"<b>{QUADRANTS['keep']['roman']} · Pertahankan</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=ORANGE if selected_qk == "keep" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "keep" else 12,
+                        ),
+                        xanchor="right", yanchor="top",
+                    ),
+                    dict(
+                        x=x_lo, y=y_lo,
+                        text=f"<b>{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap</b>",
+                        showarrow=False,
+                        font=dict(
+                            color="#C9A400" if selected_qk == "gradual" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "gradual" else 12,
+                        ),
+                        xanchor="left", yanchor="bottom",
+                    ),
+                    dict(
+                        x=x_hi, y=y_lo,
+                        text=f"<b>{QUADRANTS['low']['roman']} · Prioritas Rendah</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=GREEN if selected_qk == "low" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "low" else 12,
+                        ),
+                        xanchor="right", yanchor="bottom",
+                    ),
                 ],
             )
             st.plotly_chart(
