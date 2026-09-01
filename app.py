@@ -5622,10 +5622,15 @@ def render_top_bottom_dealer_satisfaction(
     otomatis menyesuaikan saat sumber data atau filter lain berubah.
     """
 
-    # Hanya tampil saat filter Kab/Kota = Semua.
-    # Pada render_filters(), pilihan Semua disimpan sebagai None.
-    if filters is not None and filters.get("kab_kota") not in (None, "Semua", ""):
-        return
+    # Ranking Top 5 / Bottom 5 hanya berlaku sampai level Karesidenan.
+    # Jika pengguna sudah memilih Kab/Kota atau Dealer tertentu,
+    # ranking tidak ditampilkan karena scope sudah terlalu spesifik.
+    if filters is not None:
+        kab_selected = filters.get("kab_kota") not in (None, "Semua", "")
+        dealer_selected = filters.get("dealer") not in (None, "Semua", "")
+
+        if kab_selected or dealer_selected:
+            return
 
     if df_profile is None or df_profile.empty:
         st.info("Data dealer tidak tersedia untuk profil yang dipilih.")
