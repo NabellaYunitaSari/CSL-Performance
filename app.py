@@ -4123,9 +4123,10 @@ def render_profile_heatmap(unit_key: str, key: str):
                 if pd.isna(v) or v is None:
                     row_text.append("")
                 elif round(v, 2) == 0:
-                    row_text.append("0")
+                    row_text.append("0%")
                 else:
-                    row_text.append(f"{v:.2f}".rstrip("0").rstrip("."))
+                    value_text = f"{v:.2f}".rstrip("0").rstrip(".")
+                    row_text.append(f"{value_text}%")
             text_matrix.append(row_text)
 
         colorscale = [
@@ -4161,7 +4162,7 @@ def render_profile_heatmap(unit_key: str, key: str):
             hovertemplate=(
                 "<b>Kode Indikator:</b> %{customdata[0]}<br>"
                 "<b>Nama Indikator:</b> %{customdata[1]}<br>"
-                "<b>Selisih satisfaction rata-rata keseluruhan:</b> %{z:.2f}"
+                "<b>Selisih satisfaction rata-rata keseluruhan:</b> %{z:.2f}%"
                 "<extra></extra>"
             )
         ))
