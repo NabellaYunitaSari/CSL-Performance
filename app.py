@@ -3047,7 +3047,7 @@ def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, k
                 "<b>Kode Indikator:</b> %{y}<br>"
                 "<b>Nama Indikator:</b> %{customdata[0]}<br>"
                 "<b>%Satisfaction:</b> %{customdata[1]:.1f}%<br>"
-                "<b>%Gap semester sebelumnya:</b> %{x:+.1f}%<extra></extra>"
+                "<b>%Gap terhadap target:</b> %{x:+.1f}%<extra></extra>"
             ),
         ))
         fig.add_vline(x=0, line_color="#999999")
@@ -3633,9 +3633,9 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             if cat_type_col and cat_col:
                 target_type = None
                 target_cat = None
-                if filters.get("dealer_code"):
+                if filters.get("dealer"):
                     target_type = "DEALER"
-                    target_cat = str(filters["dealer_code"])
+                    target_cat = str(filters["dealer"])
                 elif filters.get("kab_kota"):
                     target_type = "KOTA"
                     target_cat = str(filters["kab_kota"])
@@ -3679,7 +3679,8 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                         df_sub = m
 
         if df_sub.empty:
-            df_sub = mat_df.copy()
+            st.info("Data matriks tidak tersedia untuk filter yang dipilih.")
+            return
 
         codes, xs, ys = [], [], []
         avg_sats, raw_sats, rank_sats, rank_imps = [], [], [], []
@@ -4080,7 +4081,17 @@ def render_profile_heatmap(unit_key: str, key: str):
 
             attr_codes = list(piv.index)
             profiles_label = [str(p) for p in piv.columns]
-            matrix = piv.values.tolist()
+
+            # ============================================================
+            # KONVERSI PROFILE GAP DARI SKALA LIKERT 1–5 KE PERSENTASE
+            # ============================================================
+            matrix = piv.values.astype(float)
+
+            # Gap Likert → Persentase
+            # Skala maksimum satisfaction = 5
+            matrix = (matrix / 5) * 100
+
+            matrix = matrix.tolist()
         else:
             prof_cols = [c for c in hm_df.columns if str(c).strip().upper() in ["P1", "P2", "P3", "P4", "P5", "PROFILE 1", "PROFILE 2", "PROFILE 3", "PROFILE 4", "PROFILE 5"]]
             if not k_col or not prof_cols:
@@ -5589,6 +5600,307 @@ def render_demographic_charts(
                 key=f"{key_prefix}_reason_parts",
             )
 
+
+
+def render_top_bottom_dealer_satisfaction(
+    df_profile,
+    cols,
+    indicator_cols,
+    unit_key,
+    key_prefix,
+    filters=None,
+):
+    """
+    Menampilkan Top 5 dan Bottom 5 dealer/unit berdasarkan Satisfaction
+    untuk filter + customer profile yang sedang aktif.
+
+    Satisfaction dihitung konsisten dengan dashboard:
+    rata-rata skor indikator / 5 * 100%.
+
+    Ranking hanya ditampilkan ketika filter Kabupaten/Kota = Semua.
+    Data dihitung langsung dari dataframe aktif, sehingga daftar Top/Bottom 5
+    otomatis menyesuaikan saat sumber data atau filter lain berubah.
+    """
+
+    # Hanya tampil saat filter Kab/Kota = Semua.
+    # Pada render_filters(), pilihan Semua disimpan sebagai None.
+    if filters is not None and filters.get("kab_kota") not in (None, "Semua", ""):
+        return
+
+    if df_profile is None or df_profile.empty:
+        st.info("Data dealer tidak tersedia untuk profil yang dipilih.")
+        return
+
+    dealer_code_col = cols.get("dealer_code") if cols else None
+
+    if not dealer_code_col or dealer_code_col not in df_profile.columns:
+        st.info("Kolom kode dealer tidak ditemukan.")
+        return
+
+    # Deteksi nama unit sesuai H1/H2/H3
+    unit = str(unit_key).strip().lower()
+
+    if unit == "sales":
+        dealer_name_col = find_col(
+            df_profile,
+            ["Dealer Name", "Name of Dealer", "Nama Dealer", "Dealer"]
+        )
+        entity_label = "Dealer"
+
+    elif unit == "service":
+        dealer_name_col = find_col(
+            df_profile,
+            ["AHASS Name", "Name of AHASS", "Nama AHASS", "AHASS"]
+        )
+        entity_label = "AHASS"
+
+    else:
+        dealer_name_col = find_col(
+            df_profile,
+            [
+                "Parts Shop Name", "Part Shop Name", "Name of Parts Shop",
+                "Nama Parts Shop", "Parts Shop", "Part Shop"
+            ]
+        )
+        entity_label = "Part Shop"
+
+    # Gunakan hanya indikator yang memang masuk perhitungan dashboard
+    valid_indicators = [
+        col for col in indicator_cols
+        if col in df_profile.columns
+    ]
+
+    if not valid_indicators:
+        st.info("Indikator satisfaction tidak tersedia.")
+        return
+
+    df_rank = df_profile.copy()
+
+    numeric_indicator = df_rank[valid_indicators].apply(
+        pd.to_numeric,
+        errors="coerce"
+    )
+
+    # Satisfaction per responden dalam persen
+    df_rank["_satisfaction_pct"] = (
+        numeric_indicator.mean(axis=1) / 5 * 100
+    )
+
+    # Label display: Nama Unit (Kode)
+    if dealer_name_col and dealer_name_col in df_rank.columns:
+        df_rank["_dealer_name"] = (
+            df_rank[dealer_name_col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        df_rank["_dealer_code"] = (
+            df_rank[dealer_code_col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        df_rank["_dealer_name"] = (
+            df_rank[dealer_code_col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        df_rank["_dealer_code"] = df_rank["_dealer_name"]
+
+    df_rank = df_rank[df_rank["_dealer_code"].ne("")].copy()
+
+    if df_rank.empty:
+        st.info("Data dealer tidak tersedia.")
+        return
+
+    dealer_summary = (
+        df_rank
+        .groupby(["_dealer_code", "_dealer_name"], dropna=False)
+        .agg(
+            Satisfaction=("_satisfaction_pct", "mean"),
+            Jumlah_Responden=("_satisfaction_pct", "count"),
+        )
+        .reset_index()
+    )
+
+    dealer_summary = dealer_summary[
+        dealer_summary["Satisfaction"].notna()
+    ].copy()
+
+    if dealer_summary.empty:
+        st.info("Nilai satisfaction dealer tidak tersedia.")
+        return
+
+    def make_dealer_label(row):
+        name = str(row["_dealer_name"]).strip()
+        code = str(row["_dealer_code"]).strip()
+
+        if not name or name.lower() in {"nan", "none"}:
+            return code
+        if name == code:
+            return name
+        return f"{name} ({code})"
+
+    dealer_summary["Dealer_Label"] = dealer_summary.apply(
+        make_dealer_label,
+        axis=1
+    )
+
+    top_5 = (
+        dealer_summary
+        .sort_values(
+            ["Satisfaction", "Jumlah_Responden"],
+            ascending=[False, False]
+        )
+        .head(5)
+        .reset_index(drop=True)
+    )
+
+    bottom_5 = (
+        dealer_summary
+        .sort_values(
+            ["Satisfaction", "Jumlah_Responden"],
+            ascending=[True, False]
+        )
+        .head(5)
+        .reset_index(drop=True)
+    )
+
+    # Style mengikuti palette dashboard saat ini: merah, orange, putih
+    st.markdown(
+        """
+        <style>
+        .dealer-ranking-card {
+        background: #FFFFFF !important;
+
+       /* Outline masing-masing card dibuat terlihat */
+        border: 1.5px solid #D9DDE3 !important;
+
+        border-radius: 12px !important;
+
+        padding: 0 !important;
+
+        overflow: hidden !important;
+
+        box-shadow:
+            0 2px 7px rgba(38, 38, 38, 0.07) !important;
+        margin: 0 !important;
+    }
+
+        .dealer-ranking-title {
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #262626;
+            border-bottom: 1px solid #F0F1F3;
+            background: #FFFFFF;
+        }
+
+        .dealer-ranking-title-high {
+            border-left: 4px solid #FF6B00;
+        }
+
+        .dealer-ranking-title-low {
+            border-left: 4px solid #E60012;
+        }
+
+        .dealer-ranking-row {
+            min-height: 42px;
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-bottom: 1px dashed #E7E9EC;
+        }
+
+        .dealer-ranking-row:last-child {
+            border-bottom: none;
+        }
+
+        .dealer-rank {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #C8102E;
+        }
+
+        .dealer-rank {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #D75B00;
+        }
+
+        .dealer-rank-low {
+            color: #C8102E;
+        }
+
+        .dealer-ranking-value {
+            font-size: 12px;
+            font-weight: 800;
+            color: #D75B00;
+            white-space: nowrap;
+        }
+
+        .dealer-ranking-value-low {
+            color: #C8102E;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def build_ranking_html(data, lowest=False):
+        rows = []
+
+        for i, row in data.iterrows():
+            rank_class = (
+                "dealer-rank dealer-rank-low"
+                if lowest else "dealer-rank"
+            )
+            value_class = (
+                "dealer-ranking-value dealer-ranking-value-low"
+                if lowest else "dealer-ranking-value"
+            )
+
+            dealer_text = html.escape(str(row["Dealer_Label"]))
+            satisfaction = float(row["Satisfaction"])
+
+            rows.append(
+                f'<div class="dealer-ranking-row">'
+                f'<div class="{rank_class}">#{i + 1}</div>'
+                f'<div class="dealer-ranking-name" title="{dealer_text}">{dealer_text}</div>'
+                f'<div class="{value_class}">{satisfaction:.1f}%</div>'
+                f'</div>'
+            )
+
+        return "".join(rows)
+
+    c_high, c_low = st.columns(2, gap="small")
+    with c_high:
+        top_html = build_ranking_html(top_5, lowest=False)
+        st.html(
+            f'<div class="dealer-ranking-card">'
+            f'<div class="dealer-ranking-title dealer-ranking-title-high">'
+            f'5 {entity_label} dengan Satisfaction Tertinggi'
+            f'</div>'
+            f'{top_html}'
+            f'</div>'
+        )
+
+    with c_low:
+        bottom_html = build_ranking_html(bottom_5, lowest=True)
+        st.html(
+            f'<div class="dealer-ranking-card">'
+            f'<div class="dealer-ranking-title dealer-ranking-title-low">'
+            f'5 {entity_label} dengan Satisfaction Terendah'
+            f'</div>'
+            f'{bottom_html}'
+            f'</div>'
+        )
+
+
 # ============================================================
 # UNIT PAGE
 # ============================================================
@@ -5746,6 +6058,21 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
             selected_profile=selected_profile,
             unit_key=unit_key,
         )
+
+        # ============================================================
+        # TOP 5 & BOTTOM 5 SATISFACTION DEALER / AHASS / PART SHOP
+        # Dinamis mengikuti data + seluruh filter aktif + customer profile.
+        # Hanya tampil ketika filter Kab/Kota = Semua.
+        # ============================================================
+        if filters.get("kab_kota") in (None, "Semua", ""):
+            render_top_bottom_dealer_satisfaction(
+                df_profile=df_profile_insight,
+                cols=cols,
+                indicator_cols=indicator_cols,
+                unit_key=unit_key,
+                key_prefix=key_prefix,
+                filters=filters,
+            )
 
 
 # ============================================================
@@ -7046,12 +7373,12 @@ def render_framework_placeholder():
         .fw-step:nth-child(even){--accent:#ff6b00;--tint:#fff6ee}
         .fw-grid-b .fw-step{--accent:#E60012;--tint:#FFF3F3;border-color:#E60012}
         .fw-grid-b .fw-step:nth-child(even){--accent:#FF6B00;--tint:#FFF5EC;border-color:#FF6B00}
-        .fw-step-head{position:relative;min-height:100px;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex;align-items:center;justify-content:center;padding:14px 52px}
+        .fw-step-head{position:relative;height:122px!important;min-height:122px!important;max-height:122px!important;flex:0 0 122px!important;box-sizing:border-box!important;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;padding:12px 42px 12px 52px!important}
         .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#c90012,#f13a20)}
         .fw-grid-b .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#C8102E 0%,#E60012 55%,#F13A20 100%)!important}
         .fw-grid-b .fw-step:nth-child(even) .fw-step-head{background:linear-gradient(135deg,#E65100 0%,#FF6B00 55%,#FF9A3D 100%)!important}
         .fw-step-head>span{position:absolute;left:12px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-size:15px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.13)}
-        .fw-step-head h3{display:block;width:100%;margin:0;font-size:13px;line-height:1.35;font-weight:800;color:#fff;text-align:center!important}
+        .fw-step-head h3{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;width:100%;margin:0!important;padding:0!important;font-size:13px;line-height:1.35;font-weight:800;color:#fff;text-align:center!important}
         .fw-step-body{padding:11px;background:linear-gradient(180deg,var(--tint),#fff 28%);display:flex;flex:1;flex-direction:column;border-radius:0 0 13px 13px}
         .fw-item{display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:flex-start;border:1px solid color-mix(in srgb,var(--accent) 24%,white);border-radius:10px;background:#fff;padding:9px 8px;margin-bottom:9px;min-height:78px}
         .fw-item>div:last-child{width:100%;text-align:center!important}
