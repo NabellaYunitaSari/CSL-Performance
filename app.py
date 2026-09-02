@@ -3514,6 +3514,46 @@ def render_performance_section(
                     indicator_names=indicator_names,
                 )
 
+        # ====================================================
+        # TOP & BOTTOM 5 DEALER SATISFACTION
+        # Filter hanya sampai Karesidenan
+        # Tidak mengikuti Kab/Kota, Dealer, maupun Profile
+        # ====================================================
+        kab_selected = filters.get("kab_kota")
+        dealer_selected = filters.get("dealer")
+
+        show_dealer_ranking = (
+            kab_selected in (None, "", "Semua")
+            and dealer_selected in (None, "", "Semua")
+        )
+
+        if show_dealer_ranking:
+            st.markdown(
+                "<div style='height:12px'></div>",
+                unsafe_allow_html=True
+            )
+
+            dealer_rank_filters = filters.copy()
+
+            # Ranking antar dealer tidak boleh dibatasi
+            # oleh dealer/kabupaten tertentu.
+            dealer_rank_filters["kab_kota"] = None
+            dealer_rank_filters["dealer"] = None
+
+            df_dealer_rank = apply_filters(
+                df_all,
+                cols,
+                dealer_rank_filters
+            )
+
+            render_top_bottom_dealer_satisfaction(
+                df_profile=df_dealer_rank,
+                cols=cols,
+                indicator_cols=indicator_cols,
+                unit_key=key_prefix,
+                key_prefix=key_prefix,
+                filters=dealer_rank_filters,
+            )
     # ========================================================
     # SUDAH DI LUAR OUTLINE MERAH
     # ========================================================
@@ -6065,20 +6105,6 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
             unit_key=unit_key,
         )
 
-        # ============================================================
-        # TOP 5 & BOTTOM 5 SATISFACTION DEALER / AHASS / PART SHOP
-        # Dinamis mengikuti data + seluruh filter aktif + customer profile.
-        # Hanya tampil ketika filter Kab/Kota = Semua.
-        # ============================================================
-        if filters.get("kab_kota") in (None, "Semua", ""):
-            render_top_bottom_dealer_satisfaction(
-                df_profile=df_profile_insight,
-                cols=cols,
-                indicator_cols=indicator_cols,
-                unit_key=unit_key,
-                key_prefix=key_prefix,
-                filters=filters,
-            )
 
 
 # ============================================================
