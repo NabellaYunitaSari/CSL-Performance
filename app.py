@@ -6971,36 +6971,6 @@ def rw_render_region_profile_page():
 
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-        # ----------------------------
-        # TABEL DOMINAN PER WILAYAH
-        # ----------------------------
-        display_table = filtered_summary[[
-            "Kabupaten/Kota", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN, "Jumlah_Responden",
-            "Profile_Dominan", "Nama_Profile_Dominan", "Persen_Dominan",
-            "Profile_Kedua", "Nama_Profile_Kedua", "Persen_Kedua",
-            "Margin_Dominasi", "Status_Sampel",
-        ]].copy()
-
-        display_table = display_table.rename(columns={
-            RW_CLUSTER_COLUMN: "Cluster",
-            RW_CLUSTER_PROFILE_COLUMN: "Profil Wilayah",
-            "Jumlah_Responden": "Jumlah Responden",
-            "Profile_Dominan": "Profile Dominan",
-            "Nama_Profile_Dominan": "Nama Profile Dominan",
-            "Persen_Dominan": "% Dominan",
-            "Profile_Kedua": "Profile Kedua",
-            "Nama_Profile_Kedua": "Nama Profile Kedua",
-            "Persen_Kedua": "% Profile Kedua",
-            "Margin_Dominasi": "Margin Dominasi",
-            "Status_Sampel": "Status Sampel",
-        })
-
-        with st.container(key="rw_table_chart_card", border=True):
-            st.markdown('<div class="chart-title">Tabel Profile Dominan per Wilayah</div>', unsafe_allow_html=True)
-            st.markdown('<div class="chart-subtitle">Detail profil dominan dan kedua untuk setiap kabupaten/kota</div>', unsafe_allow_html=True)
-            st.dataframe(display_table, hide_index=True, use_container_width=True)
-
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         rw_render_data_diagnostic(diagnostic, selected_h)
 
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
