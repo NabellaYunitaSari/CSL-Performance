@@ -7312,7 +7312,7 @@ def render_framework_placeholder():
         {
             "icon": "◉", "color": YELLOW,
             "title": "Prioritaskan Atribut yang Perlu Diperbaiki",
-            "desc": "Kuadran III \"Prioritas Utama\" pada Matrix Satisfaction x Importance (Section 2) menunjukkan atribut dengan importance tinggi tapi satisfaction rendah.",
+            "desc": "Kuadran II \"Prioritas Utama\" pada Matrix Satisfaction x Importance (Section 2) menunjukkan atribut dengan importance tinggi tapi satisfaction rendah.",
         },
         {
             "icon": "⌦", "color": GREEN,
