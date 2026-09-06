@@ -918,9 +918,9 @@ def inject_css():
 
         /* SES dan Retention memakai tinggi outline yang sama. */
         div[class*="st-key-"][class*="_fixed_chart_card"] {
-            height: 190px !important;
-            min-height: 190px !important;
-            max-height: 190px !important;
+            height: 245px !important;
+            min-height: 245px !important;
+            max-height: 245px !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
         }
@@ -1586,6 +1586,46 @@ def _options(df, col):
     return vals
 
 
+
+def _entity_name_column(df: pd.DataFrame, key_prefix: str, dealer_label: str):
+    """Cari kolom nama Dealer/AHASS/Part Shop tanpa mengubah identifier kode."""
+    if df is None or df.empty:
+        return None
+
+    unit = str(key_prefix or "").strip().lower()
+    label = str(dealer_label or "").strip().lower()
+
+    if unit == "sales" or "dealer" in label:
+        candidates = [
+            "Dealer Name", "Name of Dealer", "Nama Dealer",
+            "Dealer_Name", "dealer name",
+        ]
+    elif unit == "service" or "ahass" in label:
+        candidates = [
+            "AHASS Name", "Name of AHASS", "Nama AHASS",
+            "AHASS_Name", "ahass name",
+        ]
+    else:
+        candidates = [
+            "Parts Shop Name", "Part Shop Name", "Name of Parts Shop",
+            "Nama Parts Shop", "Nama Part Shop", "Parts_Shop_Name",
+            "parts shop name", "part shop name",
+        ]
+
+    # Prioritaskan exact match agar kolom kode seperti "Dealer Code"
+    # tidak salah terdeteksi sebagai kolom nama.
+    exact = {
+        re.sub(r"\s+", " ", str(col).strip().lower()): col
+        for col in df.columns
+    }
+    for candidate in candidates:
+        key = re.sub(r"\s+", " ", candidate.strip().lower())
+        if key in exact:
+            return exact[key]
+
+    return find_col(df, candidates)
+
+
 def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: str):
     filters = {}
     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
@@ -1623,19 +1663,28 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
         if st.session_state.get(md_key) not in md_options:
             st.session_state[md_key] = "Semua"
         sel_md = st.selectbox("Main Dealer", md_options, key=md_key)
+
     # "Semua" tidak menyaring kolom Main Dealer sehingga M2Z dan M3Z tergabung.
     if sel_md != "Semua" and md_col:
         df_scope = df_scope[df_scope[md_col].astype(str) == sel_md]
 
     with c4:
         layers = _options(df_scope, layer_col)
-        sel_layer = st.selectbox("Layer", ["Semua"] + layers, key=f"{key_prefix}_layer")
+        layer_key = f"{key_prefix}_layer"
+        layer_options = ["Semua"] + layers
+        if st.session_state.get(layer_key) not in layer_options:
+            st.session_state[layer_key] = "Semua"
+        sel_layer = st.selectbox("Layer", layer_options, key=layer_key)
     if sel_layer != "Semua" and layer_col:
         df_scope = df_scope[df_scope[layer_col].astype(str) == sel_layer]
 
     with c5:
         kars = _options(df_scope, kar_col)
-        sel_kar = st.selectbox("Karesidenan", ["Semua"] + kars, key=f"{key_prefix}_kar")
+        kar_key = f"{key_prefix}_kar"
+        kar_options = ["Semua"] + kars
+        if st.session_state.get(kar_key) not in kar_options:
+            st.session_state[kar_key] = "Semua"
+        sel_kar = st.selectbox("Karesidenan", kar_options, key=kar_key)
     if sel_kar != "Semua" and kar_col:
         df_scope = df_scope[df_scope[kar_col].astype(str) == sel_kar]
 
@@ -1646,15 +1695,68 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
             if _dashboard_region_name(value)
         }) if kab_col and kab_col in df_scope.columns else []
         kab_key = f"{key_prefix}_kab"
-        if st.session_state.get(kab_key) not in (["Semua"] + kabs):
+        kab_options = ["Semua"] + kabs
+        if st.session_state.get(kab_key) not in kab_options:
             st.session_state[kab_key] = "Semua"
-        sel_kab = st.selectbox("Kab / Kota", ["Semua"] + kabs, key=kab_key)
+        sel_kab = st.selectbox("Kab / Kota", kab_options, key=kab_key)
     if sel_kab != "Semua" and kab_col:
         df_scope = df_scope[df_scope[kab_col].apply(_dashboard_region_name) == sel_kab]
 
+    # --------------------------------------------------------
+    # Dealer/AHASS/Part Shop: label yang terlihat = Nama (Kode),
+    # tetapi nilai filter yang disimpan tetap kode.
+    # --------------------------------------------------------
     with c7:
         deals = _options(df_scope, dealer_col)
-        sel_dealer = st.selectbox(dealer_label, ["Semua"] + deals, key=f"{key_prefix}_dealer")
+        dealer_name_col = _entity_name_column(df_scope, key_prefix, dealer_label)
+        dealer_display = {}
+
+        if dealer_col and dealer_col in df_scope.columns:
+            label_source_cols = [dealer_col]
+            if dealer_name_col and dealer_name_col in df_scope.columns:
+                label_source_cols.append(dealer_name_col)
+
+            label_source = df_scope[label_source_cols].dropna(subset=[dealer_col]).copy()
+            label_source[dealer_col] = label_source[dealer_col].astype(str).str.strip()
+
+            for code, group in label_source.groupby(dealer_col, dropna=False):
+                code_text = str(code).strip()
+                if not code_text:
+                    continue
+
+                name_text = ""
+                if dealer_name_col and dealer_name_col in group.columns:
+                    valid_names = (
+                        group[dealer_name_col]
+                        .dropna()
+                        .astype(str)
+                        .str.strip()
+                    )
+                    valid_names = valid_names[
+                        ~valid_names.str.lower().isin(["", "nan", "none", "-"])
+                    ]
+                    if not valid_names.empty:
+                        name_text = valid_names.iloc[0]
+
+                dealer_display[code_text] = (
+                    f"{name_text} ({code_text})"
+                    if name_text and name_text != code_text
+                    else code_text
+                )
+
+        dealer_key = f"{key_prefix}_dealer"
+        dealer_options = ["Semua"] + deals
+        if st.session_state.get(dealer_key) not in dealer_options:
+            st.session_state[dealer_key] = "Semua"
+
+        sel_dealer = st.selectbox(
+            dealer_label,
+            dealer_options,
+            key=dealer_key,
+            format_func=lambda value: (
+                "Semua" if value == "Semua" else dealer_display.get(str(value), str(value))
+            ),
+        )
 
     filters = {
         "year": None if sel_year == "Semua" else sel_year,
@@ -3774,13 +3876,15 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
         y_mid = round(float(np.median(ys)), 2)
 
         QUADRANTS = {
-            "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": ORANGE,
+            # Warna sesuai revisi dashboard:
+            # I hijau, II merah, III orange, IV kuning.
+            "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": GREEN,
                      "test": lambda x, y: x >= x_mid and y >= y_mid},
             "priority": {"label": "Prioritas Utama", "roman": "Kuadran II", "color": RED,
                     "test": lambda x, y: x < x_mid and y >= y_mid},
-            "gradual": {"label": "Perbaikan Bertahap", "roman": "Kuadran III", "color": "#C9A400",
+            "gradual": {"label": "Perbaikan Bertahap", "roman": "Kuadran III", "color": ORANGE,
                         "test": lambda x, y: x < x_mid and y < y_mid},
-            "low": {"label": "Prioritas Rendah", "roman": "Kuadran IV", "color": GREEN,
+            "low": {"label": "Prioritas Rendah", "roman": "Kuadran IV", "color": YELLOW,
                          "test": lambda x, y: x >= x_mid and y < y_mid},
         }
 
@@ -3947,7 +4051,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                         text=f"<b>{QUADRANTS['priority']['roman']} · Prioritas Utama</b>",
                         showarrow=False,
                         font=dict(
-                            color=RED if selected_qk == "priority" else "rgba(120,120,120,0.55)",
+                            color=QUADRANTS["priority"]["color"] if selected_qk == "priority" else "rgba(120,120,120,0.55)",
                             size=15 if selected_qk == "priority" else 12,
                         ),
                         xanchor="left", yanchor="top",
@@ -3957,7 +4061,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                         text=f"<b>{QUADRANTS['keep']['roman']} · Pertahankan</b>",
                         showarrow=False,
                         font=dict(
-                            color=ORANGE if selected_qk == "keep" else "rgba(120,120,120,0.55)",
+                            color=QUADRANTS["keep"]["color"] if selected_qk == "keep" else "rgba(120,120,120,0.55)",
                             size=15 if selected_qk == "keep" else 12,
                         ),
                         xanchor="right", yanchor="top",
@@ -3967,7 +4071,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                         text=f"<b>{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap</b>",
                         showarrow=False,
                         font=dict(
-                            color="#C9A400" if selected_qk == "gradual" else "rgba(120,120,120,0.55)",
+                            color=QUADRANTS["gradual"]["color"] if selected_qk == "gradual" else "rgba(120,120,120,0.55)",
                             size=15 if selected_qk == "gradual" else 12,
                         ),
                         xanchor="left", yanchor="bottom",
@@ -3977,7 +4081,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                         text=f"<b>{QUADRANTS['low']['roman']} · Prioritas Rendah</b>",
                         showarrow=False,
                         font=dict(
-                            color=GREEN if selected_qk == "low" else "rgba(120,120,120,0.55)",
+                            color=QUADRANTS["low"]["color"] if selected_qk == "low" else "rgba(120,120,120,0.55)",
                             size=15 if selected_qk == "low" else 12,
                         ),
                         xanchor="right", yanchor="bottom",
@@ -4508,7 +4612,9 @@ def _age_group_hbar(df, col, title, key):
             )
 
 
+
 def _motor_type_hbar(df, col, title, key):
+    """Motor type mengikuti master kategori yang diberikan pengguna."""
     with st.container(
         key=f"{key}_demographic_chart_card",
         border=True,
@@ -4519,33 +4625,128 @@ def _motor_type_hbar(df, col, title, key):
                 st.info("Data tidak tersedia.")
                 return
 
-            def motor_series(value):
-                raw = str(value).strip()
-                norm = re.sub(r"[^a-z0-9]+", " ", raw.lower()).strip()
-                if re.search(r"\bbeat\b", norm):
-                    return "Beat Series"
-                if re.search(r"\bpcx\b", norm):
-                    return "PCX Series"
+            motor_master = [
+                "Beat", "Beat Street", "Genio", "Scoopy", "Vario 125",
+                "Vario 125 Street", "Vario Evo 160", "Stylo 160", "PCX 160",
+                "ADV 160", "Forza", "CB150 Verza", "Sonic 150R",
+                "CB150R StreetFire", "SB150X", "CRF150L", "CBR150R",
+                "CBR250RR", "CRF250L", "ST125 Dax", "Monkey",
+                "CRF250 Rally", "Revo", "Supra X 125 FI", "GTR 150",
+                "Super Cub C125", "CT125", "ICON e:", "EM1 e:", "CUV e:",
+            ]
+            motor_rank = {name: i for i, name in enumerate(motor_master)}
+
+            def compact(value):
+                return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+
+            alias = {
+                "beat": "Beat",
+                "beatfi": "Beat",
+                "beatstreet": "Beat Street",
+                "beatstreetfi": "Beat Street",
+                "genio": "Genio",
+                "scoopy": "Scoopy",
+                "vario125": "Vario 125",
+                "vario125cbs": "Vario 125",
+                "vario125street": "Vario 125 Street",
+                "varioevo160": "Vario Evo 160",
+                "vario160": "Vario Evo 160",
+                "stylo160": "Stylo 160",
+                "stylo": "Stylo 160",
+                "pcx160": "PCX 160",
+                "pcx": "PCX 160",
+                "adv160": "ADV 160",
+                "adv": "ADV 160",
+                "forza": "Forza",
+                "cb150verza": "CB150 Verza",
+                "verza": "CB150 Verza",
+                "sonic150r": "Sonic 150R",
+                "sonic": "Sonic 150R",
+                "cb150rstreetfire": "CB150R StreetFire",
+                "streetfire": "CB150R StreetFire",
+                "sb150x": "SB150X",
+                "cb150x": "SB150X",
+                "crf150l": "CRF150L",
+                "cbr150r": "CBR150R",
+                "cbr250rr": "CBR250RR",
+                "crf250l": "CRF250L",
+                "st125dax": "ST125 Dax",
+                "dax": "ST125 Dax",
+                "monkey": "Monkey",
+                "crf250rally": "CRF250 Rally",
+                "revo": "Revo",
+                "suprax125fi": "Supra X 125 FI",
+                "suprax125": "Supra X 125 FI",
+                "gtr150": "GTR 150",
+                "supercubc125": "Super Cub C125",
+                "supercub": "Super Cub C125",
+                "ct125": "CT125",
+                "icone": "ICON e:",
+                "em1e": "EM1 e:",
+                "cuve": "CUV e:",
+            }
+
+            def canonical_motor(value):
+                raw = re.sub(r"\s+", " ", str(value)).strip()
+                if not raw or raw.lower() in {"nan", "none", "-"}:
+                    return None
+                key_norm = compact(raw)
+                if key_norm in alias:
+                    return alias[key_norm]
+
+                # Fallback keyword yang tetap menjaga kategori master.
+                keyword_rules = [
+                    ("beatstreet", "Beat Street"), ("beat", "Beat"),
+                    ("vario125street", "Vario 125 Street"), ("vario125", "Vario 125"),
+                    ("vario160", "Vario Evo 160"), ("pcx", "PCX 160"),
+                    ("adv", "ADV 160"), ("stylo", "Stylo 160"),
+                    ("cb150verza", "CB150 Verza"), ("sonic", "Sonic 150R"),
+                    ("streetfire", "CB150R StreetFire"), ("cb150x", "SB150X"),
+                    ("crf150", "CRF150L"), ("cbr150", "CBR150R"),
+                    ("cbr250rr", "CBR250RR"), ("crf250rally", "CRF250 Rally"),
+                    ("crf250", "CRF250L"), ("suprax125", "Supra X 125 FI"),
+                    ("gtr150", "GTR 150"), ("c125", "Super Cub C125"),
+                    ("ct125", "CT125"), ("icone", "ICON e:"),
+                    ("em1e", "EM1 e:"), ("cuve", "CUV e:"),
+                ]
+                for needle, canonical in keyword_rules:
+                    if needle in key_norm:
+                        return canonical
+
+                # Nilai di luar master tidak dibuang agar tidak kehilangan data.
                 return raw
 
-            counts = df[col].dropna().map(motor_series).value_counts()
-            if counts.empty:
+            normalized = df[col].dropna().map(canonical_motor).dropna()
+            if normalized.empty:
                 st.info("Data tidak tersedia.")
                 return
+
+            counts = normalized.value_counts()
             total = counts.sum()
             pct = (counts / total * 100).round(1)
 
-            pct_sorted = pct.sort_values(ascending=True)
-            counts_sorted = counts.reindex(pct_sorted.index).fillna(0).astype(int)
-            max_val = max(pct_sorted.values) if not pct_sorted.empty else 100
+            labels = list(counts.index)
+            labels = sorted(
+                labels,
+                key=lambda x: (motor_rank.get(x, 10_000), str(x).casefold()),
+            )
 
-            # Grafik tetap proporsional. Jika kategorinya banyak, tinggi figure
-            # bertambah dan viewport yang akan menampilkan scrollbar.
-            chart_h = max(330, 32 * len(pct_sorted) + 60)
+            # Plotly horizontal menaruh item pertama di bagian bawah, sehingga
+            # dibalik agar urutan master terbaca dari atas ke bawah.
+            labels_plot = labels[::-1]
+            pct_plot = pct.reindex(labels_plot)
+            counts_plot = counts.reindex(labels_plot).astype(int)
+            max_val = max(pct_plot.values) if not pct_plot.empty else 100
+
+            chart_h = max(330, 32 * len(labels_plot) + 60)
             fig = go.Figure(go.Bar(
-                x=pct_sorted.values, y=pct_sorted.index, orientation="h",
-                marker=dict(color=RED), text=[f"{v:.1f}%" for v in pct_sorted.values], textposition="outside",
-                customdata=np.array(counts_sorted.values, dtype=int).reshape(-1, 1),
+                x=pct_plot.values,
+                y=labels_plot,
+                orientation="h",
+                marker=dict(color=RED),
+                text=[f"{v:.1f}%" for v in pct_plot.values],
+                textposition="outside",
+                customdata=np.array(counts_plot.values, dtype=int).reshape(-1, 1),
                 hovertemplate=(
                     "<b>Tipe Motor:</b> %{y}<br>"
                     "<b>Persentase:</b> %{x:.1f}%<br>"
@@ -4555,9 +4756,15 @@ def _motor_type_hbar(df, col, title, key):
             fig.update_layout(
                 xaxis=dict(range=[0, max(112, max_val + 15)], ticksuffix="%"),
                 margin=dict(l=10, r=30, t=10, b=10),
-                height=chart_h, showlegend=False
+                height=chart_h,
+                showlegend=False,
             )
-            st.plotly_chart(fig, use_container_width=True, key=key, config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=key,
+                config={"displayModeBar": False},
+            )
 
 
 def _simple_hbar(df, col, title, key):
@@ -4585,138 +4792,295 @@ def _simple_hbar(df, col, title, key):
         st.plotly_chart(fig, use_container_width=True, key=key)
 
 
-def _stacked_pct(df, col, title, key, is_ses=False, is_retention=False):
+
+def _stacked_pct(
+    df, col, title, key,
+    is_ses=False,
+    is_retention=False,
+    is_purchase_period=False,
+    is_purchase_location=False,
+):
+    """Stacked percentage dengan urutan kategori bisnis yang tetap."""
     with st.container(key=f"{key}_fixed_chart_card", border=True):
         st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
         if not col or df is None or df.empty or col not in df.columns:
             st.info("Data tidak tersedia.")
             return
-        counts = df[col].dropna().astype(str).value_counts()
-        if counts.empty:
+
+        raw_series = df[col].dropna().astype(str).str.strip()
+        raw_series = raw_series[~raw_series.str.lower().isin(["", "nan", "none", "-"])]
+        if raw_series.empty:
             st.info("Data tidak tersedia.")
             return
-        total = counts.sum()
-        pct = (counts / total * 100).round(0)
-        palette = [RED, ORANGE, YELLOW, GREEN, "#1E88E5", "#8E24AA", "#D81B60"]
-        fig = go.Figure()
+
+        ses_order = ["A", "A2", "B", "C1", "C2", "D", "E"]
         ses_ranges = {
-            "A": "> 6 Juta", "A1": "> 6 Juta", "A2": "4 – 6 Juta",
-            "B": "2,5 – 4 Juta", "C1": "1,75 – 2,5 Juta",
-            "C2": "1,25 – 1,75 Juta", "D": "0,9 – 1,25 Juta",
-            "E": "≤ 0,9 Juta",
+            "A": "> Rp6 juta",
+            "A2": "Rp4–6 juta",
+            "B": "Rp2,5–4 juta",
+            "C1": "Rp1,75–2,5 juta",
+            "C2": "Rp1,25–1,75 juta",
+            "D": "Rp0,9–1,25 juta",
+            "E": "≤ Rp0,9 juta",
         }
+        ses_colors = {
+            level: color for level, color in zip(
+                ses_order,
+                [RED, ORANGE, YELLOW, "#C0CA33", "#8BC34A", GREEN, "#1E88E5"],
+            )
+        }
+
         retention_labels = {
-            5: "Sangat mungkin membeli kembali",
-            4: "Mungkin membeli kembali",
-            3: "Cukup mungkin membeli kembali",
-            2: "Kurang mungkin membeli kembali",
             1: "Sangat tidak mungkin membeli kembali",
+            2: "Kurang mungkin membeli kembali",
+            3: "Cukup mungkin membeli kembali",
+            4: "Mungkin membeli kembali",
+            5: "Sangat mungkin membeli kembali",
         }
-        # Gunakan tone warna utama dashboard agar chart Retention menyatu
-        # dengan seluruh visual H1, H2, dan H3.
         retention_colors = {
+            1: RED,
+            2: "#F4511E",
+            3: YELLOW,
+            4: "#9CCC65",
             5: GREEN,
-            4: YELLOW,
-            3: ORANGE,
-            2: RED,
-            1: "#C8102E",  # merah tua dari colorway dashboard
         }
 
         def retention_score(value):
-            text = str(value).strip().lower()
-            numeric = pd.to_numeric(text.replace(",", "."), errors="coerce")
+            text_value = str(value).strip().lower()
+            numeric = pd.to_numeric(text_value.replace(",", "."), errors="coerce")
             if pd.notna(numeric) and 1 <= int(round(float(numeric))) <= 5:
                 return int(round(float(numeric)))
-            if "sangat mungkin" in text:
-                return 5
-            if "cukup" in text:
-                return 3
-            if "sangat tidak" in text or "tidak mungkin" in text:
+            if "sangat tidak" in text_value or "tidak mungkin" in text_value:
                 return 1
-            if "kurang" in text:
+            if "kurang" in text_value:
                 return 2
-            if "mungkin" in text:
+            if "cukup" in text_value:
+                return 3
+            if "sangat mungkin" in text_value:
+                return 5
+            if "mungkin" in text_value:
                 return 4
             return None
 
-        # Normalisasi dahulu sebelum menghitung persentase. Nilai mentah seperti
-        # 4, 4.0, "4 ", dan "Mungkin membeli kembali" harus menjadi satu
-        # kategori yang sama, bukan beberapa segmen dengan label 4.
-        if is_retention:
-            normalized_retention = (
-                df[col]
-                .dropna()
-                .map(retention_score)
-                .dropna()
-                .astype(int)
-            )
-            if normalized_retention.empty:
+        period_order = [
+            "Kurang dari 6 bulan",
+            "7–12 bulan lagi",
+            "1–2 tahun",
+            "2–3 tahun",
+            "3–4 tahun",
+            "Lebih dari 4 tahun",
+        ]
+
+        def canonical_period(value):
+            raw = re.sub(r"\s+", " ", str(value)).strip()
+            low = raw.lower().replace("–", "-").replace("—", "-")
+
+            if re.search(r"(<\s*6|kurang.*6|less.*6|0\s*[-/]\s*6|1\s*[-/]\s*6|sampai.*6)", low):
+                return "Kurang dari 6 bulan"
+            if re.search(r"(7\s*[-/]\s*12|6\s*[-/]\s*12|7.*12)", low) or (("bulan" in low or "month" in low) and "12" in low):
+                return "7–12 bulan lagi"
+            if re.search(r"1\s*[-/]\s*2\s*(tahun|year)", low) or ("1" in low and "2" in low and ("tahun" in low or "year" in low)):
+                return "1–2 tahun"
+            if re.search(r"2\s*[-/]\s*3\s*(tahun|year)", low) or ("2" in low and "3" in low and ("tahun" in low or "year" in low)):
+                return "2–3 tahun"
+            if re.search(r"3\s*[-/]\s*4\s*(tahun|year)", low) or ("3" in low and "4" in low and ("tahun" in low or "year" in low)):
+                return "3–4 tahun"
+            if ("lebih" in low or "more" in low or ">" in low) and ("tahun" in low or "year" in low):
+                return "Lebih dari 4 tahun"
+            return raw
+
+        def purchase_location_key(value):
+            low = re.sub(r"\s+", " ", str(value)).strip().lower()
+            # Dealer yang sama selalu paling kiri.
+            if any(token in low for token in [
+                "dealer yang sama", "dealer sama", "showroom yang sama",
+                "showroom sama", "same dealer", "same showroom",
+            ]):
+                return (0, low)
+            if "dealer" in low or "showroom" in low:
+                return (1, low)
+            if "online" in low or "marketplace" in low:
+                return (2, low)
+            if "pameran" in low or "event" in low:
+                return (3, low)
+            if "belum" in low or "tidak tahu" in low or "tidak menentukan" in low:
+                return (90, low)
+            if "lain" in low:
+                return (80, low)
+            return (50, low)
+
+        # -------------------- normalisasi dan urutan --------------------
+        if is_ses:
+            normalized = raw_series.str.upper().str.replace(" ", "", regex=False)
+            # Beberapa versi data lama menulis A1; pada dashboard disatukan sebagai SES A.
+            normalized = normalized.replace({"A1": "A"})
+            counts = normalized.value_counts()
+            labels = [level for level in ses_order if level in counts.index]
+            labels += sorted([x for x in counts.index if x not in ses_order])
+
+        elif is_retention:
+            normalized = raw_series.map(retention_score).dropna().astype(int)
+            if normalized.empty:
                 st.info("Data tidak tersedia.")
                 return
-            counts = normalized_retention.value_counts()
-            total = counts.sum()
-            pct = (counts / total * 100).round(0)
+            counts = normalized.value_counts()
+            # 1 → 5 sehingga kiri merah dan kanan hijau.
+            labels = [score for score in range(1, 6) if score in counts.index]
 
-        items = list(pct.items())
-        if is_retention:
-            items = sorted(items, key=lambda item: retention_score(item[0]) or 0, reverse=True)
+        elif is_purchase_period:
+            normalized = raw_series.map(canonical_period)
+            counts = normalized.value_counts()
+            labels = [label for label in period_order if label in counts.index]
+            labels += sorted([x for x in counts.index if x not in period_order], key=str.casefold)
 
-        ses_color_map = {}
-        for i, (label, v) in enumerate(items):
-            label_text = str(label).strip()
-            range_text = ses_ranges.get(label_text.upper(), "Rentang tidak tersedia")
+        elif is_purchase_location:
+            normalized = raw_series.map(lambda x: re.sub(r"\s+", " ", str(x)).strip())
+            counts = normalized.value_counts()
+            labels = sorted(counts.index.tolist(), key=purchase_location_key)
+
+        else:
+            normalized = raw_series
+            counts = normalized.value_counts()
+            labels = counts.index.tolist()
+
+        if counts.empty or not labels:
+            st.info("Data tidak tersedia.")
+            return
+
+        total = counts.sum()
+        pct = (counts / total * 100).round(1)
+
+        if is_purchase_period or is_purchase_location:
+            gradient = [GREEN, "#7CB342", YELLOW, ORANGE, "#F4511E", RED, "#C8102E"]
+            category_colors = {
+                label: gradient[min(i, len(gradient) - 1)]
+                for i, label in enumerate(labels)
+            }
+        else:
+            category_colors = {}
+
+        fig = go.Figure()
+        generic_palette = [RED, ORANGE, YELLOW, GREEN, "#1E88E5", "#8E24AA", "#D81B60"]
+
+        for i, label in enumerate(labels):
+            value = float(pct.get(label, 0))
             respondents = int(counts.get(label, 0))
-            score = retention_score(label) if is_retention else None
-            display_label = str(score) if score else label_text
-            bar_color = retention_colors.get(score, palette[i % len(palette)])
+
             if is_ses:
-                ses_color_map[label_text.upper()] = bar_color
-            if is_ses:
-                segment_hover = (
-                    f"<b>{label_text}: %{{customdata[0]}}</b><br>"
+                display_label = str(label)
+                bar_color = ses_colors.get(str(label), generic_palette[i % len(generic_palette)])
+                range_text = ses_ranges.get(str(label), "Rentang tidak tersedia")
+                hover = (
+                    f"<b>SES {display_label}: {range_text}</b><br>"
                     "Persentase: %{x:.1f}%<br>"
-                    "Responden: %{customdata[1]} orang<extra></extra>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
                 )
+
             elif is_retention:
-                segment_hover = (
-                    f"<b>{display_label}: {retention_labels.get(score, label_text)}</b><br>"
+                score = int(label)
+                display_label = str(score)
+                bar_color = retention_colors[score]
+                range_text = retention_labels[score]
+                hover = (
+                    f"<b>Retention {score}: {retention_labels[score]}</b><br>"
                     "Persentase: %{x:.1f}%<br>"
-                    "Responden: %{customdata[1]} orang<extra></extra>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
                 )
+
+            elif is_purchase_period:
+                display_label = str(label)
+                bar_color = category_colors[label]
+                range_text = str(label)
+                hover = (
+                    f"<b>{html.escape(str(label))}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
+                )
+
+            elif is_purchase_location:
+                display_label = str(label)
+                bar_color = category_colors[label]
+                range_text = str(label)
+                hover = (
+                    f"<b>{html.escape(str(label))}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
+                )
+
             else:
-                segment_hover = (
-                    f"<b>{label_text}</b><br>"
+                display_label = str(label)
+                bar_color = generic_palette[i % len(generic_palette)]
+                range_text = str(label)
+                hover = (
+                    f"<b>{html.escape(str(label))}</b><br>"
                     "Persentase: %{x:.1f}%<br>"
-                    "Responden: %{customdata[1]} orang<extra></extra>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
                 )
-            fig.add_trace(go.Bar(x=[v], y=[""], orientation="h", name=str(label),
-                                  marker=dict(color=bar_color),
-                                  text=f"{v:.0f}%<br>{display_label}", textposition="inside",
-                                  customdata=[[range_text, respondents]],
-                                  hovertemplate=segment_hover))
-        fig.update_layout(barmode="stack", showlegend=False, height=110,
-                           margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(visible=False), yaxis=dict(visible=False))
-        st.plotly_chart(fig, use_container_width=True, key=key)
+
+            # Label di dalam bar dibuat ringkas agar tidak menumpuk.
+            inner_label = display_label
+            if len(inner_label) > 14:
+                inner_label = inner_label[:12].rstrip() + "…"
+
+            fig.add_trace(go.Bar(
+                x=[value],
+                y=[""],
+                orientation="h",
+                name=display_label,
+                marker=dict(color=bar_color),
+                text=f"{value:.0f}%<br>{inner_label}",
+                textposition="inside",
+                customdata=[[respondents]],
+                hovertemplate=hover,
+            ))
+
+        fig.update_layout(
+            barmode="stack",
+            showlegend=False,
+            height=108,
+            margin=dict(l=10, r=10, t=8, b=8),
+            xaxis=dict(visible=False, range=[0, 100]),
+            yaxis=dict(visible=False),
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key, config={"displayModeBar": False})
+
+        # --------------------------- legend ---------------------------
+        legend_items = []
         if is_ses:
-            available_levels = [str(x).strip().upper() for x in counts.index]
-            legend_items = []
-            for level in ["A", "A1", "A2", "B", "C1", "C2", "D", "E"]:
-                if level in available_levels and level in ses_ranges:
-                    box_color = ses_color_map.get(level, "#D0D5DD")
-                    legend_items.append(
-                        '<span style="display:inline-flex;align-items:center;gap:5px;'
-                        'white-space:nowrap;margin:2px 14px 2px 0;">'
-                        f'<span style="display:inline-block;width:10px;height:10px;'
-                        f'border-radius:1px;background:{box_color};flex:0 0 10px;"></span>'
-                        f'<span><b>{level}</b>: {ses_ranges[level]}</span></span>'
-                    )
-            if legend_items:
-                st.markdown(
-                    '<div style="display:flex;flex-wrap:wrap;align-items:center;'
-                    'font-size:10.5px;line-height:1.45;color:#667085;'
-                    'padding:0 4px 4px;">' + "".join(legend_items) + "</div>",
-                    unsafe_allow_html=True,
+            # Legend SES selalu lengkap, walaupun kategori tertentu tidak ada
+            # pada filter yang sedang aktif.
+            for level in ses_order:
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{ses_colors[level]};"></span>'
+                    f'<span><b>{level}</b>: {ses_ranges[level]}</span></span>'
                 )
+
+        elif is_retention:
+            # Legend 1 → 5 mengikuti urutan bar: kiri merah, kanan hijau.
+            for score in range(1, 6):
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{retention_colors[score]};"></span>'
+                    f'<span><b>{score}</b>: {retention_labels[score]}</span></span>'
+                )
+
+        elif is_purchase_period or is_purchase_location:
+            for label in labels:
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{category_colors[label]};"></span>'
+                    f'<span>{html.escape(str(label))}</span></span>'
+                )
+
+        if legend_items:
+            st.markdown(
+                '<div style="display:flex;flex-wrap:wrap;align-items:center;'
+                'font-size:10px;line-height:1.45;color:#667085;padding:0 4px 4px;">'
+                + "".join(legend_items)
+                + "</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def _find_exact_data_col(df: pd.DataFrame, column_name: str):
@@ -5496,11 +5860,13 @@ def render_demographic_charts(
             _stacked_pct(
                 df_prof, period_col, "Next Purchase Period",
                 key=f"{key_prefix}_purchase_period",
+                is_purchase_period=True,
             )
         with r3c2:
             _stacked_pct(
                 df_prof, showroom_col, "Next Purchase Location",
                 key=f"{key_prefix}_showroom",
+                is_purchase_location=True,
             )
 
         # Baris paling bawah dibuat compact dalam 4 kolom:
@@ -5653,7 +6019,8 @@ def render_top_bottom_dealer_satisfaction(
 ):
     """
     Menampilkan Top 5 dan Bottom 5 dealer/unit berdasarkan Satisfaction
-    untuk filter + customer profile yang sedang aktif.
+    untuk filter aktif sampai level Karesidenan. Ranking tidak mengikuti
+    filter Customer Profile, Kabupaten/Kota, atau Dealer tertentu.
 
     Satisfaction dihitung konsisten dengan dashboard:
     rata-rata skor indikator / 5 * 100%.
@@ -5674,7 +6041,7 @@ def render_top_bottom_dealer_satisfaction(
             return
 
     if df_profile is None or df_profile.empty:
-        st.info("Data dealer tidak tersedia untuk profil yang dipilih.")
+        st.info("Data dealer tidak tersedia untuk filter yang dipilih.")
         return
 
     dealer_code_col = cols.get("dealer_code") if cols else None
@@ -6134,6 +6501,135 @@ RW_PROFILE_ORDER = [1, 2, 3, 4, 5]
 RW_PROFILE_COLORS = {1: RED, 2: ORANGE, 3: YELLOW, 4: "#9CCC65", 5: GREEN}
 RW_CLUSTER_PROFILE_COLORS = {f"Profile {p}": RW_PROFILE_COLORS[p] for p in RW_PROFILE_ORDER}
 
+
+# Dasar pembentukan profil wilayah mengikuti notebook Clustering_wilayah_BPS:
+# K-Means pada 10 variabel yang sudah distandardisasi dengan Z-Score.
+RW_CLUSTERING_VARIABLES = [
+    ("Kepadatan penduduk", "Jumlah penduduk dibagi luas wilayah."),
+    ("Proporsi usia produktif", "Penduduk usia produktif dibanding total penduduk."),
+    ("Motor per 1.000 penduduk", "Populasi sepeda motor per 1.000 penduduk."),
+    ("Mobil per 1.000 penduduk", "Populasi mobil per 1.000 penduduk."),
+    ("PDRB per kapita", "Total PDRB sembilan sektor dibanding jumlah penduduk."),
+    ("Proporsi sektor primer", "PDRB pertanian + pertambangan dibanding total PDRB."),
+    ("Proporsi sektor sekunder", "PDRB manufaktur + listrik + konstruksi dibanding total PDRB."),
+    ("UMK", "Upah Minimum Kabupaten/Kota."),
+    ("Persentase penduduk miskin", "Persentase penduduk miskin BPS."),
+    ("TPT", "Tingkat Pengangguran Terbuka."),
+]
+
+RW_CLUSTER_EXPLANATIONS = {
+    "Metropolitan Ekonomi Tinggi": {
+        "description": (
+            "Cluster ini diberi nama Metropolitan Ekonomi Tinggi karena pada notebook, "
+            "cluster metropolitan dipilih dari skor gabungan yang tinggi pada kepadatan penduduk, "
+            "PDRB per kapita, UMK, dan motor per 1.000 penduduk, serta relatif rendah pada "
+            "persentase penduduk miskin."
+        ),
+        "basis": (
+            "Skor penamaan = z(kepadatan) + z(PDRB per kapita) + z(UMK) + "
+            "z(motor/1.000 penduduk) − z(kemiskinan)."
+        ),
+    },
+    "Industri Berupah Tinggi": {
+        "description": (
+            "Setelah cluster metropolitan ditetapkan, cluster industri dipilih dari cluster "
+            "yang tersisa berdasarkan dominasi sektor sekunder, UMK yang relatif tinggi, "
+            "TPT, serta proporsi sektor primer yang relatif lebih rendah."
+        ),
+        "basis": (
+            "Skor penamaan = z(proporsi sektor sekunder) + 0,50×z(UMK) + "
+            "0,30×z(TPT) − 0,30×z(proporsi sektor primer)."
+        ),
+    },
+    "Nonmetropolitan Berbasis Primer": {
+        "description": (
+            "Cluster ini merupakan cluster yang tersisa setelah cluster Metropolitan Ekonomi Tinggi "
+            "dan Industri Berupah Tinggi teridentifikasi. Penamaannya merepresentasikan karakter "
+            "yang relatif lebih nonmetropolitan dan lebih berbasis sektor primer dibanding dua "
+            "cluster lainnya."
+        ),
+        "basis": (
+            "Label ditentukan secara residual pada tahap penamaan cluster setelah dua cluster "
+            "utama diidentifikasi dari profil rata-rata Z-Score."
+        ),
+    },
+}
+
+RW_CULTURE_INFO = {
+    "arek": {
+        "description": "Budaya urban-pesisir, egaliter, dan lugas.",
+        "character": "Terbuka, berani, spontan, egaliter, dan guyub.",
+    },
+    "mataraman": {
+        "description": "Dipengaruhi budaya Jawa pedalaman/Mataram.",
+        "character": "Halus, santun, menghormati tata krama, dan menjaga harmoni.",
+    },
+    "pendalungan": {
+        "description": "Percampuran budaya Jawa dan Madura.",
+        "character": "Adaptif, terbuka, pekerja keras, dan multikultural.",
+    },
+    "madura": {
+        "description": "Budaya Madura dengan bahasa, tradisi, dan ikatan kekerabatan yang kuat.",
+        "character": "Tegas, berani, pekerja keras, menjunjung harga diri dan solidaritas.",
+    },
+    "using": {
+        "description": "Budaya asli Banyuwangi dengan bahasa dan kesenian khas.",
+        "character": "Memegang tradisi, ekspresif, kuat dalam seni dan identitas lokal.",
+    },
+    "tengger": {
+        "description": "Masyarakat Tengger dengan tradisi dan adat khas pegunungan.",
+        "character": "Komunal, menjaga adat, gotong royong, dan kuat pada tradisi.",
+    },
+    "ntt": {
+        "description": "Sangat beragam, termasuk Timor, Flores, Sumba, Rote, Alor, Sabu, dan lainnya.",
+        "character": "Komunal, kekeluargaan, kuat pada adat, solidaritas, dan penghormatan terhadap leluhur.",
+    },
+}
+
+
+def rw_culture_info(culture_name: str) -> dict:
+    key = re.sub(r"[^a-z]", "", str(culture_name or "").lower())
+    if "arek" in key:
+        return RW_CULTURE_INFO["arek"]
+    if "mataram" in key:
+        return RW_CULTURE_INFO["mataraman"]
+    if "pendalungan" in key or "pendhalungan" in key or "pendaulungan" in key:
+        return RW_CULTURE_INFO["pendalungan"]
+    if "madura" in key:
+        return RW_CULTURE_INFO["madura"]
+    if "using" in key or "osing" in key:
+        return RW_CULTURE_INFO["using"]
+    if "tengger" in key:
+        return RW_CULTURE_INFO["tengger"]
+    if key == "ntt" or "nusatenggaratimur" in key:
+        return RW_CULTURE_INFO["ntt"]
+    return {
+        "description": "Penjelasan budaya belum tersedia.",
+        "character": "Karakter umum belum tersedia.",
+    }
+
+
+def rw_render_clustering_methodology():
+    """Penjelasan variabel clustering sesuai notebook BPS yang digunakan."""
+    with st.expander("**Dasar Pembentukan Profile Wilayah**", expanded=True):
+        st.markdown(
+            "Profile wilayah dibentuk menggunakan **K-Means (k=3)** setelah seluruh "
+            "variabel distandardisasi menggunakan **Z-Score**. Kelompok budaya **bukan** "
+            "variabel pembentuk K-Means; budaya digunakan sebagai konteks tambahan setelah "
+            "hasil cluster wilayah terbentuk."
+        )
+        variable_html = "".join(
+            f'<div style="margin:4px 0;"><b>{html.escape(name)}</b> — {html.escape(desc)}</div>'
+            for name, desc in RW_CLUSTERING_VARIABLES
+        )
+        st.markdown(
+            '<div style="font-size:12.5px;line-height:1.55;color:#475569;">'
+            '<div style="font-weight:800;margin-bottom:6px;color:#262626;">Variabel pembentuk cluster</div>'
+            + variable_html
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+
 # Alias disesuaikan dengan bentuk nama wilayah pada file cluster BPS.
 # Tambahkan alias baru di sini apabila nama pada data CSL berbeda.
 RW_REGION_ALIASES = {
@@ -6591,6 +7087,7 @@ def rw_create_region_stacked_bar(data: pd.DataFrame, profile_name_map: dict) -> 
         xaxis_title="Persentase Responden",
         yaxis_title=None,
         xaxis=dict(range=[0, 100], ticksuffix="%"),
+        yaxis=dict(autorange="reversed"),
         legend_title="Customer Profile",
         margin=dict(l=10, r=10, t=20, b=10),
         height=max(420, len(data) * 32),
@@ -6699,9 +7196,10 @@ def rw_create_culture_dominant_chart(region_summary: pd.DataFrame, culture_df: p
     return figure
 
 
+
 def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
-    """Keterangan daftar wilayah per Cluster Wilayah (BPS), gaya kotak disamakan dashboard."""
-    with st.expander("**Keterangan Anggota Wilayah per Cluster BPS**", expanded=True):
+    """Nama cluster, alasan penamaan, dan anggota wilayah."""
+    with st.expander("**Keterangan Profile/Cluster Wilayah (BPS)**", expanded=True):
         if cluster_df.empty:
             st.info("Data cluster BPS tidak tersedia.")
             return
@@ -6713,25 +7211,42 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
             regions = sorted(group[RW_CLUSTER_REGION_COLUMN].dropna().unique().tolist())
             region_count = len(regions)
             region_str = ", ".join(regions)
+            info = RW_CLUSTER_EXPLANATIONS.get(str(c_name).strip(), {})
+            description = info.get(
+                "description",
+                "Penjelasan penamaan cluster belum tersedia untuk profile ini.",
+            )
+            basis = info.get("basis", "Dasar penamaan belum tersedia.")
+
             st.markdown(
                 f"""
                 <div class="region-detail-box">
-                    <div class="region-detail-title">Cluster {c_num} – {c_name}
+                    <div class="region-detail-title">Cluster {c_num} – {html.escape(str(c_name))}
                         <span class="region-detail-count">({region_count} Wilayah)</span>
                     </div>
-                    <div class="region-detail-body">{region_str}</div>
+                    <div class="region-detail-body">
+                        <div style="font-style:italic;margin:5px 0 7px;color:#5F6368;">{html.escape(description)}</div>
+                        <div style="margin-bottom:6px;"><b>Dasar penamaan:</b> {html.escape(basis)}</div>
+                        <div><b>Daerah:</b> {html.escape(region_str)}</div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
 
+
 def rw_render_culture_region_details(culture_df: pd.DataFrame):
-    """Keterangan daftar wilayah per Kelompok Budaya, gaya kotak disamakan dashboard."""
-    with st.expander("**Keterangan Anggota Wilayah per Kelompok Budaya**", expanded=True):
+    """Nama kelompok budaya, deskripsi italic, karakter, dan daerah anggota."""
+    with st.expander("**Keterangan Kelompok Budaya**", expanded=True):
         if culture_df.empty:
             st.info("Data pengelompokkan budaya tidak tersedia.")
             return
+
+        st.caption(
+            "Kelompok budaya digunakan sebagai konteks interpretasi wilayah dan tidak menjadi "
+            "variabel pembentuk K-Means pada clustering BPS."
+        )
 
         if "Cluster_Budaya" in culture_df.columns:
             culture_order = (
@@ -6756,14 +7271,19 @@ def rw_render_culture_region_details(culture_df: pd.DataFrame):
                 else None
             )
             cluster_prefix = f"Cluster Budaya {int(c_num)} – " if c_num is not None else ""
+            culture_info = rw_culture_info(budaya)
 
             st.markdown(
                 f"""
                 <div class="region-detail-box culture">
-                    <div class="region-detail-title">{cluster_prefix}{budaya}
+                    <div class="region-detail-title">{html.escape(cluster_prefix + str(budaya))}
                         <span class="region-detail-count">({region_count} Wilayah)</span>
                     </div>
-                    <div class="region-detail-body">{region_str}</div>
+                    <div class="region-detail-body">
+                        <div style="font-style:italic;margin:5px 0 7px;color:#5F6368;">{html.escape(culture_info['description'])}</div>
+                        <div style="margin-bottom:6px;"><b>Karakter umum:</b> {html.escape(culture_info['character'])}</div>
+                        <div><b>Daerah:</b> {html.escape(region_str)}</div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -6812,7 +7332,7 @@ def rw_render_region_profile_page():
             "Customer Profile hasil survei."
         )
 
-        filter_col_1, filter_col_2 = st.columns(2)
+        filter_col_1, filter_col_2, filter_col_3 = st.columns(3)
         with filter_col_1:
             selected_h = st.selectbox(
                 "Pilih Bagian",
@@ -6875,15 +7395,49 @@ def rw_render_region_profile_page():
 
         cluster_options = ["Semua"] + sorted(region_summary[RW_CLUSTER_PROFILE_COLUMN].dropna().unique().tolist())
         with filter_col_2:
-            selected_cluster = st.selectbox("Filter Cluster Wilayah", options=cluster_options, key="rw_selected_cluster")
+            selected_cluster = st.selectbox(
+                "Filter Profile Wilayah",
+                options=cluster_options,
+                key="rw_selected_cluster",
+            )
+
+        with filter_col_3:
+            sort_profile = st.selectbox(
+                "Sort by",
+                options=["Profile Wilayah"] + [f"Profile {p}" for p in RW_PROFILE_ORDER],
+                key="rw_sort_profile",
+                help=(
+                    "Pilih Profile 1–5 untuk mengurutkan wilayah dari persentase profile "
+                    "tertinggi ke terendah."
+                ),
+            )
 
         filtered_summary = region_summary.copy()
         if selected_cluster != "Semua":
-            filtered_summary = filtered_summary[filtered_summary[RW_CLUSTER_PROFILE_COLUMN] == selected_cluster].copy()
+            filtered_summary = filtered_summary[
+                filtered_summary[RW_CLUSTER_PROFILE_COLUMN] == selected_cluster
+            ].copy()
 
-        sorted_summary = filtered_summary.sort_values(
-            by=[RW_CLUSTER_COLUMN, "Persen_Dominan"], ascending=[True, True]
-        ).copy()
+        if sort_profile == "Profile Wilayah":
+            # Default: wilayah dengan Profile Wilayah yang sama berdekatan.
+            sorted_summary = filtered_summary.sort_values(
+                by=[RW_CLUSTER_PROFILE_COLUMN, RW_CLUSTER_COLUMN, "Kabupaten/Kota"],
+                ascending=[True, True, True],
+            ).copy()
+        else:
+            selected_profile_number = int(re.search(r"(\d+)", sort_profile).group(1))
+            sort_column = f"Persen_Profile_{selected_profile_number}"
+            sorted_summary = filtered_summary.sort_values(
+                by=[sort_column, RW_CLUSTER_PROFILE_COLUMN, "Kabupaten/Kota"],
+                ascending=[False, True, True],
+            ).copy()
+
+        # ----------------------------
+        # DASAR PEMBENTUKAN PROFILE WILAYAH
+        # ----------------------------
+        rw_render_clustering_methodology()
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
         # ----------------------------
         # KPI
@@ -6951,7 +7505,7 @@ def rw_render_region_profile_page():
             st.plotly_chart(
                 rw_create_region_stacked_bar(sorted_summary, profile_name_map),
                 use_container_width=True,
-                key=f"rw_stacked_region_profile_{selected_h}_{selected_cluster}",
+                key=f"rw_stacked_region_profile_{selected_h}_{selected_cluster}_{sort_profile}",
             )
 
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
@@ -7168,7 +7722,7 @@ def render_framework_placeholder():
                 ("fa-solid fa-xmarks-lines", "Input", "X Axis = Importance Rank; Y Axis = Satisfaction Driver Rank."),
                 ("fa-solid fa-sliders", "Hitung Median Importance Rank", "Median menjadi garis pembagi vertikal."),
                 ("fa-solid fa-sliders", "Hitung Median Satisfaction Rank", "Median menjadi garis pembagi horizontal."),
-                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Prioritas Rendah, III Perbaikan Bertahap, dan IV Prioritas Utama."),
+                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Prioritas Utama, III Perbaikan Bertahap, dan IV Prioritas Rendah."),
             ],
             "output": ["Matriks 4 Kuadran", "Daftar Prioritas"],
         },
@@ -7189,7 +7743,7 @@ def render_framework_placeholder():
         {
             "no": "06", "icon": "fa-solid fa-bullseye", "title": "STEP 6<br>FOCUS ITEM<br>IDENTIFICATION",
             "items": [
-                ("fa-solid fa-bullseye", "Ambil atribut pada Kuadran III", "Priority Improvement."),
+                ("fa-solid fa-bullseye", "Ambil atribut pada Kuadran II", "Priority Improvement."),
                 ("fa-solid fa-chart-line", "Importance Tinggi × Satisfaction Rendah", "Menentukan atribut yang paling perlu diperbaiki."),
                 ("fa-solid fa-clipboard-check", "Generate Focus Item List", "Menyusun daftar akhir fokus perbaikan."),
             ],
