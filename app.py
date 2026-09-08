@@ -837,6 +837,23 @@ def inject_css():
         div[class*="_matrix_section"] .custom-section-badge{background:#FF6B00!important}div[class*="_profile_customer_section"] .custom-section-badge{background:#1665D8!important}
         .kpi-card{min-height:132px;text-align:left;background:#fff;border:1px solid var(--csl-border);border-radius:10px;padding:16px;box-shadow:var(--csl-shadow);position:relative;overflow:hidden}.kpi-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#E60012}.kpi-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.3px}.kpi-value{font-size:34px;color:#262626;font-weight:800;line-height:1.1;margin:8px 0 4px}.kpi-sub{display:inline-block;font-size:10.5px;font-weight:800;background:#F0F1F3;padding:3px 9px;border-radius:20px}
         .chart-title{font-size:12px;font-weight:800;color:#666;letter-spacing:.3px;text-transform:uppercase;margin-bottom:4px}.chart-subtitle{font-size:11.5px;color:#666;margin-bottom:8px}.stSelectbox label,.stMultiSelect label{font-size:10px!important;font-weight:700!important;color:#666!important;text-transform:uppercase;letter-spacing:.4px}div[data-baseweb="select"]>div{border-color:var(--csl-border);border-radius:7px;background:#fff}.stButton>button{border-radius:8px;border:1px solid var(--csl-border);font-size:12.5px;font-weight:700}
+        div[data-baseweb="popover"] div[role="listbox"] {
+            min-width: 420px !important;
+            width: max-content !important;
+            max-width: 650px !important;
+        }
+
+        div[data-baseweb="popover"] div[role="option"] {
+            white-space: nowrap !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+        }
+
+        div[data-baseweb="popover"] div[role="option"] > div {
+            white-space: nowrap !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+        }
         div[class*="st-key-"][class*="_prof_card_"]{border:1px solid var(--csl-border)!important;border-radius:8px!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"]:hover{border-color:#E60012!important;background:#FFF6F6!important}div[class*="st-key-"][class*="_active"]{background:#FFF1F1!important;border:1.5px solid #E60012!important;box-shadow:none!important}div[class*="st-key-"][class*="_active"] .profile-card-title,div[class*="st-key-"][class*="_active"] .profile-card-pct{color:#C8102E!important}
         div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"],div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"]:hover{background:#F7F7F7!important;border-color:#E2E2E2!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"] .profile-card-inner{opacity:.55!important}
         .insight-box{background:#FFF6F6!important;border:1px solid #FFDADA!important;border-left:4px solid #E60012!important;border-radius:8px!important;box-shadow:none!important}.insight-box-header{color:#C8102E!important;border-bottom-color:#FFDADA!important}.reco-box{background:#FFF8E8!important;border:1px solid #FCE7B8!important;border-left:4px solid #FF6B00!important;border-radius:8px!important;box-shadow:none!important}.reco-box-header{color:#B45300!important;border-bottom-color:#FCE7B8!important}
@@ -1628,7 +1645,9 @@ def _entity_name_column(df: pd.DataFrame, key_prefix: str, dealer_label: str):
 
 def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: str):
     filters = {}
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1, c2, c3, c4, c5, c6, c7 = st.columns([1.0, 1.0, 1.0, 1.0, 1.3, 1.3, 2.1],
+    gap="small"
+)
 
     year_col = cols.get("year")
     sem_col = cols.get("semester")
@@ -1639,8 +1658,25 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
     dealer_col = cols.get("dealer_code")
 
     with c1:
-        years = _options(df, year_col)
-        sel_year = st.selectbox("Tahun", ["Semua"] + years, key=f"{key_prefix}_year")
+        years = []
+
+        if year_col and year_col in df.columns:
+            years = (
+                pd.to_numeric(df[year_col], errors="coerce")
+                .dropna()
+                .astype(int)
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+
+            years = sorted(years)
+
+        sel_year = st.selectbox(
+            "Tahun",
+            ["Semua"] + years,
+            key=f"{key_prefix}_year"
+        )
     with c2:
         sems = ["Semester 1", "Semester 2"]
         sem_key = f"{key_prefix}_sem"
