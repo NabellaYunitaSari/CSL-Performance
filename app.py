@@ -14,6 +14,7 @@ import io
 import json
 import math
 import html
+import textwrap
 from datetime import datetime, timezone, timedelta
 import time
 from typing import Any
@@ -836,6 +837,23 @@ def inject_css():
         div[class*="_matrix_section"] .custom-section-badge{background:#FF6B00!important}div[class*="_profile_customer_section"] .custom-section-badge{background:#1665D8!important}
         .kpi-card{min-height:132px;text-align:left;background:#fff;border:1px solid var(--csl-border);border-radius:10px;padding:16px;box-shadow:var(--csl-shadow);position:relative;overflow:hidden}.kpi-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#E60012}.kpi-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.3px}.kpi-value{font-size:34px;color:#262626;font-weight:800;line-height:1.1;margin:8px 0 4px}.kpi-sub{display:inline-block;font-size:10.5px;font-weight:800;background:#F0F1F3;padding:3px 9px;border-radius:20px}
         .chart-title{font-size:12px;font-weight:800;color:#666;letter-spacing:.3px;text-transform:uppercase;margin-bottom:4px}.chart-subtitle{font-size:11.5px;color:#666;margin-bottom:8px}.stSelectbox label,.stMultiSelect label{font-size:10px!important;font-weight:700!important;color:#666!important;text-transform:uppercase;letter-spacing:.4px}div[data-baseweb="select"]>div{border-color:var(--csl-border);border-radius:7px;background:#fff}.stButton>button{border-radius:8px;border:1px solid var(--csl-border);font-size:12.5px;font-weight:700}
+        div[data-baseweb="popover"] div[role="listbox"] {
+            min-width: 420px !important;
+            width: max-content !important;
+            max-width: 650px !important;
+        }
+
+        div[data-baseweb="popover"] div[role="option"] {
+            white-space: nowrap !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+        }
+
+        div[data-baseweb="popover"] div[role="option"] > div {
+            white-space: nowrap !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+        }
         div[class*="st-key-"][class*="_prof_card_"]{border:1px solid var(--csl-border)!important;border-radius:8px!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"]:hover{border-color:#E60012!important;background:#FFF6F6!important}div[class*="st-key-"][class*="_active"]{background:#FFF1F1!important;border:1.5px solid #E60012!important;box-shadow:none!important}div[class*="st-key-"][class*="_active"] .profile-card-title,div[class*="st-key-"][class*="_active"] .profile-card-pct{color:#C8102E!important}
         div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"],div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"]:hover{background:#F7F7F7!important;border-color:#E2E2E2!important;box-shadow:none!important}div[class*="st-key-"][class*="_prof_card_"][class*="_disabled"] .profile-card-inner{opacity:.55!important}
         .insight-box{background:#FFF6F6!important;border:1px solid #FFDADA!important;border-left:4px solid #E60012!important;border-radius:8px!important;box-shadow:none!important}.insight-box-header{color:#C8102E!important;border-bottom-color:#FFDADA!important}.reco-box{background:#FFF8E8!important;border:1px solid #FCE7B8!important;border-left:4px solid #FF6B00!important;border-radius:8px!important;box-shadow:none!important}.reco-box-header{color:#B45300!important;border-bottom-color:#FCE7B8!important}
@@ -917,9 +935,9 @@ def inject_css():
 
         /* SES dan Retention memakai tinggi outline yang sama. */
         div[class*="st-key-"][class*="_fixed_chart_card"] {
-            height: 190px !important;
-            min-height: 190px !important;
-            max-height: 190px !important;
+            height: 245px !important;
+            min-height: 245px !important;
+            max-height: 245px !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
         }
@@ -1585,9 +1603,51 @@ def _options(df, col):
     return vals
 
 
+
+def _entity_name_column(df: pd.DataFrame, key_prefix: str, dealer_label: str):
+    """Cari kolom nama Dealer/AHASS/Part Shop tanpa mengubah identifier kode."""
+    if df is None or df.empty:
+        return None
+
+    unit = str(key_prefix or "").strip().lower()
+    label = str(dealer_label or "").strip().lower()
+
+    if unit == "sales" or "dealer" in label:
+        candidates = [
+            "Dealer Name", "Name of Dealer", "Nama Dealer",
+            "Dealer_Name", "dealer name",
+        ]
+    elif unit == "service" or "ahass" in label:
+        candidates = [
+            "AHASS Name", "Name of AHASS", "Nama AHASS",
+            "AHASS_Name", "ahass name",
+        ]
+    else:
+        candidates = [
+            "Parts Shop Name", "Part Shop Name", "Name of Parts Shop",
+            "Nama Parts Shop", "Nama Part Shop", "Parts_Shop_Name",
+            "parts shop name", "part shop name",
+        ]
+
+    # Prioritaskan exact match agar kolom kode seperti "Dealer Code"
+    # tidak salah terdeteksi sebagai kolom nama.
+    exact = {
+        re.sub(r"\s+", " ", str(col).strip().lower()): col
+        for col in df.columns
+    }
+    for candidate in candidates:
+        key = re.sub(r"\s+", " ", candidate.strip().lower())
+        if key in exact:
+            return exact[key]
+
+    return find_col(df, candidates)
+
+
 def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: str):
     filters = {}
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1, c2, c3, c4, c5, c6, c7 = st.columns([1.0, 1.0, 1.0, 1.0, 1.3, 1.3, 2.1],
+    gap="small"
+)
 
     year_col = cols.get("year")
     sem_col = cols.get("semester")
@@ -1598,8 +1658,25 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
     dealer_col = cols.get("dealer_code")
 
     with c1:
-        years = _options(df, year_col)
-        sel_year = st.selectbox("Tahun", ["Semua"] + years, key=f"{key_prefix}_year")
+        years = []
+
+        if year_col and year_col in df.columns:
+            years = (
+                pd.to_numeric(df[year_col], errors="coerce")
+                .dropna()
+                .astype(int)
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+
+            years = sorted(years)
+
+        sel_year = st.selectbox(
+            "Tahun",
+            ["Semua"] + years,
+            key=f"{key_prefix}_year"
+        )
     with c2:
         sems = ["Semester 1", "Semester 2"]
         sem_key = f"{key_prefix}_sem"
@@ -1622,19 +1699,28 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
         if st.session_state.get(md_key) not in md_options:
             st.session_state[md_key] = "Semua"
         sel_md = st.selectbox("Main Dealer", md_options, key=md_key)
+
     # "Semua" tidak menyaring kolom Main Dealer sehingga M2Z dan M3Z tergabung.
     if sel_md != "Semua" and md_col:
         df_scope = df_scope[df_scope[md_col].astype(str) == sel_md]
 
     with c4:
         layers = _options(df_scope, layer_col)
-        sel_layer = st.selectbox("Layer", ["Semua"] + layers, key=f"{key_prefix}_layer")
+        layer_key = f"{key_prefix}_layer"
+        layer_options = ["Semua"] + layers
+        if st.session_state.get(layer_key) not in layer_options:
+            st.session_state[layer_key] = "Semua"
+        sel_layer = st.selectbox("Layer", layer_options, key=layer_key)
     if sel_layer != "Semua" and layer_col:
         df_scope = df_scope[df_scope[layer_col].astype(str) == sel_layer]
 
     with c5:
         kars = _options(df_scope, kar_col)
-        sel_kar = st.selectbox("Karesidenan", ["Semua"] + kars, key=f"{key_prefix}_kar")
+        kar_key = f"{key_prefix}_kar"
+        kar_options = ["Semua"] + kars
+        if st.session_state.get(kar_key) not in kar_options:
+            st.session_state[kar_key] = "Semua"
+        sel_kar = st.selectbox("Karesidenan", kar_options, key=kar_key)
     if sel_kar != "Semua" and kar_col:
         df_scope = df_scope[df_scope[kar_col].astype(str) == sel_kar]
 
@@ -1645,15 +1731,68 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
             if _dashboard_region_name(value)
         }) if kab_col and kab_col in df_scope.columns else []
         kab_key = f"{key_prefix}_kab"
-        if st.session_state.get(kab_key) not in (["Semua"] + kabs):
+        kab_options = ["Semua"] + kabs
+        if st.session_state.get(kab_key) not in kab_options:
             st.session_state[kab_key] = "Semua"
-        sel_kab = st.selectbox("Kab / Kota", ["Semua"] + kabs, key=kab_key)
+        sel_kab = st.selectbox("Kab / Kota", kab_options, key=kab_key)
     if sel_kab != "Semua" and kab_col:
         df_scope = df_scope[df_scope[kab_col].apply(_dashboard_region_name) == sel_kab]
 
+    # --------------------------------------------------------
+    # Dealer/AHASS/Part Shop: label yang terlihat = Nama (Kode),
+    # tetapi nilai filter yang disimpan tetap kode.
+    # --------------------------------------------------------
     with c7:
         deals = _options(df_scope, dealer_col)
-        sel_dealer = st.selectbox(dealer_label, ["Semua"] + deals, key=f"{key_prefix}_dealer")
+        dealer_name_col = _entity_name_column(df_scope, key_prefix, dealer_label)
+        dealer_display = {}
+
+        if dealer_col and dealer_col in df_scope.columns:
+            label_source_cols = [dealer_col]
+            if dealer_name_col and dealer_name_col in df_scope.columns:
+                label_source_cols.append(dealer_name_col)
+
+            label_source = df_scope[label_source_cols].dropna(subset=[dealer_col]).copy()
+            label_source[dealer_col] = label_source[dealer_col].astype(str).str.strip()
+
+            for code, group in label_source.groupby(dealer_col, dropna=False):
+                code_text = str(code).strip()
+                if not code_text:
+                    continue
+
+                name_text = ""
+                if dealer_name_col and dealer_name_col in group.columns:
+                    valid_names = (
+                        group[dealer_name_col]
+                        .dropna()
+                        .astype(str)
+                        .str.strip()
+                    )
+                    valid_names = valid_names[
+                        ~valid_names.str.lower().isin(["", "nan", "none", "-"])
+                    ]
+                    if not valid_names.empty:
+                        name_text = valid_names.iloc[0]
+
+                dealer_display[code_text] = (
+                    f"{name_text} ({code_text})"
+                    if name_text and name_text != code_text
+                    else code_text
+                )
+
+        dealer_key = f"{key_prefix}_dealer"
+        dealer_options = ["Semua"] + deals
+        if st.session_state.get(dealer_key) not in dealer_options:
+            st.session_state[dealer_key] = "Semua"
+
+        sel_dealer = st.selectbox(
+            dealer_label,
+            dealer_options,
+            key=dealer_key,
+            format_func=lambda value: (
+                "Semua" if value == "Semua" else dealer_display.get(str(value), str(value))
+            ),
+        )
 
     filters = {
         "year": None if sel_year == "Semua" else sel_year,
@@ -2710,9 +2849,25 @@ def create_map(df: pd.DataFrame, cols: dict, indicator_cols: list, key: str):
         control_scale=False,
     )
     folium.TileLayer(
-        tiles="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
-        attr="&copy; OpenStreetMap contributors &copy; CARTO", control=False,
+        tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr="&copy; OpenStreetMap contributors",
+        control=False,
     ).add_to(main_map)
+
+    # Basemap dibuat abu-abu dan lebih lembut agar wilayah di luar
+    # area dashboard tidak terlalu mencolok. Polygon satisfaction
+    # Jawa Timur/NTT tetap mempertahankan warna aslinya.
+    gray_basemap_css = """
+    <style>
+        .leaflet-tile-pane {
+            filter: grayscale(100%) brightness(1.08) contrast(0.82);
+            opacity: 0.62;
+        }
+    </style>
+    """
+    main_map.get_root().html.add_child(
+        folium.Element(gray_basemap_css)
+    )
 
     def add_polygons(target_map, frame, show_labels=True):
         for _, row in frame.iterrows():
@@ -3030,7 +3185,7 @@ def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, k
                 "<b>Kode Indikator:</b> %{y}<br>"
                 "<b>Nama Indikator:</b> %{customdata[0]}<br>"
                 "<b>%Satisfaction:</b> %{customdata[1]:.1f}%<br>"
-                "<b>%Gap semester sebelumnya:</b> %{x:+.1f}%<extra></extra>"
+                "<b>%Gap terhadap target:</b> %{x:+.1f}%<extra></extra>"
             ),
         ))
         fig.add_vline(x=0, line_color="#999999")
@@ -3043,36 +3198,156 @@ def render_target_gap_chart(gaps: dict, attr_sat: dict, indicator_names: dict, k
         st.plotly_chart(fig, use_container_width=True, key=key)
 
 
-def render_semester_difference_chart(diffs, subtitle: str, key: str):
+def render_semester_difference_chart(
+    diffs,
+    subtitle: str,
+    key: str,
+    attr_sat: dict = None,
+    indicator_names: dict = None,
+):
     with st.container(key=f"{key}_scroll_chart_card", border=True):
-        st.markdown('<div class="chart-title">Satisfaction Semester Ini vs Semester Sebelumnya</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chart-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="chart-title">Satisfaction Semester Ini vs Semester Sebelumnya</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f'<div class="chart-subtitle">{subtitle}</div>',
+            unsafe_allow_html=True
+        )
+
         if diffs is None:
             st.info("Data periode sebelumnya tidak tersedia untuk filter ini.")
             return
+
         if not diffs:
             st.info("Data tidak tersedia.")
             return
+
+        attr_sat = attr_sat or {}
+        indicator_names = indicator_names or {}
+
         codes = list(diffs.keys())
         vals = list(diffs.values())
-        colors = [GREEN if v >= 0 else RED for v in vals]
-        texts = [f"+{v:.1f}%" if v >= 0 else f"{v:.1f}%" for v in vals]
+
+        colors = [
+            GREEN if value >= 0 else RED
+            for value in vals
+        ]
+
+        texts = [
+            f"+{value:.1f}%"
+            if value >= 0
+            else f"{value:.1f}%"
+            for value in vals
+        ]
+
+        # Nama indikator dan nilai satisfaction semester aktif
+        names = [
+            indicator_names.get(
+                str(code).strip().upper(),
+                "Nama indikator belum tersedia"
+            )
+            for code in codes
+        ]
+
+        current_satisfaction = [
+            attr_sat.get(code, np.nan)
+            for code in codes
+        ]
+
+        # Customdata:
+        # [0] = nama indikator
+        # [1] = satisfaction semester aktif
+        customdata = np.array(
+            [
+                [
+                    name,
+                    sat if sat is not None else np.nan,
+                ]
+                for name, sat in zip(
+                    names,
+                    current_satisfaction,
+                )
+            ],
+            dtype=object,
+        )
+
         max_val = max(vals) if vals else 0
         min_val = min(vals) if vals else 0
-        x_max = max(0.1, max_val + max(0.12, abs(max_val) * 0.25))
-        x_min = min(0, min_val - max(0.05, abs(min_val) * 0.25))
-        fig = go.Figure(go.Bar(
-            x=vals, y=codes, orientation="h", marker=dict(color=colors),
-            text=texts, textposition="outside",
-        ))
-        fig.add_vline(x=0, line_color="#999999")
-        fig.update_layout(
-            xaxis=dict(range=[x_min, x_max]),
-            yaxis=dict(autorange="reversed"),
-            margin=dict(l=10, r=30, t=10, b=10), height=max(280, 26 * len(codes)),
-            showlegend=False,
+
+        x_max = max(
+            0.1,
+            max_val + max(
+                0.12,
+                abs(max_val) * 0.25
+            )
         )
-        st.plotly_chart(fig, use_container_width=True, key=key)
+
+        x_min = min(
+            0,
+            min_val - max(
+                0.05,
+                abs(min_val) * 0.25
+            )
+        )
+
+        fig = go.Figure(
+            go.Bar(
+                x=vals,
+                y=codes,
+                orientation="h",
+                marker=dict(color=colors),
+                text=texts,
+                textposition="outside",
+                cliponaxis=False,
+                customdata=customdata,
+                hovertemplate=(
+                    "<b>Kode Indikator:</b> %{y}<br>"
+                    "<b>Nama Indikator:</b> %{customdata[0]}<br>"
+                    "<b>%Satisfaction:</b> %{customdata[1]:.1f}%<br>"
+                    "<b>%Gap semester sebelumnya:</b> %{x:+.1f}%"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+        fig.add_vline(
+            x=0,
+            line_color="#999999"
+        )
+
+        fig.update_layout(
+            xaxis=dict(
+                range=[x_min, x_max],
+                ticksuffix="%",
+            ),
+            yaxis=dict(
+                autorange="reversed"
+            ),
+            margin=dict(
+                l=10,
+                r=45,
+                t=10,
+                b=10
+            ),
+            height=max(
+                280,
+                26 * len(codes)
+            ),
+            showlegend=False,
+            hoverlabel=dict(
+                align="left"
+            ),
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key=key,
+            config={
+                "displayModeBar": True
+            },
+        )
 
 def render_performance_section(
     df_all,
@@ -3372,9 +3647,51 @@ def render_performance_section(
                 render_semester_difference_chart(
                     diffs,
                     subtitle,
-                    key=f"{key_prefix}_diff"
+                    key=f"{key_prefix}_diff",
+                    attr_sat=attr_sat,
+                    indicator_names=indicator_names,
                 )
 
+        # ====================================================
+        # TOP & BOTTOM 5 DEALER SATISFACTION
+        # Filter hanya sampai Karesidenan
+        # Tidak mengikuti Kab/Kota, Dealer, maupun Profile
+        # ====================================================
+        kab_selected = filters.get("kab_kota")
+        dealer_selected = filters.get("dealer")
+
+        show_dealer_ranking = (
+            kab_selected in (None, "", "Semua")
+            and dealer_selected in (None, "", "Semua")
+        )
+
+        if show_dealer_ranking:
+            st.markdown(
+                "<div style='height:12px'></div>",
+                unsafe_allow_html=True
+            )
+
+            dealer_rank_filters = filters.copy()
+
+            # Ranking antar dealer tidak boleh dibatasi
+            # oleh dealer/kabupaten tertentu.
+            dealer_rank_filters["kab_kota"] = None
+            dealer_rank_filters["dealer"] = None
+
+            df_dealer_rank = apply_filters(
+                df_all,
+                cols,
+                dealer_rank_filters
+            )
+
+            render_top_bottom_dealer_satisfaction(
+                df_profile=df_dealer_rank,
+                cols=cols,
+                indicator_cols=indicator_cols,
+                unit_key=key_prefix,
+                key_prefix=key_prefix,
+                filters=dealer_rank_filters,
+            )
     # ========================================================
     # SUDAH DI LUAR OUTLINE MERAH
     # ========================================================
@@ -3494,9 +3811,9 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             if cat_type_col and cat_col:
                 target_type = None
                 target_cat = None
-                if filters.get("dealer_code"):
+                if filters.get("dealer"):
                     target_type = "DEALER"
-                    target_cat = str(filters["dealer_code"])
+                    target_cat = str(filters["dealer"])
                 elif filters.get("kab_kota"):
                     target_type = "KOTA"
                     target_cat = str(filters["kab_kota"])
@@ -3540,7 +3857,8 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                         df_sub = m
 
         if df_sub.empty:
-            df_sub = mat_df.copy()
+            st.info("Data matriks tidak tersedia untuk filter yang dipilih.")
+            return
 
         codes, xs, ys = [], [], []
         avg_sats, raw_sats, rank_sats, rank_imps = [], [], [], []
@@ -3594,13 +3912,15 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
         y_mid = round(float(np.median(ys)), 2)
 
         QUADRANTS = {
-            "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": ORANGE,
+            # Warna sesuai revisi dashboard:
+            # I hijau, II merah, III orange, IV kuning.
+            "keep": {"label": "Pertahankan", "roman": "Kuadran I", "color": GREEN,
                      "test": lambda x, y: x >= x_mid and y >= y_mid},
             "priority": {"label": "Prioritas Utama", "roman": "Kuadran II", "color": RED,
                     "test": lambda x, y: x < x_mid and y >= y_mid},
-            "gradual": {"label": "Perbaikan Bertahap", "roman": "Kuadran III", "color": "#C9A400",
+            "gradual": {"label": "Perbaikan Bertahap", "roman": "Kuadran III", "color": ORANGE,
                         "test": lambda x, y: x < x_mid and y < y_mid},
-            "low": {"label": "Prioritas Rendah", "roman": "Kuadran IV", "color": GREEN,
+            "low": {"label": "Prioritas Rendah", "roman": "Kuadran IV", "color": YELLOW,
                          "test": lambda x, y: x >= x_mid and y < y_mid},
         }
 
@@ -3648,14 +3968,21 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             for chip_col, (qk, info) in zip(chip_cols, QUADRANTS.items()):
                 with chip_col:
                     is_sel = qk == selected_qk
+
                     if st.button(
                         f"{'●' if is_sel else '○'} {info['roman']} ({len(points_by_quadrant[qk])})",
                         key=f"{key}_chip_{qk}",
                         use_container_width=True,
                         help=info["label"],
+                        type="primary" if is_sel else "secondary",
                     ):
                         st.session_state[sel_key] = qk
-                        selected_qk = qk
+
+                        # Rerun langsung agar:
+                        # 1. tombol yang dipilih langsung menjadi aktif,
+                        # 2. panel kanan sinkron,
+                        # 3. highlight grafik sinkron.
+                        st.rerun()
 
             x_min, x_max = min(xs), max(xs)
             y_min, y_max = min(ys), max(ys)
@@ -3674,15 +4001,45 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
             }
             for qk, (rx0, rx1, ry0, ry1) in quad_bounds.items():
                 is_sel = qk == selected_qk
+
                 fig.add_shape(
-                    type="rect", x0=rx0, x1=rx1, y0=ry0, y1=ry1,
-                    fillcolor=QUADRANTS[qk]["color"], opacity=0.16 if is_sel else 0.055,
-                    line=dict(width=1.5 if is_sel else 0, color=QUADRANTS[qk]["color"]),
+                    type="rect",
+                    x0=rx0,
+                    x1=rx1,
+                    y0=ry0,
+                    y1=ry1,
+                    fillcolor=QUADRANTS[qk]["color"],
+
+                    # Kuadran aktif jauh lebih terlihat.
+                    opacity=0.26 if is_sel else 0.025,
+
+                    line=dict(
+                        width=2.4 if is_sel else 0.5,
+                        color=(
+                            QUADRANTS[qk]["color"]
+                            if is_sel
+                            else "rgba(180,180,180,0.30)"
+                        ),
+                    ),
                     layer="below",
                 )
 
-            marker_opacity = [1.0 if quadrant_of_code[c] == selected_qk else 0.38 for c in codes]
-            marker_line_width = [2 if quadrant_of_code[c] == selected_qk else 0.8 for c in codes]
+            # Titik pada kuadran aktif dibuat lebih kuat,
+            # titik kuadran lain dibuat lebih redup.
+            marker_opacity = [
+                1.0 if quadrant_of_code[c] == selected_qk else 0.16
+                for c in codes
+            ]
+
+            marker_line_width = [
+                2.8 if quadrant_of_code[c] == selected_qk else 0.5
+                for c in codes
+            ]
+
+            marker_size = [
+                15 if quadrant_of_code[c] == selected_qk else 9
+                for c in codes
+            ]
 
             point_names = [indicator_name_map.get(c.upper(), "Nama indikator belum tersedia") for c in codes]
             hover_data = np.column_stack([
@@ -3695,8 +4052,13 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 x=xs, y=ys, mode="markers", text=codes,
                 customdata=hover_data,
                 marker=dict(
-                    size=12, color=colors, opacity=marker_opacity,
-                    line=dict(width=marker_line_width, color="white"),
+                    size=marker_size,
+                    color=colors,
+                    opacity=marker_opacity,
+                    line=dict(
+                        width=marker_line_width,
+                        color="white",
+                    ),
                 ),
                 hovertemplate=(
                     "<b>%{text}</b><br>"
@@ -3720,10 +4082,46 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
                 hovermode="closest",
                 clickmode="event+select",
                 annotations=[
-                    dict(x=x_lo, y=y_hi, text=f"<b>{QUADRANTS['priority']['roman']} · Prioritas Utama</b>", showarrow=False, font=dict(color=RED, size=14), xanchor="left", yanchor="top"),
-                    dict(x=x_hi, y=y_hi, text=f"<b>{QUADRANTS['keep']['roman']} · Pertahankan</b>", showarrow=False, font=dict(color=ORANGE, size=14), xanchor="right", yanchor="top"),
-                    dict(x=x_lo, y=y_lo, text=f"<b>{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap</b>", showarrow=False, font=dict(color="#C9A400", size=14), xanchor="left", yanchor="bottom"),
-                    dict(x=x_hi, y=y_lo, text=f"<b>{QUADRANTS['low']['roman']} · Prioritas Rendah</b>", showarrow=False, font=dict(color=GREEN, size=14), xanchor="right", yanchor="bottom"),
+                    dict(
+                        x=x_lo, y=y_hi,
+                        text=f"<b>{QUADRANTS['priority']['roman']} · Prioritas Utama</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=QUADRANTS["priority"]["color"] if selected_qk == "priority" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "priority" else 12,
+                        ),
+                        xanchor="left", yanchor="top",
+                    ),
+                    dict(
+                        x=x_hi, y=y_hi,
+                        text=f"<b>{QUADRANTS['keep']['roman']} · Pertahankan</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=QUADRANTS["keep"]["color"] if selected_qk == "keep" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "keep" else 12,
+                        ),
+                        xanchor="right", yanchor="top",
+                    ),
+                    dict(
+                        x=x_lo, y=y_lo,
+                        text=f"<b>{QUADRANTS['gradual']['roman']} · Perbaikan Bertahap</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=QUADRANTS["gradual"]["color"] if selected_qk == "gradual" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "gradual" else 12,
+                        ),
+                        xanchor="left", yanchor="bottom",
+                    ),
+                    dict(
+                        x=x_hi, y=y_lo,
+                        text=f"<b>{QUADRANTS['low']['roman']} · Prioritas Rendah</b>",
+                        showarrow=False,
+                        font=dict(
+                            color=QUADRANTS["low"]["color"] if selected_qk == "low" else "rgba(120,120,120,0.55)",
+                            size=15 if selected_qk == "low" else 12,
+                        ),
+                        xanchor="right", yanchor="bottom",
+                    ),
                 ],
             )
             st.plotly_chart(
@@ -3863,7 +4261,17 @@ def render_profile_heatmap(unit_key: str, key: str):
 
             attr_codes = list(piv.index)
             profiles_label = [str(p) for p in piv.columns]
-            matrix = piv.values.tolist()
+
+            # ============================================================
+            # KONVERSI PROFILE GAP DARI SKALA LIKERT 1–5 KE PERSENTASE
+            # ============================================================
+            matrix = piv.values.astype(float)
+
+            # Gap Likert → Persentase
+            # Skala maksimum satisfaction = 5
+            matrix = (matrix / 5) * 100
+
+            matrix = matrix.tolist()
         else:
             prof_cols = [c for c in hm_df.columns if str(c).strip().upper() in ["P1", "P2", "P3", "P4", "P5", "PROFILE 1", "PROFILE 2", "PROFILE 3", "PROFILE 4", "PROFILE 5"]]
             if not k_col or not prof_cols:
@@ -3895,9 +4303,10 @@ def render_profile_heatmap(unit_key: str, key: str):
                 if pd.isna(v) or v is None:
                     row_text.append("")
                 elif round(v, 2) == 0:
-                    row_text.append("0")
+                    row_text.append("0%")
                 else:
-                    row_text.append(f"{v:.2f}".rstrip("0").rstrip("."))
+                    value_text = f"{v:.2f}".rstrip("0").rstrip(".")
+                    row_text.append(f"{value_text}%")
             text_matrix.append(row_text)
 
         colorscale = [
@@ -3933,7 +4342,7 @@ def render_profile_heatmap(unit_key: str, key: str):
             hovertemplate=(
                 "<b>Kode Indikator:</b> %{customdata[0]}<br>"
                 "<b>Nama Indikator:</b> %{customdata[1]}<br>"
-                "<b>Selisih satisfaction rata-rata keseluruhan:</b> %{z:.2f}"
+                "<b>Selisih satisfaction rata-rata keseluruhan:</b> %{z:.2f}%"
                 "<extra></extra>"
             )
         ))
@@ -4239,7 +4648,270 @@ def _age_group_hbar(df, col, title, key):
             )
 
 
+
+# ============================================================
+# MOTOR MAPPING & CANONICALIZATION HELPERS
+# ============================================================
+
+MOTOR_MASTER = [
+    "Beat", "Beat Street", "Genio", "Scoopy", "Vario 125",
+    "Vario 125 Street", "Vario Evo 160", "Stylo 160", "PCX 160",
+    "ADV 160", "Forza", "CB150 Verza", "Sonic 150R",
+    "CB150R StreetFire", "SB150X", "CRF150L", "CBR150R",
+    "CBR250RR", "CRF250L", "ST125 Dax", "Monkey",
+    "CRF250 Rally", "Revo", "Supra X 125 FI", "GTR 150",
+    "Super Cub C125", "CT125", "ICON e:", "EM1 e:", "CUV e:",
+]
+MOTOR_RANK = {name: i for i, name in enumerate(MOTOR_MASTER)}
+
+MOTOR_ALIAS = {
+    # Beat
+    "beat": "Beat",
+    "beatfi": "Beat",
+    "beatesp": "Beat",
+    "beatespcbsiss": "Beat",
+    "beatespcbsseries": "Beat",
+    "beatpopesp": "Beat",
+    "beatdeluxe": "Beat",
+    "beatdeluxesmartkey": "Beat",
+    "beatcbs": "Beat",
+    "beatfi": "Beat",
+    "beatfics": "Beat",
+    "beatficw": "Beat",
+    "beatsw": "Beat",
+
+    # Beat Street
+    "beatstreet": "Beat Street",
+    "beatstreetfi": "Beat Street",
+    "newbeatstreetesp": "Beat Street",
+    "allnewbeatstreet": "Beat Street",
+
+    # Genio
+    "genio": "Genio",
+    "geniocbs": "Genio",
+    "geniocbsiss": "Genio",
+
+    # Scoopy
+    "scoopy": "Scoopy",
+    "scoopyfisporty": "Scoopy",
+    "scoopyfistylish": "Scoopy",
+    "allnewscoopy": "Scoopy",
+    "allnewscoopy2025": "Scoopy",
+    "allnewscoopy2025smartkeytype": "Scoopy",
+    "allnewscoopy2025cbstype": "Scoopy",
+    "allnewscoopynewgenerationengine": "Scoopy",
+    "allnewscoopynewgenerationenginesmartkeytype": "Scoopy",
+    "allnewhondascoopyespsporty": "Scoopy",
+    "allnewhondascoopyespstylish": "Scoopy",
+
+    # Vario 125
+    "vario125": "Vario 125",
+    "vario125cbs": "Vario 125",
+    "variotechno125pgmfi": "Vario 125",
+    "variotechno125pgmficbs": "Vario 125",
+    "vario125cbsidlingstopsystem": "Vario 125",
+
+    # Vario 125 Street
+    "vario125street": "Vario 125 Street",
+
+    # Vario 160
+    "vario160": "Vario Evo 160",
+    "varioevo160": "Vario Evo 160",
+    "vario160cbs": "Vario Evo 160",
+    "vario160abs": "Vario Evo 160",
+
+    # Stylo
+    "stylo160": "Stylo 160",
+    "stylo160abs": "Stylo 160",
+    "stylo160cbs": "Stylo 160",
+
+    # PCX
+    "pcx": "PCX 160",
+    "pcx160": "PCX 160",
+    "allnewpcx160": "PCX 160",
+    "allnewpcx160cbs": "PCX 160",
+    "allnewpcx160abs": "PCX 160",
+    "allnewpcx1602025cbstype": "PCX 160",
+    "allnewpcx1602025roadsynctype": "PCX 160",
+    "pcxhybrid": "PCX 160",
+    "pcx150": "PCX 160",
+    "allnewpcx150": "PCX 160",
+
+    # ADV
+    "adv": "ADV 160",
+    "adv160": "ADV 160",
+    "adv160abs": "ADV 160",
+    "adv160cbs": "ADV 160",
+    "adv160roadsync": "ADV 160",
+
+    # Forza
+    "forza": "Forza",
+
+    # Verza
+    "verza": "CB150 Verza",
+    "verza150cw": "CB150 Verza",
+    "cb150verza": "CB150 Verza",
+    "cb150verzasw": "CB150 Verza",
+
+    # Sonic
+    "sonic": "Sonic 150R",
+    "sonic150r": "Sonic 150R",
+
+    # CB150R StreetFire
+    "streetfire": "CB150R StreetFire",
+    "cb150rstreetfire": "CB150R StreetFire",
+
+    # CB150X
+    "cb150x": "SB150X",
+    "sb150x": "SB150X",
+
+    # CRF150L
+    "crf150": "CRF150L",
+    "crf150l": "CRF150L",
+
+    # CBR150R
+    "cbr150": "CBR150R",
+    "cbr150r": "CBR150R",
+
+    # CBR250RR
+    "cbr250rr": "CBR250RR",
+
+    # CRF250L
+    "crf250": "CRF250L",
+    "crf250l": "CRF250L",
+
+    # ST125 Dax
+    "st125dax": "ST125 Dax",
+    "dax": "ST125 Dax",
+
+    # Monkey
+    "monkey": "Monkey",
+
+    # CRF250 Rally
+    "crf250rally": "CRF250 Rally",
+
+    # Revo
+    "revo": "Revo",
+    "revofit": "Revo",
+    "revofi": "Revo",
+    "revofi sw": "Revo",
+    "revox": "Revo",
+
+    # Supra X 125
+    "suprax125": "Supra X 125 FI",
+    "suprax125fi": "Supra X 125 FI",
+    "newsuprax125fi": "Supra X 125 FI",
+    "newsuprax125fisw": "Supra X 125 FI",
+    "newsuprax125rcw": "Supra X 125 FI",
+    "newsuprax125ficw": "Supra X 125 FI",
+
+    # GTR
+    "gtr150": "GTR 150",
+
+    # Super Cub
+    "supercub": "Super Cub C125",
+    "supercubc125": "Super Cub C125",
+
+    # CT125
+    "ct125": "CT125",
+
+    # Electric
+    "icone": "ICON e:",
+    "em1e": "EM1 e:",
+    "cuve": "CUV e:",
+}
+
+MOTOR_KEYWORD_RULES = [
+    # Harus yang lebih spesifik diletakkan lebih dahulu
+    ("beatstreet", "Beat Street"),
+    ("beat", "Beat"),
+
+    ("vario125street", "Vario 125 Street"),
+    ("vario125", "Vario 125"),
+
+    ("vario160", "Vario Evo 160"),
+    ("varioevo160", "Vario Evo 160"),
+
+    ("stylo160", "Stylo 160"),
+    ("stylo", "Stylo 160"),
+
+    ("scoopy", "Scoopy"),
+    ("genio", "Genio"),
+    ("forza", "Forza"),
+
+    ("pcx", "PCX 160"),
+
+    ("adv160", "ADV 160"),
+    ("adv", "ADV 160"),
+
+    ("cb150verza", "CB150 Verza"),
+    ("verza", "CB150 Verza"),
+
+    ("sonic150r", "Sonic 150R"),
+    ("sonic", "Sonic 150R"),
+
+    ("cb150rstreetfire", "CB150R StreetFire"),
+    ("streetfire", "CB150R StreetFire"),
+
+    ("cb150x", "SB150X"),
+    ("sb150x", "SB150X"),
+
+    ("crf150l", "CRF150L"),
+    ("crf150", "CRF150L"),
+
+    ("cbr150r", "CBR150R"),
+    ("cbr150", "CBR150R"),
+
+    ("cbr250rr", "CBR250RR"),
+
+    # CRF250 Rally harus sebelum CRF250L
+    ("crf250rally", "CRF250 Rally"),
+    ("crf250l", "CRF250L"),
+    ("crf250", "CRF250L"),
+
+    ("st125dax", "ST125 Dax"),
+    ("dax", "ST125 Dax"),
+
+    ("monkey", "Monkey"),
+
+    ("revo", "Revo"),
+
+    ("suprax125", "Supra X 125 FI"),
+
+    ("gtr150", "GTR 150"),
+
+    ("supercubc125", "Super Cub C125"),
+    ("supercub", "Super Cub C125"),
+
+    ("ct125", "CT125"),
+
+    ("icone", "ICON e:"),
+    ("em1e", "EM1 e:"),
+    ("cuve", "CUV e:"),
+]
+
+
+def compact_motor_key(value):
+    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+
+
+def canonical_motor(value):
+    raw = re.sub(r"\s+", " ", str(value)).strip()
+    if not raw or raw.lower() in {"nan", "none", "-"}:
+        return None
+    key_norm = compact_motor_key(raw)
+    if key_norm in MOTOR_ALIAS:
+        return MOTOR_ALIAS[key_norm]
+
+    for needle, canonical in MOTOR_KEYWORD_RULES:
+        if needle in key_norm:
+            return canonical
+
+    return raw
+
+
 def _motor_type_hbar(df, col, title, key):
+    """Motor type mengikuti master kategori yang diberikan pengguna."""
     with st.container(
         key=f"{key}_demographic_chart_card",
         border=True,
@@ -4250,33 +4922,38 @@ def _motor_type_hbar(df, col, title, key):
                 st.info("Data tidak tersedia.")
                 return
 
-            def motor_series(value):
-                raw = str(value).strip()
-                norm = re.sub(r"[^a-z0-9]+", " ", raw.lower()).strip()
-                if re.search(r"\bbeat\b", norm):
-                    return "Beat Series"
-                if re.search(r"\bpcx\b", norm):
-                    return "PCX Series"
-                return raw
-
-            counts = df[col].dropna().map(motor_series).value_counts()
-            if counts.empty:
+            normalized = df[col].dropna().map(canonical_motor).dropna()
+            if normalized.empty:
                 st.info("Data tidak tersedia.")
                 return
+
+            counts = normalized.value_counts()
             total = counts.sum()
             pct = (counts / total * 100).round(1)
 
-            pct_sorted = pct.sort_values(ascending=True)
-            counts_sorted = counts.reindex(pct_sorted.index).fillna(0).astype(int)
-            max_val = max(pct_sorted.values) if not pct_sorted.empty else 100
+            # Urutkan berdasarkan persentase/jumlah terbesar terlebih dahulu,
+            # dengan tie-breaker berurutan berdasarkan MOTOR_RANK dan nama.
+            labels = sorted(
+                list(counts.index),
+                key=lambda x: (-counts[x], MOTOR_RANK.get(x, 10_000), str(x).casefold()),
+            )
 
-            # Grafik tetap proporsional. Jika kategorinya banyak, tinggi figure
-            # bertambah dan viewport yang akan menampilkan scrollbar.
-            chart_h = max(330, 32 * len(pct_sorted) + 60)
+            # Plotly horizontal (orientation="h") menaruh item pertama di posisi paling bawah,
+            # sehingga dibalik (ascending) agar persentase terbesar berada di paling atas layar.
+            labels_plot = labels[::-1]
+            pct_plot = pct.reindex(labels_plot)
+            counts_plot = counts.reindex(labels_plot).astype(int)
+            max_val = max(pct_plot.values) if not pct_plot.empty else 100
+
+            chart_h = max(330, 32 * len(labels_plot) + 60)
             fig = go.Figure(go.Bar(
-                x=pct_sorted.values, y=pct_sorted.index, orientation="h",
-                marker=dict(color=RED), text=[f"{v:.1f}%" for v in pct_sorted.values], textposition="outside",
-                customdata=np.array(counts_sorted.values, dtype=int).reshape(-1, 1),
+                x=pct_plot.values,
+                y=labels_plot,
+                orientation="h",
+                marker=dict(color=RED),
+                text=[f"{v:.1f}%" for v in pct_plot.values],
+                textposition="outside",
+                customdata=np.array(counts_plot.values, dtype=int).reshape(-1, 1),
                 hovertemplate=(
                     "<b>Tipe Motor:</b> %{y}<br>"
                     "<b>Persentase:</b> %{x:.1f}%<br>"
@@ -4286,9 +4963,15 @@ def _motor_type_hbar(df, col, title, key):
             fig.update_layout(
                 xaxis=dict(range=[0, max(112, max_val + 15)], ticksuffix="%"),
                 margin=dict(l=10, r=30, t=10, b=10),
-                height=chart_h, showlegend=False
+                height=chart_h,
+                showlegend=False,
             )
-            st.plotly_chart(fig, use_container_width=True, key=key, config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=key,
+                config={"displayModeBar": False},
+            )
 
 
 def _simple_hbar(df, col, title, key):
@@ -4316,138 +4999,295 @@ def _simple_hbar(df, col, title, key):
         st.plotly_chart(fig, use_container_width=True, key=key)
 
 
-def _stacked_pct(df, col, title, key, is_ses=False, is_retention=False):
+
+def _stacked_pct(
+    df, col, title, key,
+    is_ses=False,
+    is_retention=False,
+    is_purchase_period=False,
+    is_purchase_location=False,
+):
+    """Stacked percentage dengan urutan kategori bisnis yang tetap."""
     with st.container(key=f"{key}_fixed_chart_card", border=True):
         st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
         if not col or df is None or df.empty or col not in df.columns:
             st.info("Data tidak tersedia.")
             return
-        counts = df[col].dropna().astype(str).value_counts()
-        if counts.empty:
+
+        raw_series = df[col].dropna().astype(str).str.strip()
+        raw_series = raw_series[~raw_series.str.lower().isin(["", "nan", "none", "-"])]
+        if raw_series.empty:
             st.info("Data tidak tersedia.")
             return
-        total = counts.sum()
-        pct = (counts / total * 100).round(0)
-        palette = [RED, ORANGE, YELLOW, GREEN, "#1E88E5", "#8E24AA", "#D81B60"]
-        fig = go.Figure()
+
+        ses_order = ["A", "A2", "B", "C1", "C2", "D", "E"]
         ses_ranges = {
-            "A": "> 6 Juta", "A1": "> 6 Juta", "A2": "4 – 6 Juta",
-            "B": "2,5 – 4 Juta", "C1": "1,75 – 2,5 Juta",
-            "C2": "1,25 – 1,75 Juta", "D": "0,9 – 1,25 Juta",
-            "E": "≤ 0,9 Juta",
+            "A": "> Rp6 juta",
+            "A2": "Rp4–6 juta",
+            "B": "Rp2,5–4 juta",
+            "C1": "Rp1,75–2,5 juta",
+            "C2": "Rp1,25–1,75 juta",
+            "D": "Rp0,9–1,25 juta",
+            "E": "≤ Rp0,9 juta",
         }
+        ses_colors = {
+            level: color for level, color in zip(
+                ses_order,
+                [RED, ORANGE, YELLOW, "#C0CA33", "#8BC34A", GREEN, "#1E88E5"],
+            )
+        }
+
         retention_labels = {
-            5: "Sangat mungkin membeli kembali",
-            4: "Mungkin membeli kembali",
-            3: "Cukup mungkin membeli kembali",
-            2: "Kurang mungkin membeli kembali",
             1: "Sangat tidak mungkin membeli kembali",
+            2: "Kurang mungkin membeli kembali",
+            3: "Cukup mungkin membeli kembali",
+            4: "Mungkin membeli kembali",
+            5: "Sangat mungkin membeli kembali",
         }
-        # Gunakan tone warna utama dashboard agar chart Retention menyatu
-        # dengan seluruh visual H1, H2, dan H3.
         retention_colors = {
+            1: RED,
+            2: "#F4511E",
+            3: YELLOW,
+            4: "#9CCC65",
             5: GREEN,
-            4: YELLOW,
-            3: ORANGE,
-            2: RED,
-            1: "#C8102E",  # merah tua dari colorway dashboard
         }
 
         def retention_score(value):
-            text = str(value).strip().lower()
-            numeric = pd.to_numeric(text.replace(",", "."), errors="coerce")
+            text_value = str(value).strip().lower()
+            numeric = pd.to_numeric(text_value.replace(",", "."), errors="coerce")
             if pd.notna(numeric) and 1 <= int(round(float(numeric))) <= 5:
                 return int(round(float(numeric)))
-            if "sangat mungkin" in text:
-                return 5
-            if "cukup" in text:
-                return 3
-            if "sangat tidak" in text or "tidak mungkin" in text:
+            if "sangat tidak" in text_value or "tidak mungkin" in text_value:
                 return 1
-            if "kurang" in text:
+            if "kurang" in text_value:
                 return 2
-            if "mungkin" in text:
+            if "cukup" in text_value:
+                return 3
+            if "sangat mungkin" in text_value:
+                return 5
+            if "mungkin" in text_value:
                 return 4
             return None
 
-        # Normalisasi dahulu sebelum menghitung persentase. Nilai mentah seperti
-        # 4, 4.0, "4 ", dan "Mungkin membeli kembali" harus menjadi satu
-        # kategori yang sama, bukan beberapa segmen dengan label 4.
-        if is_retention:
-            normalized_retention = (
-                df[col]
-                .dropna()
-                .map(retention_score)
-                .dropna()
-                .astype(int)
-            )
-            if normalized_retention.empty:
+        period_order = [
+            "Kurang dari 6 bulan",
+            "7–12 bulan lagi",
+            "1–2 tahun",
+            "2–3 tahun",
+            "3–4 tahun",
+            "Lebih dari 4 tahun",
+        ]
+
+        def canonical_period(value):
+            raw = re.sub(r"\s+", " ", str(value)).strip()
+            low = raw.lower().replace("–", "-").replace("—", "-")
+
+            if re.search(r"(<\s*6|kurang.*6|less.*6|0\s*[-/]\s*6|1\s*[-/]\s*6|sampai.*6)", low):
+                return "Kurang dari 6 bulan"
+            if re.search(r"(7\s*[-/]\s*12|6\s*[-/]\s*12|7.*12)", low) or (("bulan" in low or "month" in low) and "12" in low):
+                return "7–12 bulan lagi"
+            if re.search(r"1\s*[-/]\s*2\s*(tahun|year)", low) or ("1" in low and "2" in low and ("tahun" in low or "year" in low)):
+                return "1–2 tahun"
+            if re.search(r"2\s*[-/]\s*3\s*(tahun|year)", low) or ("2" in low and "3" in low and ("tahun" in low or "year" in low)):
+                return "2–3 tahun"
+            if re.search(r"3\s*[-/]\s*4\s*(tahun|year)", low) or ("3" in low and "4" in low and ("tahun" in low or "year" in low)):
+                return "3–4 tahun"
+            if ("lebih" in low or "more" in low or ">" in low) and ("tahun" in low or "year" in low):
+                return "Lebih dari 4 tahun"
+            return raw
+
+        def purchase_location_key(value):
+            low = re.sub(r"\s+", " ", str(value)).strip().lower()
+            # Dealer yang sama selalu paling kiri.
+            if any(token in low for token in [
+                "dealer yang sama", "dealer sama", "showroom yang sama",
+                "showroom sama", "same dealer", "same showroom",
+            ]):
+                return (0, low)
+            if "dealer" in low or "showroom" in low:
+                return (1, low)
+            if "online" in low or "marketplace" in low:
+                return (2, low)
+            if "pameran" in low or "event" in low:
+                return (3, low)
+            if "belum" in low or "tidak tahu" in low or "tidak menentukan" in low:
+                return (90, low)
+            if "lain" in low:
+                return (80, low)
+            return (50, low)
+
+        # -------------------- normalisasi dan urutan --------------------
+        if is_ses:
+            normalized = raw_series.str.upper().str.replace(" ", "", regex=False)
+            # Beberapa versi data lama menulis A1; pada dashboard disatukan sebagai SES A.
+            normalized = normalized.replace({"A1": "A"})
+            counts = normalized.value_counts()
+            labels = [level for level in ses_order if level in counts.index]
+            labels += sorted([x for x in counts.index if x not in ses_order])
+
+        elif is_retention:
+            normalized = raw_series.map(retention_score).dropna().astype(int)
+            if normalized.empty:
                 st.info("Data tidak tersedia.")
                 return
-            counts = normalized_retention.value_counts()
-            total = counts.sum()
-            pct = (counts / total * 100).round(0)
+            counts = normalized.value_counts()
+            # 1 → 5 sehingga kiri merah dan kanan hijau.
+            labels = [score for score in range(1, 6) if score in counts.index]
 
-        items = list(pct.items())
-        if is_retention:
-            items = sorted(items, key=lambda item: retention_score(item[0]) or 0, reverse=True)
+        elif is_purchase_period:
+            normalized = raw_series.map(canonical_period)
+            counts = normalized.value_counts()
+            labels = [label for label in period_order if label in counts.index]
+            labels += sorted([x for x in counts.index if x not in period_order], key=str.casefold)
 
-        ses_color_map = {}
-        for i, (label, v) in enumerate(items):
-            label_text = str(label).strip()
-            range_text = ses_ranges.get(label_text.upper(), "Rentang tidak tersedia")
+        elif is_purchase_location:
+            normalized = raw_series.map(lambda x: re.sub(r"\s+", " ", str(x)).strip())
+            counts = normalized.value_counts()
+            labels = sorted(counts.index.tolist(), key=purchase_location_key)
+
+        else:
+            normalized = raw_series
+            counts = normalized.value_counts()
+            labels = counts.index.tolist()
+
+        if counts.empty or not labels:
+            st.info("Data tidak tersedia.")
+            return
+
+        total = counts.sum()
+        pct = (counts / total * 100).round(1)
+
+        if is_purchase_period or is_purchase_location:
+            gradient = [GREEN, "#7CB342", YELLOW, ORANGE, "#F4511E", RED, "#C8102E"]
+            category_colors = {
+                label: gradient[min(i, len(gradient) - 1)]
+                for i, label in enumerate(labels)
+            }
+        else:
+            category_colors = {}
+
+        fig = go.Figure()
+        generic_palette = [RED, ORANGE, YELLOW, GREEN, "#1E88E5", "#8E24AA", "#D81B60"]
+
+        for i, label in enumerate(labels):
+            value = float(pct.get(label, 0))
             respondents = int(counts.get(label, 0))
-            score = retention_score(label) if is_retention else None
-            display_label = str(score) if score else label_text
-            bar_color = retention_colors.get(score, palette[i % len(palette)])
+
             if is_ses:
-                ses_color_map[label_text.upper()] = bar_color
-            if is_ses:
-                segment_hover = (
-                    f"<b>{label_text}: %{{customdata[0]}}</b><br>"
+                display_label = str(label)
+                bar_color = ses_colors.get(str(label), generic_palette[i % len(generic_palette)])
+                range_text = ses_ranges.get(str(label), "Rentang tidak tersedia")
+                hover = (
+                    f"<b>SES {display_label}: {range_text}</b><br>"
                     "Persentase: %{x:.1f}%<br>"
-                    "Responden: %{customdata[1]} orang<extra></extra>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
                 )
+
             elif is_retention:
-                segment_hover = (
-                    f"<b>{display_label}: {retention_labels.get(score, label_text)}</b><br>"
+                score = int(label)
+                display_label = str(score)
+                bar_color = retention_colors[score]
+                range_text = retention_labels[score]
+                hover = (
+                    f"<b>Retention {score}: {retention_labels[score]}</b><br>"
                     "Persentase: %{x:.1f}%<br>"
-                    "Responden: %{customdata[1]} orang<extra></extra>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
                 )
+
+            elif is_purchase_period:
+                display_label = str(label)
+                bar_color = category_colors[label]
+                range_text = str(label)
+                hover = (
+                    f"<b>{html.escape(str(label))}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
+                )
+
+            elif is_purchase_location:
+                display_label = str(label)
+                bar_color = category_colors[label]
+                range_text = str(label)
+                hover = (
+                    f"<b>{html.escape(str(label))}</b><br>"
+                    "Persentase: %{x:.1f}%<br>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
+                )
+
             else:
-                segment_hover = (
-                    f"<b>{label_text}</b><br>"
+                display_label = str(label)
+                bar_color = generic_palette[i % len(generic_palette)]
+                range_text = str(label)
+                hover = (
+                    f"<b>{html.escape(str(label))}</b><br>"
                     "Persentase: %{x:.1f}%<br>"
-                    "Responden: %{customdata[1]} orang<extra></extra>"
+                    "Responden: %{customdata[0]} orang<extra></extra>"
                 )
-            fig.add_trace(go.Bar(x=[v], y=[""], orientation="h", name=str(label),
-                                  marker=dict(color=bar_color),
-                                  text=f"{v:.0f}%<br>{display_label}", textposition="inside",
-                                  customdata=[[range_text, respondents]],
-                                  hovertemplate=segment_hover))
-        fig.update_layout(barmode="stack", showlegend=False, height=110,
-                           margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(visible=False), yaxis=dict(visible=False))
-        st.plotly_chart(fig, use_container_width=True, key=key)
+
+            # Label di dalam bar dibuat ringkas agar tidak menumpuk.
+            inner_label = display_label
+            if len(inner_label) > 14:
+                inner_label = inner_label[:12].rstrip() + "…"
+
+            fig.add_trace(go.Bar(
+                x=[value],
+                y=[""],
+                orientation="h",
+                name=display_label,
+                marker=dict(color=bar_color),
+                text=f"{value:.0f}%<br>{inner_label}",
+                textposition="inside",
+                customdata=[[respondents]],
+                hovertemplate=hover,
+            ))
+
+        fig.update_layout(
+            barmode="stack",
+            showlegend=False,
+            height=108,
+            margin=dict(l=10, r=10, t=8, b=8),
+            xaxis=dict(visible=False, range=[0, 100]),
+            yaxis=dict(visible=False),
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key, config={"displayModeBar": False})
+
+        # --------------------------- legend ---------------------------
+        legend_items = []
         if is_ses:
-            available_levels = [str(x).strip().upper() for x in counts.index]
-            legend_items = []
-            for level in ["A", "A1", "A2", "B", "C1", "C2", "D", "E"]:
-                if level in available_levels and level in ses_ranges:
-                    box_color = ses_color_map.get(level, "#D0D5DD")
-                    legend_items.append(
-                        '<span style="display:inline-flex;align-items:center;gap:5px;'
-                        'white-space:nowrap;margin:2px 14px 2px 0;">'
-                        f'<span style="display:inline-block;width:10px;height:10px;'
-                        f'border-radius:1px;background:{box_color};flex:0 0 10px;"></span>'
-                        f'<span><b>{level}</b>: {ses_ranges[level]}</span></span>'
-                    )
-            if legend_items:
-                st.markdown(
-                    '<div style="display:flex;flex-wrap:wrap;align-items:center;'
-                    'font-size:10.5px;line-height:1.45;color:#667085;'
-                    'padding:0 4px 4px;">' + "".join(legend_items) + "</div>",
-                    unsafe_allow_html=True,
+            # Legend SES selalu lengkap, walaupun kategori tertentu tidak ada
+            # pada filter yang sedang aktif.
+            for level in ses_order:
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{ses_colors[level]};"></span>'
+                    f'<span><b>{level}</b>: {ses_ranges[level]}</span></span>'
                 )
+
+        elif is_retention:
+            # Legend 1 → 5 mengikuti urutan bar: kiri merah, kanan hijau.
+            for score in range(1, 6):
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{retention_colors[score]};"></span>'
+                    f'<span><b>{score}</b>: {retention_labels[score]}</span></span>'
+                )
+
+        elif is_purchase_period or is_purchase_location:
+            for label in labels:
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{category_colors[label]};"></span>'
+                    f'<span>{html.escape(str(label))}</span></span>'
+                )
+
+        if legend_items:
+            st.markdown(
+                '<div style="display:flex;flex-wrap:wrap;align-items:center;'
+                'font-size:10px;line-height:1.45;color:#667085;padding:0 4px 4px;">'
+                + "".join(legend_items)
+                + "</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def _find_exact_data_col(df: pd.DataFrame, column_name: str):
@@ -4463,75 +5303,247 @@ def _find_exact_data_col(df: pd.DataFrame, column_name: str):
 
 
 def _top_reasons_hbar(df, col, title, key, top_n=5, separator=";"):
-    """Tampilkan alasan multijawaban yang paling sering dipilih."""
+    """Top 5 alasan NPS dengan label dua baris dan angka yang tidak terpotong."""
+
     with st.container(key=f"{key}_demographic_chart_card", border=True):
-        st.markdown(f'<div class="chart-title">{title}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="chart-title">{title}</div>',
+            unsafe_allow_html=True,
+        )
 
         with st.container(key=f"{key}_chart_viewport"):
-            if not col or df is None or df.empty or col not in df.columns:
+
+            if (
+                not col
+                or df is None
+                or df.empty
+                or col not in df.columns
+            ):
                 st.info("Data tidak tersedia.")
                 return
 
+            # ====================================================
+            # NORMALISASI ALASAN
+            # ====================================================
+
             reason_labels = {}
             normalized_reasons = []
+
             for raw_value in df[col].dropna():
                 for raw_reason in str(raw_value).split(separator):
-                    clean_reason = re.sub(r"\s+", " ", raw_reason).strip(" ;,.-")
-                    if not clean_reason or clean_reason.lower() in {"nan", "none", "-"}:
+
+                    clean_reason = re.sub(
+                        r"\s+",
+                        " ",
+                        raw_reason
+                    ).strip(" ;,.-")
+
+                    if (
+                        not clean_reason
+                        or clean_reason.lower() in {"nan", "none", "-"}
+                    ):
                         continue
+
                     normalized_reason = clean_reason.casefold()
-                    reason_labels.setdefault(normalized_reason, clean_reason)
-                    normalized_reasons.append(normalized_reason)
+                    reason_labels.setdefault(
+                        normalized_reason,
+                        clean_reason
+                    )
+                    normalized_reasons.append(
+                        normalized_reason
+                    )
 
             if not normalized_reasons:
                 st.info("Data tidak tersedia.")
                 return
 
-            counts = pd.Series(normalized_reasons).value_counts().head(top_n)
-            labels = [reason_labels[index] for index in counts.index]
-            total_respondents = max(int(df[col].notna().sum()), 1)
-            percentages = (counts / total_respondents * 100).round(1)
+            counts = (
+                pd.Series(normalized_reasons)
+                .value_counts()
+                .head(top_n)
+            )
 
-            # Urutan dibalik untuk horizontal bar sehingga alasan terpopuler
-            # tampil di posisi paling atas.
+            labels = [
+                reason_labels[index]
+                for index in counts.index
+            ]
+
+            total_respondents = max(
+                int(df[col].notna().sum()),
+                1
+            )
+
+            percentages = (
+                counts
+                / total_respondents
+                * 100
+            ).round(1)
+
+            # Balik agar item terbesar berada paling atas pada bar horizontal.
             labels = labels[::-1]
             count_values = counts.to_numpy(dtype=int)[::-1]
             percentage_values = percentages.to_numpy(dtype=float)[::-1]
-            max_count = int(max(count_values)) if len(count_values) else 1
-            chart_height = max(300, 48 * len(labels) + 70)
 
-            fig = go.Figure(go.Bar(
-                x=count_values,
-                y=labels,
-                orientation="h",
-                marker=dict(color=ORANGE),
-                # Label yang selalu terlihat menggunakan persentase. Jumlah
-                # frekuensi tetap tersedia di dalam hover.
-                text=[f"{value:.1f}%" for value in percentage_values],
-                textposition="outside",
-                customdata=np.array(percentage_values, dtype=float).reshape(-1, 1),
-                hovertemplate=(
-                    "<b>Alasan:</b> %{y}<br>"
-                    "<b>Frekuensi dipilih:</b> %{x} kali<br>"
-                    "<b>Persentase responden:</b> %{customdata[0]:.1f}%"
-                    "<extra></extra>"
-                ),
-            ))
+            # ====================================================
+            # WRAP LABEL MAKSIMAL 2 BARIS
+            # ====================================================
+
+            def wrap_reason_label(label, width=23):
+                label = re.sub(
+                    r"\s+",
+                    " ",
+                    str(label)
+                ).strip()
+
+                lines = textwrap.wrap(
+                    label,
+                    width=width,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+
+                if len(lines) <= 2:
+                    return "<br>".join(lines)
+
+                second_line = " ".join(lines[1:])
+
+                if len(second_line) > width + 5:
+                    second_line = (
+                        second_line[:width + 2]
+                        .rstrip()
+                        + "…"
+                    )
+
+                return lines[0] + "<br>" + second_line
+
+            wrapped_labels = [
+                wrap_reason_label(label)
+                for label in labels
+            ]
+
+            max_count = (
+                int(max(count_values))
+                if len(count_values)
+                else 1
+            )
+
+            # Lebar area plot dipertahankan seperti versi sebelumnya.
+            # Ruang ekstra di sisi kanan hanya dipakai untuk kolom angka.
+            x_limit = max(
+                1.6,
+                max_count * 1.34
+            )
+
+            # Kolom angka dibuat pada posisi tetap di sebelah kanan bar terpanjang.
+            # Dengan cara ini angka tidak akan terpotong meskipun chart berada
+            # dalam kolom yang sempit.
+            label_x = max_count * 1.03
+
+            chart_height = max(
+                315,
+                54 * len(labels) + 65
+            )
+
+            # ====================================================
+            # BAR CHART
+            # ====================================================
+
+            fig = go.Figure(
+                go.Bar(
+                    x=count_values,
+                    y=wrapped_labels,
+                    orientation="h",
+                    marker=dict(color=ORANGE),
+
+                    # Angka tidak lagi memakai text di dalam trace agar
+                    # tidak dipotong oleh batas area Plotly.
+                    text=None,
+
+                    customdata=np.column_stack([
+                        labels,
+                        percentage_values,
+                    ]),
+
+                    hovertemplate=(
+                        "<b>Alasan:</b> %{customdata[0]}<br>"
+                        "<b>Frekuensi dipilih:</b> %{x} kali<br>"
+                        "<b>Persentase responden:</b> "
+                        "%{customdata[1]:.1f}%"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+            # Persentase dibuat sebagai annotation sehingga selalu terbaca.
+            for y_label, pct in zip(
+                wrapped_labels,
+                percentage_values
+            ):
+                fig.add_annotation(
+                    x=label_x,
+                    y=y_label,
+                    text=f"{pct:.1f}%",
+                    showarrow=False,
+                    xanchor="left",
+                    yanchor="middle",
+                    font=dict(
+                        size=10.5,
+                        color="#667085",
+                    ),
+                    align="left",
+                )
+
+            # Sumbu X dibuat sangat ringkas karena chart berada di kolom sempit.
+            # Hanya tampilkan nilai awal dan nilai maksimum agar tidak menumpuk.
+            tickvals = [0, max_count] if max_count > 0 else [0]
+
             fig.update_layout(
-                xaxis=dict(range=[0, max_count * 1.25], title="Frekuensi Dipilih"),
-                yaxis=dict(automargin=True),
-                margin=dict(l=10, r=45, t=10, b=35),
+                xaxis=dict(
+                    range=[0, x_limit],
+                    title=dict(
+                        text="Frekuensi Dipilih",
+                        font=dict(size=11),
+                        standoff=8,
+                    ),
+                    tickmode="array",
+                    tickvals=tickvals,
+                    ticktext=[str(v) for v in tickvals],
+                    tickfont=dict(size=9),
+                    tickangle=0,
+                    automargin=True,
+                    fixedrange=True,
+                    showgrid=False,
+                    zeroline=False,
+                ),
+
+                yaxis=dict(
+                    automargin=True,
+                    tickfont=dict(size=10.5),
+                    fixedrange=True,
+                ),
+
+                # Margin dipertahankan compact sehingga lebar bagan bagian
+                # dalam tetap seperti screenshot yang diinginkan.
+                margin=dict(
+                    l=18,
+                    r=18,
+                    t=8,
+                    b=42,
+                ),
+
                 height=chart_height,
                 showlegend=False,
             )
+
             st.plotly_chart(
                 fig,
                 use_container_width=True,
                 key=key,
-                config={"displayModeBar": False},
+                config={
+                    "displayModeBar": False,
+                    "responsive": True,
+                },
             )
-
-
 
 def render_nps_gauge(value, title, key):
     with st.container(key=f"{key}_nps_chart_card", border=True):
@@ -4572,25 +5584,32 @@ def render_overall_profile_insight(
     df_filtered, df_prof, cols, selected_profile, unit, key_prefix,
     profile_meta_df=None,
 ):
-    """Narasi singkat yang merangkum seluruh chart profil aktif."""
+    """Ringkasan singkat profil pelanggan aktif yang lebih management-friendly."""
+
     if df_prof is None or df_prof.empty:
-        st.info("Insight belum tersedia karena tidak ada responden pada filter ini.")
+        st.info("Ringkasan profil belum tersedia karena tidak ada responden pada filter ini.")
         return
 
     def dominant(column, transform=None):
         if not column or column not in df_prof.columns:
             return None
+
         values = df_prof[column].dropna()
+
         if transform is not None:
             values = values.map(transform)
+
         values = values.astype(str).str.strip()
         values = values[~values.str.lower().isin(["", "nan", "none", "-"])]
+
         if values.empty:
             return None
+
         counts = values.value_counts()
         label = str(counts.index[0])
         count = int(counts.iloc[0])
-        return label, count, count / len(values) * 100
+        pct = count / len(values) * 100
+        return label, count, pct
 
     def short_label(value, max_length=58):
         value = re.sub(r"\s+", " ", str(value)).strip()
@@ -4599,6 +5618,7 @@ def render_overall_profile_insight(
     def retention_text(value):
         text = str(value).strip()
         numeric = pd.to_numeric(text.replace(",", "."), errors="coerce")
+
         labels = {
             5: "sangat mungkin membeli kembali",
             4: "mungkin membeli kembali",
@@ -4606,59 +5626,64 @@ def render_overall_profile_insight(
             2: "kurang mungkin membeli kembali",
             1: "sangat tidak mungkin membeli kembali",
         }
+
         if pd.notna(numeric):
             score = int(round(float(numeric)))
             if score in labels:
                 return labels[score]
+
         return text.lower() if text else text
 
     def motor_group(value):
-        raw = str(value).strip()
-        norm = re.sub(r"[^a-z0-9]+", " ", raw.lower()).strip()
-        if re.search(r"\bbeat\b", norm):
-            return "Beat Series"
-        if re.search(r"\bpcx\b", norm):
-            return "PCX Series"
-        return raw
+        return canonical_motor(value)
 
-    def top_reason(column):
+    def nps_value(column):
         if not column or column not in df_prof.columns:
             return None
-        reasons = []
-        for value in df_prof[column].dropna():
-            for reason in str(value).split(";"):
-                reason = re.sub(r"\s+", " ", reason).strip(" ;,.-")
-                if reason and reason.lower() not in {"nan", "none", "-"}:
-                    reasons.append(reason)
-        if not reasons:
-            return None
-        normalized = pd.Series(reasons).str.casefold()
-        winner = normalized.value_counts().index[0]
-        return next(reason for reason in reasons if reason.casefold() == winner)
+        return compute_nps(df_prof[column])
 
-    def nps_summary(column, label):
-        if not column or column not in df_prof.columns:
-            return None
-        value = compute_nps(df_prof[column])
-        return f"{label} {value:.1f}" if value is not None else None
+    ses_ranges = {
+        "A": "> Rp6 juta",
+        "A1": "> Rp6 juta",
+        "A2": "Rp4–6 juta",
+        "B": "Rp2,5–4 juta",
+        "C1": "Rp1,75–2,5 juta",
+        "C2": "Rp1,25–1,75 juta",
+        "D": "Rp0,9–1,25 juta",
+        "E": "≤ Rp0,9 juta",
+    }
 
     total_filtered = len(df_filtered) if df_filtered is not None else 0
     profile_count = len(df_prof)
     profile_pct = profile_count / total_filtered * 100 if total_filtered else 0
+
     profile_number = str(selected_profile or "").replace("P", "").strip()
     profile_name = f"Profil {profile_number}"
 
-    # Nama profil wajib mengikuti metadata unit aktif, bukan konstanta bawaan.
     if profile_meta_df is not None and not profile_meta_df.empty:
-        meta_profile_col = find_col(profile_meta_df, ["Profile", "Profil", "Code", "No"])
-        meta_name_col = find_col(profile_meta_df, ["Profile Name", "Nama Profil", "Profile_Name"])
+        meta_profile_col = find_col(
+            profile_meta_df,
+            ["Profile", "Profil", "Code", "No"]
+        )
+
+        meta_name_col = find_col(
+            profile_meta_df,
+            ["Profile Name", "Nama Profil", "Profile_Name", "nama", "name"]
+        )
+
         if meta_profile_col and meta_name_col:
-            for _, meta_row in profile_meta_df[[meta_profile_col, meta_name_col]].iterrows():
+            for _, meta_row in profile_meta_df[
+                [meta_profile_col, meta_name_col]
+            ].iterrows():
+
                 raw_code = str(meta_row[meta_profile_col]).strip()
                 code_match = re.search(r"(\d+)", raw_code)
+
                 if not code_match or code_match.group(1) != profile_number:
                     continue
+
                 raw_name = str(meta_row[meta_name_col]).strip()
+
                 if raw_name and raw_name.lower() not in {"nan", "none", "-"}:
                     profile_name = raw_name
                     break
@@ -4668,113 +5693,304 @@ def render_overall_profile_insight(
     motor = dominant(cols.get("motor_type"), motor_group)
     ses = dominant(cols.get("ses"))
 
-    demographic_parts = []
-    if gender:
-        demographic_parts.append(f"{short_label(gender[0]).lower()} ({gender[2]:.1f}%)")
-    if age:
-        demographic_parts.append(f"berusia {short_label(age[0])} ({age[2]:.1f}%)")
-    if motor:
-        demographic_parts.append(f"menggunakan {short_label(motor[0])} ({motor[2]:.1f}%)")
-
     sentence_1 = (
-        f"Pada cakupan yang dipilih, <b>Profil {profile_number} – {html.escape(profile_name)}</b> "
-        f"terdiri dari <b>{profile_count:,} responden</b> atau <b>{profile_pct:.1f}%</b> dari total pelanggan."
+        f"<b>Profil {profile_number} – {html.escape(profile_name)}</b> "
+        f"mencakup <b>{profile_pct:.1f}%</b> dari total pelanggan "
+        f"pada filter yang dipilih."
     )
+
+    demographic_parts = []
+
+    if gender:
+        demographic_parts.append(
+            f"{short_label(gender[0]).lower()} ({gender[2]:.1f}%)"
+        )
+
+    if age:
+        demographic_parts.append(
+            f"kelompok usia {short_label(age[0])} ({age[2]:.1f}%)"
+        )
+
+    if motor:
+        demographic_parts.append(
+            f"pengguna {short_label(motor[0])} ({motor[2]:.1f}%)"
+        )
 
     sentence_2 = ""
+
     if demographic_parts:
-        sentence_2 = "Segmen ini terutama terdiri dari " + ", ".join(
-            html.escape(x) for x in demographic_parts
-        ) + "."
+        if len(demographic_parts) == 1:
+            demo_text = demographic_parts[0]
+        elif len(demographic_parts) == 2:
+            demo_text = " dan ".join(demographic_parts)
+        else:
+            demo_text = ", ".join(demographic_parts[:-1]) + ", dan " + demographic_parts[-1]
+
+        sentence_2 = (
+            "Profil ini didominasi oleh "
+            + html.escape(demo_text)
+            + "."
+        )
 
     behavior_parts = []
+
     if ses:
-        behavior_parts.append(f"berada pada SES {short_label(ses[0])} ({ses[2]:.1f}%)")
+        ses_code = short_label(ses[0]).upper().strip()
+        ses_range = ses_ranges.get(ses_code)
+
+        if ses_range:
+            behavior_parts.append(
+                f"SES {ses_code} ({ses_range}) sebesar {ses[2]:.1f}%"
+            )
+        else:
+            behavior_parts.append(
+                f"SES {ses_code} sebesar {ses[2]:.1f}%"
+            )
+
     if unit == "sales":
         payment = dominant(cols.get("payment"))
-        period = dominant(_find_exact_data_col(df_prof, "Period"))
         showroom = dominant(_find_exact_data_col(df_prof, "Showroom"))
-        retention = dominant(cols.get("retention"), retention_text)
+
         if payment:
-            behavior_parts.append(f"menggunakan pembayaran {short_label(payment[0]).lower()} ({payment[2]:.1f}%)")
-        if period:
-            behavior_parts.append(f"merencanakan pembelian berikutnya dalam {short_label(period[0]).lower()} ({period[2]:.1f}%)")
+            behavior_parts.append(
+                f"menggunakan pembayaran {short_label(payment[0]).lower()} "
+                f"({payment[2]:.1f}%)"
+            )
+
         if showroom:
-            behavior_parts.append(f"memilih {short_label(showroom[0])} sebagai lokasi pembelian berikutnya ({showroom[2]:.1f}%)")
-        if retention:
-            behavior_parts.append(f"{short_label(retention[0])} ({retention[2]:.1f}%)")
+            behavior_parts.append(
+                f"memilih {short_label(showroom[0])} sebagai lokasi "
+                f"pembelian berikutnya ({showroom[2]:.1f}%)"
+            )
+
     elif unit == "service":
-        frequency = dominant(_find_exact_data_col(df_prof, "Frequency Visit to AHASS"))
-        retention_unit = dominant(_find_exact_data_col(df_prof, "Retention Unit"), retention_text)
-        retention_service = dominant(_find_exact_data_col(df_prof, "Retention Service"), retention_text)
+        frequency = dominant(
+            _find_exact_data_col(
+                df_prof,
+                "Frequency Visit to AHASS"
+            )
+        )
+
         if frequency:
-            behavior_parts.append(f"paling sering mengunjungi AHASS {short_label(frequency[0]).lower()} ({frequency[2]:.1f}%)")
-        if retention_unit:
-            behavior_parts.append(f"untuk unit, {short_label(retention_unit[0])} ({retention_unit[2]:.1f}%)")
-        if retention_service:
-            behavior_parts.append(f"untuk layanan, {short_label(retention_service[0])} ({retention_service[2]:.1f}%)")
+            behavior_parts.append(
+                f"memiliki pola kunjungan AHASS "
+                f"{short_label(frequency[0]).lower()} "
+                f"({frequency[2]:.1f}%)"
+            )
+
     else:
-        future_part = dominant(_find_exact_data_col(df_prof, "Future Purchase Part"))
-        retention_unit = dominant(_find_exact_data_col(df_prof, "Retention Unit"), retention_text)
-        retention_part = dominant(_find_exact_data_col(df_prof, "Retention Part"), retention_text)
+        future_part = dominant(
+            _find_exact_data_col(
+                df_prof,
+                "Future Purchase Part"
+            )
+        )
+
         if future_part:
-            behavior_parts.append(f"memilih {short_label(future_part[0])} untuk pembelian part berikutnya ({future_part[2]:.1f}%)")
-        if retention_unit:
-            behavior_parts.append(f"untuk unit, {short_label(retention_unit[0])} ({retention_unit[2]:.1f}%)")
-        if retention_part:
-            behavior_parts.append(f"untuk part, {short_label(retention_part[0])} ({retention_part[2]:.1f}%)")
-
-    if behavior_parts:
-        behavior_sentence = "Dari sisi perilaku, mayoritas pelanggan " + ", ".join(
-            html.escape(x) for x in behavior_parts
-        ) + "."
-        sentence_2 = (sentence_2 + " " + behavior_sentence).strip()
-
-    nps_items = [
-        nps_summary(cols.get("nps_unit"), "NPS Unit"),
-        nps_summary(cols.get("nps_dealer"), "NPS Dealer" if unit == "sales" else ("NPS AHASS" if unit == "service" else "NPS Part")),
-    ]
-    nps_items = [item for item in nps_items if item]
-    if unit == "sales":
-        reasons = [
-            ("unit", top_reason(_find_exact_data_col(df_prof, "Reasons_Unit"))),
-            ("dealer", top_reason(_find_exact_data_col(df_prof, "Reasons_Dealer"))),
-        ]
-    elif unit == "service":
-        reasons = [
-            ("unit", top_reason(_find_exact_data_col(df_prof, "Reasons NPS.1"))),
-            ("AHASS", top_reason(_find_exact_data_col(df_prof, "Reasons NPS"))),
-        ]
-    else:
-        reasons = [
-            ("unit", top_reason(_find_exact_data_col(df_prof, "Reasons NPS.1"))),
-            ("part", top_reason(_find_exact_data_col(df_prof, "Reasons NPS"))),
-        ]
-    reasons = [(label, value) for label, value in reasons if value]
+            behavior_parts.append(
+                f"memilih {short_label(future_part[0])} "
+                f"untuk pembelian part berikutnya "
+                f"({future_part[2]:.1f}%)"
+            )
 
     sentence_3 = ""
-    if nps_items:
-        sentence_3 = "Tingkat loyalitas pelanggan tercermin dari " + " dan ".join(html.escape(x) for x in nps_items)
-        if reasons:
-            reason_text = " dan ".join(
-                f'{label} “{html.escape(short_label(value, 42))}”'
-                for label, value in reasons
-            )
-            sentence_3 += f"; faktor yang paling sering mendasari penilaian tersebut adalah {reason_text}"
-        sentence_3 += "."
 
-    narrative = " ".join(part for part in [sentence_1, sentence_2, sentence_3] if part)
-    st.markdown(
-        f"""
-        <div style="width:100%;box-sizing:border-box;margin:14px 0 4px;padding:14px 16px;background:linear-gradient(135deg,#FFF7F2,#FFFFFF);border:1px solid #FFD7BF;border-left:4px solid #FF6B00;border-radius:10px;color:#3F3F46;font-size:13px;line-height:1.65;">
-            <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:#C8102E;text-transform:uppercase;margin-bottom:5px;">Ringkasan Profil</div>
-            {narrative}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    if behavior_parts:
+        if len(behavior_parts) == 1:
+            behavior_text = behavior_parts[0]
+        elif len(behavior_parts) == 2:
+            behavior_text = " dan ".join(behavior_parts)
+        else:
+            behavior_text = ", ".join(behavior_parts[:-1]) + ", dan " + behavior_parts[-1]
+
+        sentence_3 = (
+            "Dari sisi ekonomi dan perilaku, mayoritas pelanggan berada pada "
+            + html.escape(behavior_text)
+            + "."
+        )
+
+    # RETENSI DIPISAH MENJADI KALIMAT TERSENDIRI
+    retention_parts = []
+
+    if unit == "sales":
+        retention = dominant(
+            cols.get("retention"),
+            retention_text
+        )
+
+        if retention:
+            retention_parts.append(
+                f"<b>{html.escape(short_label(retention[0]))}</b> "
+                f"sebesar <b>{retention[2]:.1f}%</b>"
+            )
+
+    elif unit == "service":
+        retention_unit = dominant(
+            _find_exact_data_col(
+                df_prof,
+                "Retention Unit"
+            ),
+            retention_text
+        )
+
+        retention_service = dominant(
+            _find_exact_data_col(
+                df_prof,
+                "Retention Service"
+            ),
+            retention_text
+        )
+
+        if retention_unit:
+            retention_parts.append(
+                f"untuk pembelian unit, <b>{html.escape(short_label(retention_unit[0]))}</b> "
+                f"sebesar <b>{retention_unit[2]:.1f}%</b>"
+            )
+
+        if retention_service:
+            retention_parts.append(
+                f"untuk layanan AHASS, <b>{html.escape(short_label(retention_service[0]))}</b> "
+                f"sebesar <b>{retention_service[2]:.1f}%</b>"
+            )
+
+    else:
+        retention_unit = dominant(
+            _find_exact_data_col(
+                df_prof,
+                "Retention Unit"
+            ),
+            retention_text
+        )
+
+        retention_part = dominant(
+            _find_exact_data_col(
+                df_prof,
+                "Retention Part"
+            ),
+            retention_text
+        )
+
+        if retention_unit:
+            retention_parts.append(
+                f"untuk pembelian unit, <b>{html.escape(short_label(retention_unit[0]))}</b> "
+                f"sebesar <b>{retention_unit[2]:.1f}%</b>"
+            )
+
+        if retention_part:
+            retention_parts.append(
+                f"untuk pembelian part, <b>{html.escape(short_label(retention_part[0]))}</b> "
+                f"sebesar <b>{retention_part[2]:.1f}%</b>"
+            )
+
+    sentence_4 = ""
+
+    if retention_parts:
+        retention_text_summary = (
+            retention_parts[0]
+            if len(retention_parts) == 1
+            else " dan ".join(retention_parts)
+        )
+
+        sentence_4 = (
+            "Dari sisi retensi, mayoritas pelanggan menunjukkan kecenderungan "
+            "untuk kembali menggunakan produk atau layanan Honda; "
+            + retention_text_summary
+            + "."
+        )
+
+    nps_unit_score = nps_value(cols.get("nps_unit"))
+    nps_dealer_score = nps_value(cols.get("nps_dealer"))
+
+    nps_parts = []
+
+    if nps_unit_score is not None:
+        nps_parts.append(
+            f"NPS Unit <b>{nps_unit_score:.1f}</b>"
+        )
+
+    if nps_dealer_score is not None:
+        if unit == "sales":
+            nps_label = "NPS Dealer"
+        elif unit == "service":
+            nps_label = "NPS AHASS"
+        else:
+            nps_label = "NPS Part"
+
+        nps_parts.append(
+            f"{nps_label} <b>{nps_dealer_score:.1f}</b>"
+        )
+
+    sentence_5 = ""
+
+    if nps_parts:
+        valid_scores = [
+            score
+            for score in [nps_unit_score, nps_dealer_score]
+            if score is not None
+        ]
+
+        avg_nps = np.mean(valid_scores) if valid_scores else None
+
+        if avg_nps is not None:
+            if avg_nps >= 85:
+                loyalty_label = "sangat baik"
+            elif avg_nps >= 70:
+                loyalty_label = "baik"
+            elif avg_nps >= 50:
+                loyalty_label = "cukup baik"
+            else:
+                loyalty_label = "masih perlu diperkuat"
+
+            sentence_5 = (
+                "Nilai "
+                + " dan ".join(nps_parts)
+                + " menunjukkan tingkat loyalitas pelanggan yang "
+                f"<b>{loyalty_label}</b>."
+            )
+
+    narrative = " ".join(
+        part
+        for part in [
+            sentence_1,
+            sentence_2,
+            sentence_3,
+            sentence_4,
+            sentence_5,
+        ]
+        if part
     )
 
+    summary_html = (
+        '<div style="'
+        'width:100%;'
+        'box-sizing:border-box;'
+        'margin:14px 0 4px;'
+        'padding:14px 16px;'
+        'background:linear-gradient(135deg,#FFF7F2,#FFFFFF);'
+        'border:1px solid #FFD7BF;'
+        'border-left:4px solid #FF6B00;'
+        'border-radius:10px;'
+        'color:#3F3F46;'
+        'font-size:13px;'
+        'line-height:1.65;'
+        '">'
+        '<div style="'
+        'font-size:11px;'
+        'font-weight:800;'
+        'letter-spacing:.5px;'
+        'color:#C8102E;'
+        'text-transform:uppercase;'
+        'margin-bottom:5px;'
+        '">Ringkasan Profil</div>'
+        f'<div>{narrative}</div>'
+        '</div>'
+    )
 
+    st.markdown(
+        summary_html,
+        unsafe_allow_html=True,
+    )
+    
 def render_demographic_charts(
     df_filtered, cols, dealer_label, key_prefix,
     selected_profile=None, unit_key=None,
@@ -4842,11 +6058,13 @@ def render_demographic_charts(
             _stacked_pct(
                 df_prof, period_col, "Next Purchase Period",
                 key=f"{key_prefix}_purchase_period",
+                is_purchase_period=True,
             )
         with r3c2:
             _stacked_pct(
                 df_prof, showroom_col, "Next Purchase Location",
                 key=f"{key_prefix}_showroom",
+                is_purchase_location=True,
             )
 
         # Baris paling bawah dibuat compact dalam 4 kolom:
@@ -4987,6 +6205,313 @@ def render_demographic_charts(
                 key=f"{key_prefix}_reason_parts",
             )
 
+
+
+def render_top_bottom_dealer_satisfaction(
+    df_profile,
+    cols,
+    indicator_cols,
+    unit_key,
+    key_prefix,
+    filters=None,
+):
+    """
+    Menampilkan Top 5 dan Bottom 5 dealer/unit berdasarkan Satisfaction
+    untuk filter aktif sampai level Karesidenan. Ranking tidak mengikuti
+    filter Customer Profile, Kabupaten/Kota, atau Dealer tertentu.
+
+    Satisfaction dihitung konsisten dengan dashboard:
+    rata-rata skor indikator / 5 * 100%.
+
+    Ranking hanya ditampilkan ketika filter Kabupaten/Kota = Semua.
+    Data dihitung langsung dari dataframe aktif, sehingga daftar Top/Bottom 5
+    otomatis menyesuaikan saat sumber data atau filter lain berubah.
+    """
+
+    # Ranking Top 5 / Bottom 5 hanya berlaku sampai level Karesidenan.
+    # Jika pengguna sudah memilih Kab/Kota atau Dealer tertentu,
+    # ranking tidak ditampilkan karena scope sudah terlalu spesifik.
+    if filters is not None:
+        kab_selected = filters.get("kab_kota") not in (None, "Semua", "")
+        dealer_selected = filters.get("dealer") not in (None, "Semua", "")
+
+        if kab_selected or dealer_selected:
+            return
+
+    if df_profile is None or df_profile.empty:
+        st.info("Data dealer tidak tersedia untuk filter yang dipilih.")
+        return
+
+    dealer_code_col = cols.get("dealer_code") if cols else None
+
+    if not dealer_code_col or dealer_code_col not in df_profile.columns:
+        st.info("Kolom kode dealer tidak ditemukan.")
+        return
+
+    # Deteksi nama unit sesuai H1/H2/H3
+    unit = str(unit_key).strip().lower()
+
+    if unit == "sales":
+        dealer_name_col = find_col(
+            df_profile,
+            ["Dealer Name", "Name of Dealer", "Nama Dealer", "Dealer"]
+        )
+        entity_label = "Dealer"
+
+    elif unit == "service":
+        dealer_name_col = find_col(
+            df_profile,
+            ["AHASS Name", "Name of AHASS", "Nama AHASS", "AHASS"]
+        )
+        entity_label = "AHASS"
+
+    else:
+        dealer_name_col = find_col(
+            df_profile,
+            [
+                "Parts Shop Name", "Part Shop Name", "Name of Parts Shop",
+                "Nama Parts Shop", "Parts Shop", "Part Shop"
+            ]
+        )
+        entity_label = "Part Shop"
+
+    # Gunakan hanya indikator yang memang masuk perhitungan dashboard
+    valid_indicators = [
+        col for col in indicator_cols
+        if col in df_profile.columns
+    ]
+
+    if not valid_indicators:
+        st.info("Indikator satisfaction tidak tersedia.")
+        return
+
+    df_rank = df_profile.copy()
+
+    numeric_indicator = df_rank[valid_indicators].apply(
+        pd.to_numeric,
+        errors="coerce"
+    )
+
+    # Satisfaction per responden dalam persen
+    df_rank["_satisfaction_pct"] = (
+        numeric_indicator.mean(axis=1) / 5 * 100
+    )
+
+    # Label display: Nama Unit (Kode)
+    if dealer_name_col and dealer_name_col in df_rank.columns:
+        df_rank["_dealer_name"] = (
+            df_rank[dealer_name_col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        df_rank["_dealer_code"] = (
+            df_rank[dealer_code_col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        df_rank["_dealer_name"] = (
+            df_rank[dealer_code_col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        df_rank["_dealer_code"] = df_rank["_dealer_name"]
+
+    df_rank = df_rank[df_rank["_dealer_code"].ne("")].copy()
+
+    if df_rank.empty:
+        st.info("Data dealer tidak tersedia.")
+        return
+
+    dealer_summary = (
+        df_rank
+        .groupby(["_dealer_code", "_dealer_name"], dropna=False)
+        .agg(
+            Satisfaction=("_satisfaction_pct", "mean"),
+            Jumlah_Responden=("_satisfaction_pct", "count"),
+        )
+        .reset_index()
+    )
+
+    dealer_summary = dealer_summary[
+        dealer_summary["Satisfaction"].notna()
+    ].copy()
+
+    if dealer_summary.empty:
+        st.info("Nilai satisfaction dealer tidak tersedia.")
+        return
+
+    def make_dealer_label(row):
+        name = str(row["_dealer_name"]).strip()
+        code = str(row["_dealer_code"]).strip()
+
+        if not name or name.lower() in {"nan", "none"}:
+            return code
+        if name == code:
+            return name
+        return f"{name} ({code})"
+
+    dealer_summary["Dealer_Label"] = dealer_summary.apply(
+        make_dealer_label,
+        axis=1
+    )
+
+    top_5 = (
+        dealer_summary
+        .sort_values(
+            ["Satisfaction", "Jumlah_Responden"],
+            ascending=[False, False]
+        )
+        .head(5)
+        .reset_index(drop=True)
+    )
+
+    bottom_5 = (
+        dealer_summary
+        .sort_values(
+            ["Satisfaction", "Jumlah_Responden"],
+            ascending=[True, False]
+        )
+        .head(5)
+        .reset_index(drop=True)
+    )
+
+    # Style mengikuti palette dashboard saat ini: merah, orange, putih
+    st.markdown(
+        """
+        <style>
+        .dealer-ranking-card {
+        background: #FFFFFF !important;
+
+       /* Outline masing-masing card dibuat terlihat */
+        border: 1.5px solid #D9DDE3 !important;
+
+        border-radius: 12px !important;
+
+        padding: 0 !important;
+
+        overflow: hidden !important;
+
+        box-shadow:
+            0 2px 7px rgba(38, 38, 38, 0.07) !important;
+        margin: 0 !important;
+    }
+
+        .dealer-ranking-title {
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #262626;
+            border-bottom: 1px solid #F0F1F3;
+            background: #FFFFFF;
+        }
+
+        .dealer-ranking-title-high {
+            border-left: 4px solid #FF6B00;
+        }
+
+        .dealer-ranking-title-low {
+            border-left: 4px solid #E60012;
+        }
+
+        .dealer-ranking-row {
+            min-height: 42px;
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-bottom: 1px dashed #E7E9EC;
+        }
+
+        .dealer-ranking-row:last-child {
+            border-bottom: none;
+        }
+
+        .dealer-rank {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #C8102E;
+        }
+
+        .dealer-rank {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #D75B00;
+        }
+
+        .dealer-rank-low {
+            color: #C8102E;
+        }
+
+        .dealer-ranking-value {
+            font-size: 12px;
+            font-weight: 800;
+            color: #D75B00;
+            white-space: nowrap;
+        }
+
+        .dealer-ranking-value-low {
+            color: #C8102E;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def build_ranking_html(data, lowest=False):
+        rows = []
+
+        for i, row in data.iterrows():
+            rank_class = (
+                "dealer-rank dealer-rank-low"
+                if lowest else "dealer-rank"
+            )
+            value_class = (
+                "dealer-ranking-value dealer-ranking-value-low"
+                if lowest else "dealer-ranking-value"
+            )
+
+            dealer_text = html.escape(str(row["Dealer_Label"]))
+            satisfaction = float(row["Satisfaction"])
+
+            rows.append(
+                f'<div class="dealer-ranking-row">'
+                f'<div class="{rank_class}">#{i + 1}</div>'
+                f'<div class="dealer-ranking-name" title="{dealer_text}">{dealer_text}</div>'
+                f'<div class="{value_class}">{satisfaction:.1f}%</div>'
+                f'</div>'
+            )
+
+        return "".join(rows)
+
+    c_high, c_low = st.columns(2, gap="small")
+    with c_high:
+        top_html = build_ranking_html(top_5, lowest=False)
+        st.html(
+            f'<div class="dealer-ranking-card">'
+            f'<div class="dealer-ranking-title dealer-ranking-title-high">'
+            f'5 {entity_label} dengan Satisfaction Tertinggi'
+            f'</div>'
+            f'{top_html}'
+            f'</div>'
+        )
+
+    with c_low:
+        bottom_html = build_ranking_html(bottom_5, lowest=True)
+        st.html(
+            f'<div class="dealer-ranking-card">'
+            f'<div class="dealer-ranking-title dealer-ranking-title-low">'
+            f'5 {entity_label} dengan Satisfaction Terendah'
+            f'</div>'
+            f'{bottom_html}'
+            f'</div>'
+        )
+
+
 # ============================================================
 # UNIT PAGE
 # ============================================================
@@ -5054,7 +6579,7 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
             unsafe_allow_html=True,
         )
         r1_col1, r1_col2, r1_col3 = st.columns(
-            [2.1, 1, 1.3],
+            [1, 1, 1],
             gap="medium",
             vertical_alignment="top",
         )
@@ -5146,6 +6671,7 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
         )
 
 
+
 # ============================================================
 # REGION / PROFIL WILAYAH (CLUSTER BPS & KELOMPOK BUDAYA)
 # Gaya visual (warna, kartu KPI, chart-card) disamakan dengan
@@ -5172,6 +6698,135 @@ RW_PROFILE_ORDER = [1, 2, 3, 4, 5]
 # yang sudah dipakai pada page H1/H2/H3 agar konsisten satu dashboard.
 RW_PROFILE_COLORS = {1: RED, 2: ORANGE, 3: YELLOW, 4: "#9CCC65", 5: GREEN}
 RW_CLUSTER_PROFILE_COLORS = {f"Profile {p}": RW_PROFILE_COLORS[p] for p in RW_PROFILE_ORDER}
+
+
+# Dasar pembentukan profil wilayah mengikuti notebook Clustering_wilayah_BPS:
+# K-Means pada 10 variabel yang sudah distandardisasi dengan Z-Score.
+RW_CLUSTERING_VARIABLES = [
+    ("Kepadatan penduduk", "Jumlah penduduk dibagi luas wilayah."),
+    ("Proporsi usia produktif", "Penduduk usia produktif dibanding total penduduk."),
+    ("Motor per 1.000 penduduk", "Populasi sepeda motor per 1.000 penduduk."),
+    ("Mobil per 1.000 penduduk", "Populasi mobil per 1.000 penduduk."),
+    ("PDRB per kapita", "Total PDRB sembilan sektor dibanding jumlah penduduk."),
+    ("Proporsi sektor primer", "PDRB pertanian + pertambangan dibanding total PDRB."),
+    ("Proporsi sektor sekunder", "PDRB manufaktur + listrik + konstruksi dibanding total PDRB."),
+    ("UMK", "Upah Minimum Kabupaten/Kota."),
+    ("Persentase penduduk miskin", "Persentase penduduk miskin BPS."),
+    ("TPT", "Tingkat Pengangguran Terbuka."),
+]
+
+RW_CLUSTER_EXPLANATIONS = {
+    "Metropolitan Ekonomi Tinggi": {
+        "description": (
+            "Cluster ini diberi nama Metropolitan Ekonomi Tinggi karena pada notebook, "
+            "cluster metropolitan dipilih dari skor gabungan yang tinggi pada kepadatan penduduk, "
+            "PDRB per kapita, UMK, dan motor per 1.000 penduduk, serta relatif rendah pada "
+            "persentase penduduk miskin."
+        ),
+        "basis": (
+            "Skor penamaan = z(kepadatan) + z(PDRB per kapita) + z(UMK) + "
+            "z(motor/1.000 penduduk) − z(kemiskinan)."
+        ),
+    },
+    "Industri Berupah Tinggi": {
+        "description": (
+            "Setelah cluster metropolitan ditetapkan, cluster industri dipilih dari cluster "
+            "yang tersisa berdasarkan dominasi sektor sekunder, UMK yang relatif tinggi, "
+            "TPT, serta proporsi sektor primer yang relatif lebih rendah."
+        ),
+        "basis": (
+            "Skor penamaan = z(proporsi sektor sekunder) + 0,50×z(UMK) + "
+            "0,30×z(TPT) − 0,30×z(proporsi sektor primer)."
+        ),
+    },
+    "Nonmetropolitan Berbasis Primer": {
+        "description": (
+            "Cluster ini merupakan cluster yang tersisa setelah cluster Metropolitan Ekonomi Tinggi "
+            "dan Industri Berupah Tinggi teridentifikasi. Penamaannya merepresentasikan karakter "
+            "yang relatif lebih nonmetropolitan dan lebih berbasis sektor primer dibanding dua "
+            "cluster lainnya."
+        ),
+        "basis": (
+            "Label ditentukan secara residual pada tahap penamaan cluster setelah dua cluster "
+            "utama diidentifikasi dari profil rata-rata Z-Score."
+        ),
+    },
+}
+
+RW_CULTURE_INFO = {
+    "arek": {
+        "description": "Budaya urban-pesisir, egaliter, dan lugas.",
+        "character": "Terbuka, berani, spontan, egaliter, dan guyub.",
+    },
+    "mataraman": {
+        "description": "Dipengaruhi budaya Jawa pedalaman/Mataram.",
+        "character": "Halus, santun, menghormati tata krama, dan menjaga harmoni.",
+    },
+    "pendalungan": {
+        "description": "Percampuran budaya Jawa dan Madura.",
+        "character": "Adaptif, terbuka, pekerja keras, dan multikultural.",
+    },
+    "madura": {
+        "description": "Budaya Madura dengan bahasa, tradisi, dan ikatan kekerabatan yang kuat.",
+        "character": "Tegas, berani, pekerja keras, menjunjung harga diri dan solidaritas.",
+    },
+    "using": {
+        "description": "Budaya asli Banyuwangi dengan bahasa dan kesenian khas.",
+        "character": "Memegang tradisi, ekspresif, kuat dalam seni dan identitas lokal.",
+    },
+    "tengger": {
+        "description": "Masyarakat Tengger dengan tradisi dan adat khas pegunungan.",
+        "character": "Komunal, menjaga adat, gotong royong, dan kuat pada tradisi.",
+    },
+    "ntt": {
+        "description": "Sangat beragam, termasuk Timor, Flores, Sumba, Rote, Alor, Sabu, dan lainnya.",
+        "character": "Komunal, kekeluargaan, kuat pada adat, solidaritas, dan penghormatan terhadap leluhur.",
+    },
+}
+
+
+def rw_culture_info(culture_name: str) -> dict:
+    key = re.sub(r"[^a-z]", "", str(culture_name or "").lower())
+    if "arek" in key:
+        return RW_CULTURE_INFO["arek"]
+    if "mataram" in key:
+        return RW_CULTURE_INFO["mataraman"]
+    if "pendalungan" in key or "pendhalungan" in key or "pendaulungan" in key:
+        return RW_CULTURE_INFO["pendalungan"]
+    if "madura" in key:
+        return RW_CULTURE_INFO["madura"]
+    if "using" in key or "osing" in key:
+        return RW_CULTURE_INFO["using"]
+    if "tengger" in key:
+        return RW_CULTURE_INFO["tengger"]
+    if key == "ntt" or "nusatenggaratimur" in key:
+        return RW_CULTURE_INFO["ntt"]
+    return {
+        "description": "Penjelasan budaya belum tersedia.",
+        "character": "Karakter umum belum tersedia.",
+    }
+
+
+def rw_render_clustering_methodology():
+    """Penjelasan variabel clustering sesuai notebook BPS yang digunakan."""
+    with st.expander("**Dasar Pembentukan Profile Wilayah**", expanded=True):
+        st.markdown(
+            "Profile wilayah dibentuk menggunakan **K-Means (k=3)** setelah seluruh "
+            "variabel distandardisasi menggunakan **Z-Score**. Kelompok budaya **bukan** "
+            "variabel pembentuk K-Means; budaya digunakan sebagai konteks tambahan setelah "
+            "hasil cluster wilayah terbentuk."
+        )
+        variable_html = "".join(
+            f'<div style="margin:4px 0;"><b>{html.escape(name)}</b> — {html.escape(desc)}</div>'
+            for name, desc in RW_CLUSTERING_VARIABLES
+        )
+        st.markdown(
+            '<div style="font-size:12.5px;line-height:1.55;color:#475569;">'
+            '<div style="font-weight:800;margin-bottom:6px;color:#262626;">Variabel pembentuk cluster</div>'
+            + variable_html
+            + '</div>',
+            unsafe_allow_html=True,
+        )
 
 # Alias disesuaikan dengan bentuk nama wilayah pada file cluster BPS.
 # Tambahkan alias baru di sini apabila nama pada data CSL berbeda.
@@ -5630,6 +7285,7 @@ def rw_create_region_stacked_bar(data: pd.DataFrame, profile_name_map: dict) -> 
         xaxis_title="Persentase Responden",
         yaxis_title=None,
         xaxis=dict(range=[0, 100], ticksuffix="%"),
+        yaxis=dict(autorange="reversed"),
         legend_title="Customer Profile",
         margin=dict(l=10, r=10, t=20, b=10),
         height=max(420, len(data) * 32),
@@ -5738,9 +7394,10 @@ def rw_create_culture_dominant_chart(region_summary: pd.DataFrame, culture_df: p
     return figure
 
 
+
 def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
-    """Keterangan daftar wilayah per Cluster Wilayah (BPS), gaya kotak disamakan dashboard."""
-    with st.expander("**Keterangan Anggota Wilayah per Cluster BPS**", expanded=True):
+    """Nama cluster, alasan penamaan, dan anggota wilayah."""
+    with st.expander("**Keterangan Profile/Cluster Wilayah (BPS)**", expanded=True):
         if cluster_df.empty:
             st.info("Data cluster BPS tidak tersedia.")
             return
@@ -5752,25 +7409,42 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
             regions = sorted(group[RW_CLUSTER_REGION_COLUMN].dropna().unique().tolist())
             region_count = len(regions)
             region_str = ", ".join(regions)
+            info = RW_CLUSTER_EXPLANATIONS.get(str(c_name).strip(), {})
+            description = info.get(
+                "description",
+                "Penjelasan penamaan cluster belum tersedia untuk profile ini.",
+            )
+            basis = info.get("basis", "Dasar penamaan belum tersedia.")
+
             st.markdown(
                 f"""
                 <div class="region-detail-box">
-                    <div class="region-detail-title">Cluster {c_num} – {c_name}
+                    <div class="region-detail-title">Cluster {c_num} – {html.escape(str(c_name))}
                         <span class="region-detail-count">({region_count} Wilayah)</span>
                     </div>
-                    <div class="region-detail-body">{region_str}</div>
+                    <div class="region-detail-body">
+                        <div style="font-style:italic;margin:5px 0 7px;color:#5F6368;">{html.escape(description)}</div>
+                        <div style="margin-bottom:6px;"><b>Dasar penamaan:</b> {html.escape(basis)}</div>
+                        <div><b>Daerah:</b> {html.escape(region_str)}</div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
 
+
 def rw_render_culture_region_details(culture_df: pd.DataFrame):
-    """Keterangan daftar wilayah per Kelompok Budaya, gaya kotak disamakan dashboard."""
-    with st.expander("**Keterangan Anggota Wilayah per Kelompok Budaya**", expanded=True):
+    """Nama kelompok budaya, deskripsi italic, karakter, dan daerah anggota."""
+    with st.expander("**Keterangan Kelompok Budaya**", expanded=True):
         if culture_df.empty:
             st.info("Data pengelompokkan budaya tidak tersedia.")
             return
+
+        st.caption(
+            "Kelompok budaya digunakan sebagai konteks interpretasi wilayah dan tidak menjadi "
+            "variabel pembentuk K-Means pada clustering BPS."
+        )
 
         if "Cluster_Budaya" in culture_df.columns:
             culture_order = (
@@ -5795,14 +7469,19 @@ def rw_render_culture_region_details(culture_df: pd.DataFrame):
                 else None
             )
             cluster_prefix = f"Cluster Budaya {int(c_num)} – " if c_num is not None else ""
+            culture_info = rw_culture_info(budaya)
 
             st.markdown(
                 f"""
                 <div class="region-detail-box culture">
-                    <div class="region-detail-title">{cluster_prefix}{budaya}
+                    <div class="region-detail-title">{html.escape(cluster_prefix + str(budaya))}
                         <span class="region-detail-count">({region_count} Wilayah)</span>
                     </div>
-                    <div class="region-detail-body">{region_str}</div>
+                    <div class="region-detail-body">
+                        <div style="font-style:italic;margin:5px 0 7px;color:#5F6368;">{html.escape(culture_info['description'])}</div>
+                        <div style="margin-bottom:6px;"><b>Karakter umum:</b> {html.escape(culture_info['character'])}</div>
+                        <div><b>Daerah:</b> {html.escape(region_str)}</div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -5851,7 +7530,7 @@ def rw_render_region_profile_page():
             "Customer Profile hasil survei."
         )
 
-        filter_col_1, filter_col_2 = st.columns(2)
+        filter_col_1, filter_col_2, filter_col_3 = st.columns(3)
         with filter_col_1:
             selected_h = st.selectbox(
                 "Pilih Bagian",
@@ -5914,15 +7593,49 @@ def rw_render_region_profile_page():
 
         cluster_options = ["Semua"] + sorted(region_summary[RW_CLUSTER_PROFILE_COLUMN].dropna().unique().tolist())
         with filter_col_2:
-            selected_cluster = st.selectbox("Filter Cluster Wilayah", options=cluster_options, key="rw_selected_cluster")
+            selected_cluster = st.selectbox(
+                "Filter Profile Wilayah",
+                options=cluster_options,
+                key="rw_selected_cluster",
+            )
+
+        with filter_col_3:
+            sort_profile = st.selectbox(
+                "Sort by",
+                options=["Profile Wilayah"] + [f"Profile {p}" for p in RW_PROFILE_ORDER],
+                key="rw_sort_profile",
+                help=(
+                    "Pilih Profile 1–5 untuk mengurutkan wilayah dari persentase profile "
+                    "tertinggi ke terendah."
+                ),
+            )
 
         filtered_summary = region_summary.copy()
         if selected_cluster != "Semua":
-            filtered_summary = filtered_summary[filtered_summary[RW_CLUSTER_PROFILE_COLUMN] == selected_cluster].copy()
+            filtered_summary = filtered_summary[
+                filtered_summary[RW_CLUSTER_PROFILE_COLUMN] == selected_cluster
+            ].copy()
 
-        sorted_summary = filtered_summary.sort_values(
-            by=[RW_CLUSTER_COLUMN, "Persen_Dominan"], ascending=[True, True]
-        ).copy()
+        if sort_profile == "Profile Wilayah":
+            # Default: wilayah dengan Profile Wilayah yang sama berdekatan.
+            sorted_summary = filtered_summary.sort_values(
+                by=[RW_CLUSTER_PROFILE_COLUMN, RW_CLUSTER_COLUMN, "Kabupaten/Kota"],
+                ascending=[True, True, True],
+            ).copy()
+        else:
+            selected_profile_number = int(re.search(r"(\d+)", sort_profile).group(1))
+            sort_column = f"Persen_Profile_{selected_profile_number}"
+            sorted_summary = filtered_summary.sort_values(
+                by=[sort_column, RW_CLUSTER_PROFILE_COLUMN, "Kabupaten/Kota"],
+                ascending=[False, True, True],
+            ).copy()
+
+        # ----------------------------
+        # DASAR PEMBENTUKAN PROFILE WILAYAH
+        # ----------------------------
+        rw_render_clustering_methodology()
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
         # ----------------------------
         # KPI
@@ -5990,7 +7703,7 @@ def rw_render_region_profile_page():
             st.plotly_chart(
                 rw_create_region_stacked_bar(sorted_summary, profile_name_map),
                 use_container_width=True,
-                key=f"rw_stacked_region_profile_{selected_h}_{selected_cluster}",
+                key=f"rw_stacked_region_profile_{selected_h}_{selected_cluster}_{sort_profile}",
             )
 
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
@@ -6036,36 +7749,6 @@ def rw_render_region_profile_page():
 
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-        # ----------------------------
-        # TABEL DOMINAN PER WILAYAH
-        # ----------------------------
-        display_table = filtered_summary[[
-            "Kabupaten/Kota", RW_CLUSTER_COLUMN, RW_CLUSTER_PROFILE_COLUMN, "Jumlah_Responden",
-            "Profile_Dominan", "Nama_Profile_Dominan", "Persen_Dominan",
-            "Profile_Kedua", "Nama_Profile_Kedua", "Persen_Kedua",
-            "Margin_Dominasi", "Status_Sampel",
-        ]].copy()
-
-        display_table = display_table.rename(columns={
-            RW_CLUSTER_COLUMN: "Cluster",
-            RW_CLUSTER_PROFILE_COLUMN: "Profil Wilayah",
-            "Jumlah_Responden": "Jumlah Responden",
-            "Profile_Dominan": "Profile Dominan",
-            "Nama_Profile_Dominan": "Nama Profile Dominan",
-            "Persen_Dominan": "% Dominan",
-            "Profile_Kedua": "Profile Kedua",
-            "Nama_Profile_Kedua": "Nama Profile Kedua",
-            "Persen_Kedua": "% Profile Kedua",
-            "Margin_Dominasi": "Margin Dominasi",
-            "Status_Sampel": "Status Sampel",
-        })
-
-        with st.container(key="rw_table_chart_card", border=True):
-            st.markdown('<div class="chart-title">Tabel Profile Dominan per Wilayah</div>', unsafe_allow_html=True)
-            st.markdown('<div class="chart-subtitle">Detail profil dominan dan kedua untuk setiap kabupaten/kota</div>', unsafe_allow_html=True)
-            st.dataframe(display_table, hide_index=True, use_container_width=True)
-
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         rw_render_data_diagnostic(diagnostic, selected_h)
 
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
@@ -6237,7 +7920,7 @@ def render_framework_placeholder():
                 ("fa-solid fa-xmarks-lines", "Input", "X Axis = Importance Rank; Y Axis = Satisfaction Driver Rank."),
                 ("fa-solid fa-sliders", "Hitung Median Importance Rank", "Median menjadi garis pembagi vertikal."),
                 ("fa-solid fa-sliders", "Hitung Median Satisfaction Rank", "Median menjadi garis pembagi horizontal."),
-                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Prioritas Rendah, III Perbaikan Bertahap, dan IV Prioritas Utama."),
+                ("fa-solid fa-table-cells-large", "Pemetaan 4 Kuadran Matrix", "Kuadran I Pertahankan, II Prioritas Utama, III Perbaikan Bertahap, dan IV Prioritas Rendah."),
             ],
             "output": ["Matriks 4 Kuadran", "Daftar Prioritas"],
         },
@@ -6258,7 +7941,7 @@ def render_framework_placeholder():
         {
             "no": "06", "icon": "fa-solid fa-bullseye", "title": "STEP 6<br>FOCUS ITEM<br>IDENTIFICATION",
             "items": [
-                ("fa-solid fa-bullseye", "Ambil atribut pada Kuadran III", "Priority Improvement."),
+                ("fa-solid fa-bullseye", "Ambil atribut pada Kuadran II", "Priority Improvement."),
                 ("fa-solid fa-chart-line", "Importance Tinggi × Satisfaction Rendah", "Menentukan atribut yang paling perlu diperbaiki."),
                 ("fa-solid fa-clipboard-check", "Generate Focus Item List", "Menyusun daftar akhir fokus perbaikan."),
             ],
@@ -6377,7 +8060,7 @@ def render_framework_placeholder():
         {
             "icon": "◉", "color": YELLOW,
             "title": "Prioritaskan Atribut yang Perlu Diperbaiki",
-            "desc": "Kuadran III \"Prioritas Utama\" pada Matrix Satisfaction x Importance (Section 2) menunjukkan atribut dengan importance tinggi tapi satisfaction rendah.",
+            "desc": "Kuadran II \"Prioritas Utama\" pada Matrix Satisfaction x Importance (Section 2) menunjukkan atribut dengan importance tinggi tapi satisfaction rendah.",
         },
         {
             "icon": "⌦", "color": GREEN,
@@ -6444,12 +8127,12 @@ def render_framework_placeholder():
         .fw-step:nth-child(even){--accent:#ff6b00;--tint:#fff6ee}
         .fw-grid-b .fw-step{--accent:#E60012;--tint:#FFF3F3;border-color:#E60012}
         .fw-grid-b .fw-step:nth-child(even){--accent:#FF6B00;--tint:#FFF5EC;border-color:#FF6B00}
-        .fw-step-head{position:relative;min-height:100px;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex;align-items:center;justify-content:center;padding:14px 52px}
+        .fw-step-head{position:relative;height:122px!important;min-height:122px!important;max-height:122px!important;flex:0 0 122px!important;box-sizing:border-box!important;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex!important;align-items:center!important;justify-content:center!important;padding:12px 42px 12px 52px!important}
         .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#c90012,#f13a20)}
         .fw-grid-b .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#C8102E 0%,#E60012 55%,#F13A20 100%)!important}
         .fw-grid-b .fw-step:nth-child(even) .fw-step-head{background:linear-gradient(135deg,#E65100 0%,#FF6B00 55%,#FF9A3D 100%)!important}
         .fw-step-head>span{position:absolute;left:12px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-size:15px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.13)}
-        .fw-step-head h3{display:block;width:100%;margin:0;font-size:13px;line-height:1.35;font-weight:800;color:#fff;text-align:center!important}
+        .fw-step-head h3{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;width:100%;margin:0!important;padding:0!important;font-size:13px;line-height:1.35;font-weight:800;color:#fff;text-align:center!important}
         .fw-step-body{padding:11px;background:linear-gradient(180deg,var(--tint),#fff 28%);display:flex;flex:1;flex-direction:column;border-radius:0 0 13px 13px}
         .fw-item{display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:flex-start;border:1px solid color-mix(in srgb,var(--accent) 24%,white);border-radius:10px;background:#fff;padding:9px 8px;margin-bottom:9px;min-height:78px}
         .fw-item>div:last-child{width:100%;text-align:center!important}
