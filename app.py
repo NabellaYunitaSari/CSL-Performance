@@ -4649,7 +4649,6 @@ def _age_group_hbar(df, col, title, key):
 
 
 
-<<<<<<< HEAD
 # ============================================================
 # MOTOR MAPPING & CANONICALIZATION HELPERS
 # ============================================================
@@ -4911,8 +4910,7 @@ def canonical_motor(value):
     return raw
 
 
-=======
->>>>>>> e90486106a4ea266bdaebc9855947bfc409e2bee
+
 def _motor_type_hbar(df, col, title, key):
     """Motor type mengikuti master kategori yang diberikan pengguna."""
     with st.container(
@@ -4925,100 +4923,6 @@ def _motor_type_hbar(df, col, title, key):
                 st.info("Data tidak tersedia.")
                 return
 
-<<<<<<< HEAD
-=======
-            motor_master = [
-                "Beat", "Beat Street", "Genio", "Scoopy", "Vario 125",
-                "Vario 125 Street", "Vario Evo 160", "Stylo 160", "PCX 160",
-                "ADV 160", "Forza", "CB150 Verza", "Sonic 150R",
-                "CB150R StreetFire", "SB150X", "CRF150L", "CBR150R",
-                "CBR250RR", "CRF250L", "ST125 Dax", "Monkey",
-                "CRF250 Rally", "Revo", "Supra X 125 FI", "GTR 150",
-                "Super Cub C125", "CT125", "ICON e:", "EM1 e:", "CUV e:",
-            ]
-            motor_rank = {name: i for i, name in enumerate(motor_master)}
-
-            def compact(value):
-                return re.sub(r"[^a-z0-9]+", "", str(value).lower())
-
-            alias = {
-                "beat": "Beat",
-                "beatfi": "Beat",
-                "beatstreet": "Beat Street",
-                "beatstreetfi": "Beat Street",
-                "genio": "Genio",
-                "scoopy": "Scoopy",
-                "vario125": "Vario 125",
-                "vario125cbs": "Vario 125",
-                "vario125street": "Vario 125 Street",
-                "varioevo160": "Vario Evo 160",
-                "vario160": "Vario Evo 160",
-                "stylo160": "Stylo 160",
-                "stylo": "Stylo 160",
-                "pcx160": "PCX 160",
-                "pcx": "PCX 160",
-                "adv160": "ADV 160",
-                "adv": "ADV 160",
-                "forza": "Forza",
-                "cb150verza": "CB150 Verza",
-                "verza": "CB150 Verza",
-                "sonic150r": "Sonic 150R",
-                "sonic": "Sonic 150R",
-                "cb150rstreetfire": "CB150R StreetFire",
-                "streetfire": "CB150R StreetFire",
-                "sb150x": "SB150X",
-                "cb150x": "SB150X",
-                "crf150l": "CRF150L",
-                "cbr150r": "CBR150R",
-                "cbr250rr": "CBR250RR",
-                "crf250l": "CRF250L",
-                "st125dax": "ST125 Dax",
-                "dax": "ST125 Dax",
-                "monkey": "Monkey",
-                "crf250rally": "CRF250 Rally",
-                "revo": "Revo",
-                "suprax125fi": "Supra X 125 FI",
-                "suprax125": "Supra X 125 FI",
-                "gtr150": "GTR 150",
-                "supercubc125": "Super Cub C125",
-                "supercub": "Super Cub C125",
-                "ct125": "CT125",
-                "icone": "ICON e:",
-                "em1e": "EM1 e:",
-                "cuve": "CUV e:",
-            }
-
-            def canonical_motor(value):
-                raw = re.sub(r"\s+", " ", str(value)).strip()
-                if not raw or raw.lower() in {"nan", "none", "-"}:
-                    return None
-                key_norm = compact(raw)
-                if key_norm in alias:
-                    return alias[key_norm]
-
-                # Fallback keyword yang tetap menjaga kategori master.
-                keyword_rules = [
-                    ("beatstreet", "Beat Street"), ("beat", "Beat"),
-                    ("vario125street", "Vario 125 Street"), ("vario125", "Vario 125"),
-                    ("vario160", "Vario Evo 160"), ("pcx", "PCX 160"),
-                    ("adv", "ADV 160"), ("stylo", "Stylo 160"),
-                    ("cb150verza", "CB150 Verza"), ("sonic", "Sonic 150R"),
-                    ("streetfire", "CB150R StreetFire"), ("cb150x", "SB150X"),
-                    ("crf150", "CRF150L"), ("cbr150", "CBR150R"),
-                    ("cbr250rr", "CBR250RR"), ("crf250rally", "CRF250 Rally"),
-                    ("crf250", "CRF250L"), ("suprax125", "Supra X 125 FI"),
-                    ("gtr150", "GTR 150"), ("c125", "Super Cub C125"),
-                    ("ct125", "CT125"), ("icone", "ICON e:"),
-                    ("em1e", "EM1 e:"), ("cuve", "CUV e:"),
-                ]
-                for needle, canonical in keyword_rules:
-                    if needle in key_norm:
-                        return canonical
-
-                # Nilai di luar master tidak dibuang agar tidak kehilangan data.
-                return raw
-
->>>>>>> e90486106a4ea266bdaebc9855947bfc409e2bee
             normalized = df[col].dropna().map(canonical_motor).dropna()
             if normalized.empty:
                 st.info("Data tidak tersedia.")
@@ -5028,7 +4932,6 @@ def _motor_type_hbar(df, col, title, key):
             total = counts.sum()
             pct = (counts / total * 100).round(1)
 
-<<<<<<< HEAD
             # Urutkan berdasarkan persentase/jumlah terbesar terlebih dahulu,
             # dengan tie-breaker berurutan berdasarkan MOTOR_RANK dan nama.
             labels = sorted(
@@ -5038,16 +4941,6 @@ def _motor_type_hbar(df, col, title, key):
 
             # Plotly horizontal (orientation="h") menaruh item pertama di posisi paling bawah,
             # sehingga dibalik (ascending) agar persentase terbesar berada di paling atas layar.
-=======
-            labels = list(counts.index)
-            labels = sorted(
-                labels,
-                key=lambda x: (motor_rank.get(x, 10_000), str(x).casefold()),
-            )
-
-            # Plotly horizontal menaruh item pertama di bagian bawah, sehingga
-            # dibalik agar urutan master terbaca dari atas ke bawah.
->>>>>>> e90486106a4ea266bdaebc9855947bfc409e2bee
             labels_plot = labels[::-1]
             pct_plot = pct.reindex(labels_plot)
             counts_plot = counts.reindex(labels_plot).astype(int)
@@ -5743,20 +5636,7 @@ def render_overall_profile_insight(
         return text.lower() if text else text
 
     def motor_group(value):
-<<<<<<< HEAD
         return canonical_motor(value)
-=======
-        raw = str(value).strip()
-        norm = re.sub(r"[^a-z0-9]+", " ", raw.lower()).strip()
-
-        if re.search(r"\bbeat\b", norm):
-            return "Beat Series"
-
-        if re.search(r"\bpcx\b", norm):
-            return "PCX Series"
-
-        return raw
->>>>>>> e90486106a4ea266bdaebc9855947bfc409e2bee
 
     def nps_value(column):
         if not column or column not in df_prof.columns:
@@ -6106,15 +5986,6 @@ def render_overall_profile_insight(
         f'<div>{narrative}</div>'
         '</div>'
     )
-<<<<<<< HEAD
-=======
-
-    st.markdown(
-        summary_html,
-        unsafe_allow_html=True,
-    )
->>>>>>> e90486106a4ea266bdaebc9855947bfc409e2bee
-
     st.markdown(
         summary_html,
         unsafe_allow_html=True,
