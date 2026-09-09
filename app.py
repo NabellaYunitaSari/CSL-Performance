@@ -1602,6 +1602,22 @@ def _options(df, col):
     vals = sorted([str(v) for v in df[col].dropna().unique()])
     return vals
 
+def _fmt_pct(value):
+    """
+    Format persentase:
+    42.0  -> 42%
+    42    -> 42%
+    42.3  -> 42.3%
+    """
+    if value is None or pd.isna(value):
+        return ""
+
+    value = round(float(value), 1)
+
+    if math.isclose(value, round(value), abs_tol=1e-9):
+        return f"{int(round(value))}%"
+
+    return f"{value:.1f}%"
 
 
 def _entity_name_column(df: pd.DataFrame, key_prefix: str, dealer_label: str):
@@ -3140,7 +3156,7 @@ def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
         fig = go.Figure(go.Bar(
             x=vals, y=codes, orientation="h",
             marker=dict(color=RED),
-            text=[f"{v:.0f}%" for v in vals], textposition="outside",
+            text=[_fmt_pct(v) for v in vals], textposition="outside",
             customdata=np.array(names, dtype=object).reshape(-1, 1),
             hovertemplate=(
                 "<b>Kode Indikator:</b> %{y}<br>"
@@ -4442,7 +4458,7 @@ def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
                     ),
                 ):
                     st.session_state[f"{key_prefix}_selected_profile"] = p
-                    selected = p
+                    st.rerun()
         return selected
 
 
@@ -4952,7 +4968,7 @@ def _motor_type_hbar(df, col, title, key):
                 y=labels_plot,
                 orientation="h",
                 marker=dict(color=RED),
-                text=[f"{v:.1f}%" for v in pct_plot.values],
+                text=[_fmt_pct(v) for v in pct_plot.values],
                 textposition="outside",
                 customdata=np.array(counts_plot.values, dtype=int).reshape(-1, 1),
                 hovertemplate=(
@@ -4986,11 +5002,11 @@ def _simple_hbar(df, col, title, key):
             st.info("Data tidak tersedia.")
             return
         total = counts.sum()
-        pct = (counts / total * 100).round(0)
+        pct = (counts / total * 100).round(1)
         max_val = max(pct.values) if not pct.empty else 100
         fig = go.Figure(go.Bar(
             x=pct.values, y=pct.index, orientation="h",
-            marker=dict(color=RED), text=[f"{v:.0f}%" for v in pct.values], textposition="outside",
+            marker=dict(color=RED), text=[_fmt_pct(v) for v in pct.values], textposition="outside",
         ))
         fig.update_layout(
             xaxis=dict(range=[0, max(112, max_val + 12)], ticksuffix="%"),
@@ -5007,6 +5023,10 @@ def _stacked_pct(
     is_retention=False,
     is_purchase_period=False,
     is_purchase_location=False,
+    show_category_legend=False,
+    reverse_order=False,
+    reverse_location_colors=False,
+    full_inside_label=False,
 ):
     """Stacked percentage dengan urutan kategori bisnis yang tetap."""
     with st.container(key=f"{key}_fixed_chart_card", border=True):
@@ -5034,7 +5054,7 @@ def _stacked_pct(
         ses_colors = {
             level: color for level, color in zip(
                 ses_order,
-                [RED, ORANGE, YELLOW, "#C0CA33", "#8BC34A", GREEN, "#1E88E5"],
+                ["#1E88E5", GREEN, "#8BC34A", "#C0CA33", YELLOW, ORANGE, RED],
             )
         }
 
@@ -5099,23 +5119,46 @@ def _stacked_pct(
 
         def purchase_location_key(value):
             low = re.sub(r"\s+", " ", str(value)).strip().lower()
-            # Dealer yang sama selalu paling kiri.
-            if any(token in low for token in [
-                "dealer yang sama", "dealer sama", "showroom yang sama",
-                "showroom sama", "same dealer", "same showroom",
-            ]):
+
+            # 1. Showroom/dealer yang SAMA → paling kiri
+            if (
+                "yang sama" in low
+                or "dealer sama" in low
+                or "showroom sama" in low
+                or "same dealer" in low
+                or "same showroom" in low
+            ):
                 return (0, low)
-            if "dealer" in low or "showroom" in low:
+
+            # 2. Showroom/dealer yang BERBEDA → setelah yang sama
+            if (
+                "yang berbeda" in low
+                or "dealer berbeda" in low
+                or "showroom berbeda" in low
+                or "different dealer" in low
+                or "different showroom" in low
+            ):
                 return (1, low)
-            if "online" in low or "marketplace" in low:
+
+            # 3. Belum tahu → paling kanan
+            if (
+                "belum tahu" in low
+                or "tidak tahu" in low
+                or "tidak menentukan" in low
+            ):
                 return (2, low)
-            if "pameran" in low or "event" in low:
+
+            # Kategori tambahan, jika suatu saat ada
+            if "online" in low or "marketplace" in low:
                 return (3, low)
-            if "belum" in low or "tidak tahu" in low or "tidak menentukan" in low:
-                return (90, low)
+
+            if "pameran" in low or "event" in low:
+                return (4, low)
+
             if "lain" in low:
-                return (80, low)
-            return (50, low)
+                return (5, low)
+
+            return (6, low)
 
         # -------------------- normalisasi dan urutan --------------------
         if is_ses:
@@ -5145,7 +5188,8 @@ def _stacked_pct(
             normalized = raw_series.map(lambda x: re.sub(r"\s+", " ", str(x)).strip())
             counts = normalized.value_counts()
             labels = sorted(counts.index.tolist(), key=purchase_location_key)
-
+            if reverse_order:
+                labels = labels[::-1]
         else:
             normalized = raw_series
             counts = normalized.value_counts()
@@ -5160,6 +5204,8 @@ def _stacked_pct(
 
         if is_purchase_period or is_purchase_location:
             gradient = [GREEN, "#7CB342", YELLOW, ORANGE, "#F4511E", RED, "#C8102E"]
+            if reverse_location_colors:
+                gradient = gradient[::-1]
             category_colors = {
                 label: gradient[min(i, len(gradient) - 1)]
                 for i, label in enumerate(labels)
@@ -5225,10 +5271,96 @@ def _stacked_pct(
                     "Responden: %{customdata[0]} orang<extra></extra>"
                 )
 
-            # Label di dalam bar dibuat ringkas agar tidak menumpuk.
-            inner_label = display_label
-            if len(inner_label) > 14:
-                inner_label = inner_label[:12].rstrip() + "…"
+            # ====================================================
+            # LABEL DI DALAM BAR
+            # Tampilkan label selengkap mungkin sesuai lebar segmen.
+            # Tidak lagi memotong hanya berdasarkan jumlah karakter.
+            # ====================================================
+
+            clean_label = re.sub(
+                r"\s+",
+                " ",
+                str(display_label)
+            ).strip()
+
+            pct_text = _fmt_pct(value)
+
+            # Perkiraan jumlah karakter yang masih muat dalam
+            # satu baris berdasarkan lebar segmen (%).
+            #
+            # Semakin besar persentase, semakin panjang label
+            # yang boleh ditampilkan secara penuh.
+            chars_per_line = max(
+                4,
+                int(value * 1.10)
+            )
+
+            # ----------------------------------------------------
+            # Segmen sangat kecil:
+            # cukup tampilkan persen agar tulisan tidak bertabrakan.
+            # ----------------------------------------------------
+            if value < 5:
+                bar_text = pct_text
+
+            # ----------------------------------------------------
+            # Label lengkap masih muat dalam satu baris.
+            # ----------------------------------------------------
+            elif len(clean_label) <= chars_per_line:
+                bar_text = (
+                    f"{pct_text}<br>"
+                    f"{clean_label}"
+                )
+
+            else:
+                # ------------------------------------------------
+                # Coba pecah label lengkap menjadi maksimal 2 baris.
+                # Tidak langsung dipotong.
+                # ------------------------------------------------
+                wrapped_label = textwrap.wrap(
+                    clean_label,
+                    width=chars_per_line,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+
+                if len(wrapped_label) <= 2:
+                    # Label lengkap masih bisa ditampilkan dengan wrap.
+                    bar_text = (
+                        f"{pct_text}<br>"
+                        + "<br>".join(wrapped_label)
+                    )
+
+                else:
+                    # --------------------------------------------
+                    # Benar-benar tidak cukup ruang.
+                    # Baru gunakan singkatan/ellipsis.
+                    # --------------------------------------------
+                    max_chars = max(
+                        6,
+                        chars_per_line * 2
+                    )
+
+                    short_label = clean_label
+
+                    if len(short_label) > max_chars:
+                        short_label = (
+                            short_label[:max_chars - 1]
+                            .rstrip()
+                            + "…"
+                        )
+
+                    short_lines = textwrap.wrap(
+                        short_label,
+                        width=chars_per_line,
+                        break_long_words=False,
+                        break_on_hyphens=False,
+                    )
+
+                    bar_text = (
+                        f"{pct_text}<br>"
+                        + "<br>".join(short_lines[:2])
+                    )
+
 
             fig.add_trace(go.Bar(
                 x=[value],
@@ -5236,8 +5368,10 @@ def _stacked_pct(
                 orientation="h",
                 name=display_label,
                 marker=dict(color=bar_color),
-                text=f"{value:.0f}%<br>{inner_label}",
+                text=bar_text,
                 textposition="inside",
+                insidetextanchor="middle",
+                textfont=dict(size=12),
                 customdata=[[respondents]],
                 hovertemplate=hover,
             ))
@@ -5280,7 +5414,17 @@ def _stacked_pct(
                     f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{category_colors[label]};"></span>'
                     f'<span>{html.escape(str(label))}</span></span>'
                 )
+        elif show_category_legend:
+            for i, label in enumerate(labels):
+                legend_color = generic_palette[i % len(generic_palette)]
 
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;'
+                    'white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;'
+                    f'border-radius:2px;background:{legend_color};"></span>'
+                    f'<span>{html.escape(str(label))}</span></span>'
+                )
         if legend_items:
             st.markdown(
                 '<div style="display:flex;flex-wrap:wrap;align-items:center;'
@@ -5483,7 +5627,7 @@ def _top_reasons_hbar(df, col, title, key, top_n=5, separator=";"):
                 fig.add_annotation(
                     x=label_x,
                     y=y_label,
-                    text=f"{pct:.1f}%",
+                    text=_fmt_pct(pct),
                     showarrow=False,
                     xanchor="left",
                     yanchor="middle",
@@ -6108,7 +6252,7 @@ def render_demographic_charts(
         with r2c2:
             _stacked_pct(
                 df_prof, frequency_col, "Frequency Visit to AHASS",
-                key=f"{key_prefix}_frequency_ahass",
+                key=f"{key_prefix}_frequency_ahass", show_category_legend=True,
             )
 
         # Kedua jenis retention ditampilkan bersampingan pada baris berikutnya.
@@ -6164,7 +6308,7 @@ def render_demographic_charts(
         with r2c2:
             _stacked_pct(
                 df_prof, future_purchase_col, "Future Purchase Part Location",
-                key=f"{key_prefix}_future_purchase_part",
+                key=f"{key_prefix}_future_purchase_part", is_purchase_location=True, reverse_order=True, reverse_location_colors=True, full_inside_label=True,
             )
 
         # Retention Unit dan Retention Parts berada pada satu baris.
@@ -6384,8 +6528,8 @@ def render_top_bottom_dealer_satisfaction(
         """
         <style>
         .dealer-ranking-card {
-        background: #FFFFFF !important;
-
+            background: #FFFFFF !important;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
        /* Outline masing-masing card dibuat terlihat */
         border: 1.5px solid #D9DDE3 !important;
 
@@ -6431,11 +6575,14 @@ def render_top_bottom_dealer_satisfaction(
             border-bottom: none;
         }
 
-        .dealer-rank {
-            font-size: 11.5px;
-            font-weight: 800;
-            color: #C8102E;
+        .dealer-ranking-name {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            line-height: 1.35 !important;
+            color: #3F3F46 !important;
         }
+
 
         .dealer-rank {
             font-size: 11.5px;
@@ -7488,27 +7635,7 @@ def rw_render_culture_region_details(culture_df: pd.DataFrame):
             )
 
 
-def rw_render_data_diagnostic(diagnostic: dict, h_code: str):
-    config = RW_H_CONFIG[h_code]
-    with st.expander("Pemeriksaan Kelengkapan Data", expanded=False):
-        diagnostic_df = pd.DataFrame({
-            "Ukuran": [
-                "Total Baris", f"Wilayah Terisi ({config['region_column']})",
-                "Profile Terisi", "Baris Valid Wilayah + Profile", "Jumlah Wilayah Valid",
-            ],
-            "Nilai": [
-                diagnostic.get("total_rows", 0), diagnostic.get("region_non_null", 0),
-                diagnostic.get("profile_non_null", 0), diagnostic.get("valid_rows", 0),
-                diagnostic.get("valid_regions", 0),
-            ],
-        })
-        st.dataframe(diagnostic_df, hide_index=True, use_container_width=True)
-        if diagnostic.get("profile_non_null", 0) > diagnostic.get("region_non_null", 0):
-            st.warning(
-                "Kolom Profile lebih banyak terisi daripada kolom wilayah. Wilayah setiap "
-                "responden tidak boleh ditebak (tidak dilakukan forward-fill). Gunakan data "
-                "responden yang kolom wilayahnya terisi pada setiap baris."
-            )
+
 
 
 def rw_render_region_profile_page():
@@ -7747,11 +7874,6 @@ def rw_render_region_profile_page():
                 )
                 rw_render_culture_region_details(culture_df)
 
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-
-        rw_render_data_diagnostic(diagnostic, selected_h)
-
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
         # ----------------------------
         # INSIGHT CLUSTER & BUDAYA
