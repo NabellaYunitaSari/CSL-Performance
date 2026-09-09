@@ -6865,37 +6865,38 @@ RW_CLUSTERING_VARIABLES = [
 RW_CLUSTER_EXPLANATIONS = {
     "Metropolitan Ekonomi Tinggi": {
         "description": (
-            "Cluster ini diberi nama Metropolitan Ekonomi Tinggi karena pada notebook, "
-            "cluster metropolitan dipilih dari skor gabungan yang tinggi pada kepadatan penduduk, "
-            "PDRB per kapita, UMK, dan motor per 1.000 penduduk, serta relatif rendah pada "
-            "persentase penduduk miskin."
+            "Wilayah pada cluster ini memiliki karakteristik perkotaan yang kuat, "
+            "ditandai dengan kepadatan penduduk, PDRB per kapita, tingkat upah, "
+            "serta jumlah kendaraan yang relatif tinggi. Di sisi lain, persentase "
+            "penduduk miskinnya relatif lebih rendah dibandingkan wilayah lain."
         ),
-        "basis": (
-            "Skor penamaan = z(kepadatan) + z(PDRB per kapita) + z(UMK) + "
-            "z(motor/1.000 penduduk) − z(kemiskinan)."
+        "character": (
+            "Kepadatan penduduk tinggi · PDRB per kapita tinggi · "
+            "Upah tinggi · Jumlah kendaraan tinggi · Kemiskinan relatif rendah"
         ),
     },
+
     "Industri Berupah Tinggi": {
         "description": (
-            "Setelah cluster metropolitan ditetapkan, cluster industri dipilih dari cluster "
-            "yang tersisa berdasarkan dominasi sektor sekunder, UMK yang relatif tinggi, "
-            "TPT, serta proporsi sektor primer yang relatif lebih rendah."
+            "Wilayah pada cluster ini memiliki aktivitas ekonomi yang banyak didukung "
+            "oleh sektor sekunder seperti industri, manufaktur, listrik, dan konstruksi. "
+            "Tingkat upahnya relatif tinggi, sedangkan peran sektor primer seperti "
+            "pertanian dan pertambangan relatif lebih rendah."
         ),
-        "basis": (
-            "Skor penamaan = z(proporsi sektor sekunder) + 0,50×z(UMK) + "
-            "0,30×z(TPT) − 0,30×z(proporsi sektor primer)."
+        "character": (
+            "Sektor industri kuat · Upah relatif tinggi · "
+            "Sektor primer relatif lebih rendah"
         ),
     },
+
     "Nonmetropolitan Berbasis Primer": {
         "description": (
-            "Cluster ini merupakan cluster yang tersisa setelah cluster Metropolitan Ekonomi Tinggi "
-            "dan Industri Berupah Tinggi teridentifikasi. Penamaannya merepresentasikan karakter "
-            "yang relatif lebih nonmetropolitan dan lebih berbasis sektor primer dibanding dua "
-            "cluster lainnya."
+            "Wilayah pada cluster ini memiliki karakteristik yang relatif lebih "
+            "nonmetropolitan dibandingkan dua cluster lainnya dan kegiatan ekonominya "
+            "cenderung lebih bertumpu pada sektor primer."
         ),
-        "basis": (
-            "Label ditentukan secara residual pada tahap penamaan cluster setelah dua cluster "
-            "utama diidentifikasi dari profil rata-rata Z-Score."
+        "character": (
+            "Karakter nonmetropolitan · Peran sektor primer relatif lebih kuat"
         ),
     },
 }
@@ -6956,24 +6957,31 @@ def rw_culture_info(culture_name: str) -> dict:
 
 def rw_render_clustering_methodology():
     """Penjelasan variabel clustering sesuai notebook BPS yang digunakan."""
-    with st.expander("**Dasar Pembentukan Profile Wilayah**", expanded=True):
+
+    with st.expander(
+        "**Dasar Pembentukan Cluster Wilayah**",
+        expanded=False
+    ):
         st.markdown(
-            "Profile wilayah dibentuk menggunakan **K-Means (k=3)** setelah seluruh "
-            "variabel distandardisasi menggunakan **Z-Score**. Kelompok budaya **bukan** "
-            "variabel pembentuk K-Means; budaya digunakan sebagai konteks tambahan setelah "
-            "hasil cluster wilayah terbentuk."
+            "Cluster wilayah dibentuk menggunakan **K-Means (k=3)** setelah seluruh "
+            "variabel distandardisasi menggunakan **Z-Score**."
         )
+
         variable_html = "".join(
             f'<div style="margin:4px 0;"><b>{html.escape(name)}</b> — {html.escape(desc)}</div>'
             for name, desc in RW_CLUSTERING_VARIABLES
         )
+
         st.markdown(
             '<div style="font-size:12.5px;line-height:1.55;color:#475569;">'
-            '<div style="font-weight:800;margin-bottom:6px;color:#262626;">Variabel pembentuk cluster</div>'
+            '<div style="font-weight:800;margin-bottom:6px;color:#262626;">'
+            'Variabel pembentuk cluster'
+            '</div>'
             + variable_html
             + '</div>',
             unsafe_allow_html=True,
         )
+
 
 # Alias disesuaikan dengan bentuk nama wilayah pada file cluster BPS.
 # Tambahkan alias baru di sini apabila nama pada data CSL berbeda.
@@ -7544,7 +7552,7 @@ def rw_create_culture_dominant_chart(region_summary: pd.DataFrame, culture_df: p
 
 def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
     """Nama cluster, alasan penamaan, dan anggota wilayah."""
-    with st.expander("**Keterangan Profile/Cluster Wilayah (BPS)**", expanded=True):
+    with st.expander("**Keterangan Profile/Cluster Wilayah (BPS)**", expanded=False):
         if cluster_df.empty:
             st.info("Data cluster BPS tidak tersedia.")
             return
@@ -7561,7 +7569,7 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
                 "description",
                 "Penjelasan penamaan cluster belum tersedia untuk profile ini.",
             )
-            basis = info.get("basis", "Dasar penamaan belum tersedia.")
+            
 
             st.markdown(
                 f"""
@@ -7571,8 +7579,7 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
                     </div>
                     <div class="region-detail-body">
                         <div style="font-style:italic;margin:5px 0 7px;color:#5F6368;">{html.escape(description)}</div>
-                        <div style="margin-bottom:6px;"><b>Dasar penamaan:</b> {html.escape(basis)}</div>
-                        <div><b>Daerah:</b> {html.escape(region_str)}</div>
+                         <div><b>Daerah:</b> {html.escape(region_str)}</div>
                     </div>
                 </div>
                 """,
@@ -7583,7 +7590,7 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
 
 def rw_render_culture_region_details(culture_df: pd.DataFrame):
     """Nama kelompok budaya, deskripsi italic, karakter, dan daerah anggota."""
-    with st.expander("**Keterangan Kelompok Budaya**", expanded=True):
+    with st.expander("**Keterangan Kelompok Budaya**", expanded=False):
         if culture_df.empty:
             st.info("Data pengelompokkan budaya tidak tersedia.")
             return
@@ -7757,12 +7764,7 @@ def rw_render_region_profile_page():
                 ascending=[False, True, True],
             ).copy()
 
-        # ----------------------------
-        # DASAR PEMBENTUKAN PROFILE WILAYAH
-        # ----------------------------
-        rw_render_clustering_methodology()
 
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
         # ----------------------------
         # KPI
@@ -7842,19 +7844,30 @@ def rw_render_region_profile_page():
 
         with chart_left:
             with st.container(key="rw_cluster_dominant_chart_card", border=True):
-                st.markdown('<div class="chart-title">Dominasi Profile berdasarkan Cluster Wilayah</div>', unsafe_allow_html=True)
+                st.markdown(
+                    '<div class="chart-title">Dominasi Profile berdasarkan Cluster Wilayah</div>',
+                    unsafe_allow_html=True
+                )
                 st.markdown(
                     '<div class="chart-subtitle">Proporsi kabupaten/kota berdasarkan customer profile '
                     'dominan pada cluster karakteristik wilayah (BPS)</div>',
                     unsafe_allow_html=True,
                 )
+
                 st.plotly_chart(
                     rw_create_cluster_dominant_chart(
-                        region_summary[region_summary["Jumlah_Responden"] >= minimum_respondents]
+                        region_summary[
+                            region_summary["Jumlah_Responden"] >= minimum_respondents
+                        ]
                     ),
                     use_container_width=True,
                     key=f"rw_cluster_dominant_{selected_h}",
                 )
+
+                # Dasar pembentukan cluster ditempatkan tepat di bawah chart
+                rw_render_clustering_methodology()
+
+                # Keterangan nama cluster dan anggota wilayah
                 rw_render_cluster_region_details(cluster_df)
 
         with chart_right:
