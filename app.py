@@ -1558,6 +1558,8 @@ def _parse_semester(val):
     if pd.isna(val):
         return np.nan
     s = str(val).strip().lower()
+    if s in {"semua", "all", "semua semester"}:
+        return np.nan
     if "2" in s:
         return 2
     if "1" in s:
@@ -1566,6 +1568,67 @@ def _parse_semester(val):
         return int(float(s))
     except Exception:
         return np.nan
+
+
+def filter_by_period(
+    df: pd.DataFrame,
+    year=None,
+    semester=None,
+    latest_if_all: bool = False,
+) -> pd.DataFrame:
+    """Filter dataframe yang memiliki kolom Tahun dan/atau Semester sesuai filter aktif."""
+    if df is None or df.empty:
+        return df
+
+    out = df.copy()
+    year_col = find_col(out, ["Tahun", "tahun", "Year", "year"])
+    sem_col = find_col(out, ["Semester", "semester", "Periode", "periode"])
+
+    has_year = year is not None and str(year).strip().lower() not in {"", "semua", "none"}
+    parsed_sem = _parse_semester(semester) if semester is not None else np.nan
+    has_sem = not pd.isna(parsed_sem)
+
+    if has_year and year_col and year_col in out.columns:
+        yr_num = pd.to_numeric(out[year_col], errors="coerce")
+        try:
+            target_yr = int(float(str(year).strip()))
+            matched = out[yr_num == target_yr]
+        except Exception:
+            matched = out[out[year_col].astype(str).str.strip() == str(year).strip()]
+        if not matched.empty:
+            out = matched
+
+    if has_sem and sem_col and sem_col in out.columns:
+        target_sem = int(parsed_sem)
+        matched = out[out[sem_col].apply(_parse_semester) == target_sem]
+        if not matched.empty:
+            out = matched
+    elif not has_sem and sem_col and sem_col in out.columns:
+        # Jika Semester = Semua, cek apakah di sheet terdapat baris eksplisit "Semua"
+        sem_str = out[sem_col].astype(str).str.strip().str.lower()
+        explicit_all = out[sem_str.isin(["semua", "all", "semua semester"])]
+        if not explicit_all.empty and not latest_if_all:
+            out = explicit_all
+
+    if latest_if_all and not out.empty:
+        # Untuk teks metadata profil: jika Tahun/Semester = Semua, ambil dari periode terbaru
+        if not has_year and year_col and year_col in out.columns:
+            yr_num = pd.to_numeric(out[year_col], errors="coerce")
+            if yr_num.notna().any():
+                max_yr = yr_num.max()
+                out = out[yr_num == max_yr]
+        if not has_sem and sem_col and sem_col in out.columns:
+            sem_str = out[sem_col].astype(str).str.strip().str.lower()
+            explicit_all = out[sem_str.isin(["semua", "all", "semua semester"])]
+            if not explicit_all.empty:
+                out = explicit_all
+            else:
+                sm_num = out[sem_col].apply(_parse_semester)
+                if sm_num.notna().any():
+                    max_sm = sm_num.max()
+                    out = out[sm_num == max_sm]
+
+    return out
 
 
 def get_previous_period(selected_year, selected_semester, available_periods):
@@ -1602,6 +1665,22 @@ def _options(df, col):
     vals = sorted([str(v) for v in df[col].dropna().unique()])
     return vals
 
+def _fmt_pct(value):
+    """
+    Format persentase:
+    42.0  -> 42%
+    42    -> 42%
+    42.3  -> 42.3%
+    """
+    if value is None or pd.isna(value):
+        return ""
+
+    value = round(float(value), 1)
+
+    if math.isclose(value, round(value), abs_tol=1e-9):
+        return f"{int(round(value))}%"
+
+    return f"{value:.1f}%"
 
 
 def _entity_name_column(df: pd.DataFrame, key_prefix: str, dealer_label: str):
@@ -1643,7 +1722,24 @@ def _entity_name_column(df: pd.DataFrame, key_prefix: str, dealer_label: str):
     return find_col(df, candidates)
 
 
-def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: str):
+def _match_year_series(series: pd.Series, target_year) -> pd.Series:
+    try:
+        target_num = int(float(str(target_year).strip()))
+        return pd.to_numeric(series, errors="coerce") == target_num
+    except Exception:
+        return (
+            series.astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+            == str(target_year).strip()
+        )
+
+
+def render_filters(
+    df: pd.DataFrame,
+    cols: dict,
+    dealer_label: str,
+    key_prefix: str,
+    extra_years: list = None,
+):
     filters = {}
     c1, c2, c3, c4, c5, c6, c7 = st.columns([1.0, 1.0, 1.0, 1.0, 1.3, 1.3, 2.1],
     gap="small"
@@ -1658,10 +1754,10 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
     dealer_col = cols.get("dealer_code")
 
     with c1:
-        years = []
+        years_set = set(extra_years or [])
 
         if year_col and year_col in df.columns:
-            years = (
+            df_years = (
                 pd.to_numeric(df[year_col], errors="coerce")
                 .dropna()
                 .astype(int)
@@ -1669,8 +1765,9 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
                 .unique()
                 .tolist()
             )
+            years_set.update(df_years)
 
-            years = sorted(years)
+        years = sorted(years_set)
 
         sel_year = st.selectbox(
             "Tahun",
@@ -1678,16 +1775,16 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
             key=f"{key_prefix}_year"
         )
     with c2:
-        sems = ["Semester 1", "Semester 2"]
+        sems = ["Semua", "Semester 1", "Semester 2"]
         sem_key = f"{key_prefix}_sem"
         if st.session_state.get(sem_key) not in sems:
-            st.session_state[sem_key] = sems[0]
+            st.session_state[sem_key] = "Semester 1"
         sel_sem = st.selectbox("Periode", sems, key=sem_key)
 
     df_scope = df.copy()
-    if sel_year != "Semua" and year_col:
-        df_scope = df_scope[df_scope[year_col].astype(str) == str(sel_year)]
-    if sem_col:
+    if sel_year != "Semua" and year_col and year_col in df_scope.columns:
+        df_scope = df_scope[_match_year_series(df_scope[year_col], sel_year)]
+    if sem_col and sel_sem != "Semua":
         target_sem = 1 if "1" in sel_sem else 2
         df_scope = df_scope[df_scope[sem_col].apply(_parse_semester) == target_sem]
 
@@ -1796,7 +1893,7 @@ def render_filters(df: pd.DataFrame, cols: dict, dealer_label: str, key_prefix: 
 
     filters = {
         "year": None if sel_year == "Semua" else sel_year,
-        "semester": 1 if "1" in sel_sem else 2,
+        "semester": None if sel_sem == "Semua" else (1 if "1" in sel_sem else 2),
         "main_dealer": sel_md,
         "layer": None if sel_layer == "Semua" else sel_layer,
         "karesidenan": None if sel_kar == "Semua" else sel_kar,
@@ -1817,14 +1914,14 @@ def apply_filters(df: pd.DataFrame, cols: dict, filters: dict,
     if not ignore_period:
         yr = override_year if override_year is not None else filters.get("year")
         sm = override_semester if override_semester is not None else filters.get("semester")
-        if yr is not None and year_col:
-            out = out[out[year_col].astype(str) == str(yr)]
-        if sm is not None and sem_col:
+        if yr is not None and year_col and year_col in out.columns:
+            out = out[_match_year_series(out[year_col], yr)]
+        if sm is not None and sem_col and sem_col in out.columns:
             out = out[out[sem_col].apply(_parse_semester) == sm]
     else:
-        if override_year is not None and year_col:
-            out = out[out[year_col].astype(str) == str(override_year)]
-        if override_semester is not None and sem_col:
+        if override_year is not None and year_col and year_col in out.columns:
+            out = out[_match_year_series(out[year_col], override_year)]
+        if override_semester is not None and sem_col and sem_col in out.columns:
             out = out[out[sem_col].apply(_parse_semester) == override_semester]
 
     mapping = [
@@ -3140,7 +3237,7 @@ def render_satisfaction_chart(attr_sat: dict, indicator_names: dict, key: str):
         fig = go.Figure(go.Bar(
             x=vals, y=codes, orientation="h",
             marker=dict(color=RED),
-            text=[f"{v:.0f}%" for v in vals], textposition="outside",
+            text=[_fmt_pct(v) for v in vals], textposition="outside",
             customdata=np.array(names, dtype=object).reshape(-1, 1),
             hovertemplate=(
                 "<b>Kode Indikator:</b> %{y}<br>"
@@ -3424,7 +3521,8 @@ def render_performance_section(
                 "_dealer_label",
                 "Dealer"
             ),
-            key_prefix
+            key_prefix,
+            extra_years=filters.get("_extra_years"),
         )
 
         new_filters["_dealer_label"] = (
@@ -3470,18 +3568,14 @@ def render_performance_section(
             ignore_period=True
         )
 
-        if filters.get("year") and year_col:
+        if filters.get("year") and year_col and year_col in df_s1.columns:
 
             df_s1 = df_s1[
-                df_s1[year_col]
-                .astype(str)
-                == str(filters["year"])
+                _match_year_series(df_s1[year_col], filters["year"])
             ]
 
             df_s2 = df_s2[
-                df_s2[year_col]
-                .astype(str)
-                == str(filters["year"])
+                _match_year_series(df_s2[year_col], filters["year"])
             ]
 
         sat_s1 = calculate_satisfaction(
@@ -3794,16 +3888,12 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
         df_sub = mat_df.copy()
 
         if filters:
-            if "Tahun" in df_sub.columns and filters.get("year"):
-                df_sub = df_sub[df_sub["Tahun"].astype(str) == str(filters["year"])]
-
-            if "Semester" in df_sub.columns and filters.get("semester"):
-                sem_val = str(filters["semester"])
-                if not sem_val.lower().startswith("semester"):
-                    sem_val = f"Semester {sem_val}"
-                matched_sem = df_sub[df_sub["Semester"].astype(str).str.lower() == sem_val.lower()]
-                if not matched_sem.empty:
-                    df_sub = matched_sem
+            df_sub = filter_by_period(
+                df_sub,
+                year=filters.get("year"),
+                semester=filters.get("semester"),
+                latest_if_all=False,
+            )
 
             cat_type_col = find_col(df_sub, ["Category_Type", "category_type"])
             cat_col = find_col(df_sub, ["Category", "category"])
@@ -4193,7 +4283,7 @@ def render_importance_matrix(unit_key: str, key: str, filters: dict = None):
 # RENDER: PROFILE CUSTOMER & DEMOGRAPHICS (OUTLINE BIRU UTUH)
 # ============================================================
 
-def render_profile_heatmap(unit_key: str, key: str):
+def render_profile_heatmap(unit_key: str, key: str, filters: dict = None):
     with st.container(key=f"{key}_heatmap_scroll"):
         st.markdown('<div class="chart-title">Customer Profile Heatmap vs Overall Average</div>', unsafe_allow_html=True)
         st.markdown('<div class="chart-subtitle">Kesenjangan Karakteristik Tiap Customer Profile Terhadap Rata-rata Keseluruhan</div>', unsafe_allow_html=True)
@@ -4229,6 +4319,14 @@ def render_profile_heatmap(unit_key: str, key: str):
             st.warning("Worksheet heatmap tidak ditemukan.")
             return
 
+        if filters:
+            hm_df = filter_by_period(
+                hm_df,
+                year=filters.get("year"),
+                semester=filters.get("semester"),
+                latest_if_all=False,
+            )
+
         p_col = find_col(hm_df, ["Profile", "profile", "p", "profil"])
         k_col = find_col(hm_df, ["Kode_Indikator", "kode_indicator", "kode", "code", "attribute", "indikator"])
         v_col = find_col(hm_df, ["Nilai", "nilai", "value", "val", "selisih", "gap"])
@@ -4252,7 +4350,9 @@ def render_profile_heatmap(unit_key: str, key: str):
             df_clean = df_clean.dropna(subset=[v_col])
 
             # Vertikal (baris) = indikator, horizontal (kolom) = profile.
-            piv = df_clean.pivot(index=k_col, columns=p_col, values=v_col)
+            # Gunakan pivot_table(aggfunc="mean") agar jika Tahun/Semester = Semua,
+            # nilai dirata-ratakan antar periode tanpa memicu ValueError duplicate entries.
+            piv = df_clean.pivot_table(index=k_col, columns=p_col, values=v_col, aggfunc="mean", sort=False)
 
             existing_p = [p for p in ["1", "2", "3", "4", "5"] if p in piv.columns]
             if not existing_p:
@@ -4279,18 +4379,13 @@ def render_profile_heatmap(unit_key: str, key: str):
                 return
 
             profiles_label = [re.sub(r"[^0-9]", "", str(pc)) or str(pc) for pc in prof_cols]
-            matrix = []
-            for _, r in hm_df.iterrows():
-                c_code = str(r[k_col]).strip()
-                row_vals = []
-                for pc in prof_cols:
-                    try:
-                        val = float(str(r[pc]).replace(",", ".").strip())
-                        row_vals.append(val)
-                    except Exception:
-                        row_vals.append(0.0)
-                attr_codes.append(c_code)
-                matrix.append(row_vals)
+            hm_work = hm_df.copy()
+            hm_work[k_col] = hm_work[k_col].astype(str).str.strip()
+            for pc in prof_cols:
+                hm_work[pc] = pd.to_numeric(hm_work[pc].astype(str).str.replace(",", ".").str.strip(), errors="coerce")
+            grouped_hm = hm_work.groupby(k_col, sort=False)[prof_cols].mean().fillna(0.0)
+            attr_codes = list(grouped_hm.index)
+            matrix = grouped_hm.values.tolist()
 
         if not matrix or not attr_codes:
             st.info("Data heatmap tidak tersedia.")
@@ -4442,7 +4537,7 @@ def render_profile_list(df_filtered, cols, key_prefix, profile_meta_df=None):
                     ),
                 ):
                     st.session_state[f"{key_prefix}_selected_profile"] = p
-                    selected = p
+                    st.rerun()
         return selected
 
 
@@ -4952,7 +5047,7 @@ def _motor_type_hbar(df, col, title, key):
                 y=labels_plot,
                 orientation="h",
                 marker=dict(color=RED),
-                text=[f"{v:.1f}%" for v in pct_plot.values],
+                text=[_fmt_pct(v) for v in pct_plot.values],
                 textposition="outside",
                 customdata=np.array(counts_plot.values, dtype=int).reshape(-1, 1),
                 hovertemplate=(
@@ -4986,11 +5081,11 @@ def _simple_hbar(df, col, title, key):
             st.info("Data tidak tersedia.")
             return
         total = counts.sum()
-        pct = (counts / total * 100).round(0)
+        pct = (counts / total * 100).round(1)
         max_val = max(pct.values) if not pct.empty else 100
         fig = go.Figure(go.Bar(
             x=pct.values, y=pct.index, orientation="h",
-            marker=dict(color=RED), text=[f"{v:.0f}%" for v in pct.values], textposition="outside",
+            marker=dict(color=RED), text=[_fmt_pct(v) for v in pct.values], textposition="outside",
         ))
         fig.update_layout(
             xaxis=dict(range=[0, max(112, max_val + 12)], ticksuffix="%"),
@@ -5007,6 +5102,10 @@ def _stacked_pct(
     is_retention=False,
     is_purchase_period=False,
     is_purchase_location=False,
+    show_category_legend=False,
+    reverse_order=False,
+    reverse_location_colors=False,
+    full_inside_label=False,
 ):
     """Stacked percentage dengan urutan kategori bisnis yang tetap."""
     with st.container(key=f"{key}_fixed_chart_card", border=True):
@@ -5034,7 +5133,7 @@ def _stacked_pct(
         ses_colors = {
             level: color for level, color in zip(
                 ses_order,
-                [RED, ORANGE, YELLOW, "#C0CA33", "#8BC34A", GREEN, "#1E88E5"],
+                ["#1E88E5", GREEN, "#8BC34A", "#C0CA33", YELLOW, ORANGE, RED],
             )
         }
 
@@ -5099,23 +5198,46 @@ def _stacked_pct(
 
         def purchase_location_key(value):
             low = re.sub(r"\s+", " ", str(value)).strip().lower()
-            # Dealer yang sama selalu paling kiri.
-            if any(token in low for token in [
-                "dealer yang sama", "dealer sama", "showroom yang sama",
-                "showroom sama", "same dealer", "same showroom",
-            ]):
+
+            # 1. Showroom/dealer yang SAMA → paling kiri
+            if (
+                "yang sama" in low
+                or "dealer sama" in low
+                or "showroom sama" in low
+                or "same dealer" in low
+                or "same showroom" in low
+            ):
                 return (0, low)
-            if "dealer" in low or "showroom" in low:
+
+            # 2. Showroom/dealer yang BERBEDA → setelah yang sama
+            if (
+                "yang berbeda" in low
+                or "dealer berbeda" in low
+                or "showroom berbeda" in low
+                or "different dealer" in low
+                or "different showroom" in low
+            ):
                 return (1, low)
-            if "online" in low or "marketplace" in low:
+
+            # 3. Belum tahu → paling kanan
+            if (
+                "belum tahu" in low
+                or "tidak tahu" in low
+                or "tidak menentukan" in low
+            ):
                 return (2, low)
-            if "pameran" in low or "event" in low:
+
+            # Kategori tambahan, jika suatu saat ada
+            if "online" in low or "marketplace" in low:
                 return (3, low)
-            if "belum" in low or "tidak tahu" in low or "tidak menentukan" in low:
-                return (90, low)
+
+            if "pameran" in low or "event" in low:
+                return (4, low)
+
             if "lain" in low:
-                return (80, low)
-            return (50, low)
+                return (5, low)
+
+            return (6, low)
 
         # -------------------- normalisasi dan urutan --------------------
         if is_ses:
@@ -5145,7 +5267,8 @@ def _stacked_pct(
             normalized = raw_series.map(lambda x: re.sub(r"\s+", " ", str(x)).strip())
             counts = normalized.value_counts()
             labels = sorted(counts.index.tolist(), key=purchase_location_key)
-
+            if reverse_order:
+                labels = labels[::-1]
         else:
             normalized = raw_series
             counts = normalized.value_counts()
@@ -5160,6 +5283,8 @@ def _stacked_pct(
 
         if is_purchase_period or is_purchase_location:
             gradient = [GREEN, "#7CB342", YELLOW, ORANGE, "#F4511E", RED, "#C8102E"]
+            if reverse_location_colors:
+                gradient = gradient[::-1]
             category_colors = {
                 label: gradient[min(i, len(gradient) - 1)]
                 for i, label in enumerate(labels)
@@ -5225,10 +5350,96 @@ def _stacked_pct(
                     "Responden: %{customdata[0]} orang<extra></extra>"
                 )
 
-            # Label di dalam bar dibuat ringkas agar tidak menumpuk.
-            inner_label = display_label
-            if len(inner_label) > 14:
-                inner_label = inner_label[:12].rstrip() + "…"
+            # ====================================================
+            # LABEL DI DALAM BAR
+            # Tampilkan label selengkap mungkin sesuai lebar segmen.
+            # Tidak lagi memotong hanya berdasarkan jumlah karakter.
+            # ====================================================
+
+            clean_label = re.sub(
+                r"\s+",
+                " ",
+                str(display_label)
+            ).strip()
+
+            pct_text = _fmt_pct(value)
+
+            # Perkiraan jumlah karakter yang masih muat dalam
+            # satu baris berdasarkan lebar segmen (%).
+            #
+            # Semakin besar persentase, semakin panjang label
+            # yang boleh ditampilkan secara penuh.
+            chars_per_line = max(
+                4,
+                int(value * 1.10)
+            )
+
+            # ----------------------------------------------------
+            # Segmen sangat kecil:
+            # cukup tampilkan persen agar tulisan tidak bertabrakan.
+            # ----------------------------------------------------
+            if value < 5:
+                bar_text = pct_text
+
+            # ----------------------------------------------------
+            # Label lengkap masih muat dalam satu baris.
+            # ----------------------------------------------------
+            elif len(clean_label) <= chars_per_line:
+                bar_text = (
+                    f"{pct_text}<br>"
+                    f"{clean_label}"
+                )
+
+            else:
+                # ------------------------------------------------
+                # Coba pecah label lengkap menjadi maksimal 2 baris.
+                # Tidak langsung dipotong.
+                # ------------------------------------------------
+                wrapped_label = textwrap.wrap(
+                    clean_label,
+                    width=chars_per_line,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+
+                if len(wrapped_label) <= 2:
+                    # Label lengkap masih bisa ditampilkan dengan wrap.
+                    bar_text = (
+                        f"{pct_text}<br>"
+                        + "<br>".join(wrapped_label)
+                    )
+
+                else:
+                    # --------------------------------------------
+                    # Benar-benar tidak cukup ruang.
+                    # Baru gunakan singkatan/ellipsis.
+                    # --------------------------------------------
+                    max_chars = max(
+                        6,
+                        chars_per_line * 2
+                    )
+
+                    short_label = clean_label
+
+                    if len(short_label) > max_chars:
+                        short_label = (
+                            short_label[:max_chars - 1]
+                            .rstrip()
+                            + "…"
+                        )
+
+                    short_lines = textwrap.wrap(
+                        short_label,
+                        width=chars_per_line,
+                        break_long_words=False,
+                        break_on_hyphens=False,
+                    )
+
+                    bar_text = (
+                        f"{pct_text}<br>"
+                        + "<br>".join(short_lines[:2])
+                    )
+
 
             fig.add_trace(go.Bar(
                 x=[value],
@@ -5236,8 +5447,10 @@ def _stacked_pct(
                 orientation="h",
                 name=display_label,
                 marker=dict(color=bar_color),
-                text=f"{value:.0f}%<br>{inner_label}",
+                text=bar_text,
                 textposition="inside",
+                insidetextanchor="middle",
+                textfont=dict(size=12),
                 customdata=[[respondents]],
                 hovertemplate=hover,
             ))
@@ -5280,7 +5493,17 @@ def _stacked_pct(
                     f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{category_colors[label]};"></span>'
                     f'<span>{html.escape(str(label))}</span></span>'
                 )
+        elif show_category_legend:
+            for i, label in enumerate(labels):
+                legend_color = generic_palette[i % len(generic_palette)]
 
+                legend_items.append(
+                    '<span style="display:inline-flex;align-items:center;gap:5px;'
+                    'white-space:nowrap;margin:2px 12px 2px 0;">'
+                    f'<span style="display:inline-block;width:10px;height:10px;'
+                    f'border-radius:2px;background:{legend_color};"></span>'
+                    f'<span>{html.escape(str(label))}</span></span>'
+                )
         if legend_items:
             st.markdown(
                 '<div style="display:flex;flex-wrap:wrap;align-items:center;'
@@ -5483,7 +5706,7 @@ def _top_reasons_hbar(df, col, title, key, top_n=5, separator=";"):
                 fig.add_annotation(
                     x=label_x,
                     y=y_label,
-                    text=f"{pct:.1f}%",
+                    text=_fmt_pct(pct),
                     showarrow=False,
                     xanchor="left",
                     yanchor="middle",
@@ -6108,7 +6331,7 @@ def render_demographic_charts(
         with r2c2:
             _stacked_pct(
                 df_prof, frequency_col, "Frequency Visit to AHASS",
-                key=f"{key_prefix}_frequency_ahass",
+                key=f"{key_prefix}_frequency_ahass", show_category_legend=True,
             )
 
         # Kedua jenis retention ditampilkan bersampingan pada baris berikutnya.
@@ -6164,7 +6387,7 @@ def render_demographic_charts(
         with r2c2:
             _stacked_pct(
                 df_prof, future_purchase_col, "Future Purchase Part Location",
-                key=f"{key_prefix}_future_purchase_part",
+                key=f"{key_prefix}_future_purchase_part", is_purchase_location=True, reverse_order=True, reverse_location_colors=True, full_inside_label=True,
             )
 
         # Retention Unit dan Retention Parts berada pada satu baris.
@@ -6384,8 +6607,8 @@ def render_top_bottom_dealer_satisfaction(
         """
         <style>
         .dealer-ranking-card {
-        background: #FFFFFF !important;
-
+            background: #FFFFFF !important;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
        /* Outline masing-masing card dibuat terlihat */
         border: 1.5px solid #D9DDE3 !important;
 
@@ -6431,11 +6654,14 @@ def render_top_bottom_dealer_satisfaction(
             border-bottom: none;
         }
 
-        .dealer-rank {
-            font-size: 11.5px;
-            font-weight: 800;
-            color: #C8102E;
+        .dealer-ranking-name {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            line-height: 1.35 !important;
+            color: #3F3F46 !important;
         }
+
 
         .dealer-rank {
             font-size: 11.5px;
@@ -6557,9 +6783,29 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
 
     key_prefix = f"{unit_key}"
 
-    filters = {"_dealer_label": dealer_label}
+    extra_years = []
+    if profile_meta_df is not None and not profile_meta_df.empty:
+        pm_ycol = find_col(profile_meta_df, ["Tahun", "tahun", "Year", "year"])
+        if pm_ycol and pm_ycol in profile_meta_df.columns:
+            extra_years = (
+                pd.to_numeric(profile_meta_df[pm_ycol], errors="coerce")
+                .dropna()
+                .astype(int)
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+
+    filters = {"_dealer_label": dealer_label, "_extra_years": extra_years}
     filters, df_filtered = render_performance_section(
         df_raw, cols, meta_df, filters, indicator_cols, key_prefix
+    )
+
+    profile_meta_df = filter_by_period(
+        profile_meta_df,
+        year=filters.get("year"),
+        semester=filters.get("semester"),
+        latest_if_all=True,
     )
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -6594,7 +6840,8 @@ def render_unit_page(unit_key: str, unit_label: str, sheet_name: str, dealer_lab
             ):
                 render_profile_heatmap(
                     unit_key,
-                    key=f"{key_prefix}_heatmap"
+                    key=f"{key_prefix}_heatmap",
+                    filters=filters,
                 )
 
         # ============================================================
@@ -6718,37 +6965,38 @@ RW_CLUSTERING_VARIABLES = [
 RW_CLUSTER_EXPLANATIONS = {
     "Metropolitan Ekonomi Tinggi": {
         "description": (
-            "Cluster ini diberi nama Metropolitan Ekonomi Tinggi karena pada notebook, "
-            "cluster metropolitan dipilih dari skor gabungan yang tinggi pada kepadatan penduduk, "
-            "PDRB per kapita, UMK, dan motor per 1.000 penduduk, serta relatif rendah pada "
-            "persentase penduduk miskin."
+            "Wilayah pada cluster ini memiliki karakteristik perkotaan yang kuat, "
+            "ditandai dengan kepadatan penduduk, PDRB per kapita, tingkat upah, "
+            "serta jumlah kendaraan yang relatif tinggi. Di sisi lain, persentase "
+            "penduduk miskinnya relatif lebih rendah dibandingkan wilayah lain."
         ),
-        "basis": (
-            "Skor penamaan = z(kepadatan) + z(PDRB per kapita) + z(UMK) + "
-            "z(motor/1.000 penduduk) − z(kemiskinan)."
+        "character": (
+            "Kepadatan penduduk tinggi · PDRB per kapita tinggi · "
+            "Upah tinggi · Jumlah kendaraan tinggi · Kemiskinan relatif rendah"
         ),
     },
+
     "Industri Berupah Tinggi": {
         "description": (
-            "Setelah cluster metropolitan ditetapkan, cluster industri dipilih dari cluster "
-            "yang tersisa berdasarkan dominasi sektor sekunder, UMK yang relatif tinggi, "
-            "TPT, serta proporsi sektor primer yang relatif lebih rendah."
+            "Wilayah pada cluster ini memiliki aktivitas ekonomi yang banyak didukung "
+            "oleh sektor sekunder seperti industri, manufaktur, listrik, dan konstruksi. "
+            "Tingkat upahnya relatif tinggi, sedangkan peran sektor primer seperti "
+            "pertanian dan pertambangan relatif lebih rendah."
         ),
-        "basis": (
-            "Skor penamaan = z(proporsi sektor sekunder) + 0,50×z(UMK) + "
-            "0,30×z(TPT) − 0,30×z(proporsi sektor primer)."
+        "character": (
+            "Sektor industri kuat · Upah relatif tinggi · "
+            "Sektor primer relatif lebih rendah"
         ),
     },
+
     "Nonmetropolitan Berbasis Primer": {
         "description": (
-            "Cluster ini merupakan cluster yang tersisa setelah cluster Metropolitan Ekonomi Tinggi "
-            "dan Industri Berupah Tinggi teridentifikasi. Penamaannya merepresentasikan karakter "
-            "yang relatif lebih nonmetropolitan dan lebih berbasis sektor primer dibanding dua "
-            "cluster lainnya."
+            "Wilayah pada cluster ini memiliki karakteristik yang relatif lebih "
+            "nonmetropolitan dibandingkan dua cluster lainnya dan kegiatan ekonominya "
+            "cenderung lebih bertumpu pada sektor primer."
         ),
-        "basis": (
-            "Label ditentukan secara residual pada tahap penamaan cluster setelah dua cluster "
-            "utama diidentifikasi dari profil rata-rata Z-Score."
+        "character": (
+            "Karakter nonmetropolitan · Peran sektor primer relatif lebih kuat"
         ),
     },
 }
@@ -6809,24 +7057,31 @@ def rw_culture_info(culture_name: str) -> dict:
 
 def rw_render_clustering_methodology():
     """Penjelasan variabel clustering sesuai notebook BPS yang digunakan."""
-    with st.expander("**Dasar Pembentukan Profile Wilayah**", expanded=True):
+
+    with st.expander(
+        "**Dasar Pembentukan Cluster Wilayah**",
+        expanded=False
+    ):
         st.markdown(
-            "Profile wilayah dibentuk menggunakan **K-Means (k=3)** setelah seluruh "
-            "variabel distandardisasi menggunakan **Z-Score**. Kelompok budaya **bukan** "
-            "variabel pembentuk K-Means; budaya digunakan sebagai konteks tambahan setelah "
-            "hasil cluster wilayah terbentuk."
+            "Cluster wilayah dibentuk menggunakan **K-Means (k=3)** setelah seluruh "
+            "variabel distandardisasi menggunakan **Z-Score**."
         )
+
         variable_html = "".join(
             f'<div style="margin:4px 0;"><b>{html.escape(name)}</b> — {html.escape(desc)}</div>'
             for name, desc in RW_CLUSTERING_VARIABLES
         )
+
         st.markdown(
             '<div style="font-size:12.5px;line-height:1.55;color:#475569;">'
-            '<div style="font-weight:800;margin-bottom:6px;color:#262626;">Variabel pembentuk cluster</div>'
+            '<div style="font-weight:800;margin-bottom:6px;color:#262626;">'
+            'Variabel pembentuk cluster'
+            '</div>'
             + variable_html
             + '</div>',
             unsafe_allow_html=True,
         )
+
 
 # Alias disesuaikan dengan bentuk nama wilayah pada file cluster BPS.
 # Tambahkan alias baru di sini apabila nama pada data CSL berbeda.
@@ -7022,11 +7277,18 @@ def rw_load_culture_data() -> pd.DataFrame:
     return culture_df
 
 
-def rw_load_profile_metadata(h_code: str) -> pd.DataFrame:
+def rw_load_profile_metadata(h_code: str, year=None, semester=None) -> pd.DataFrame:
     config = RW_H_CONFIG[h_code]
     metadata_df = try_read_sheet_silent(config["metadata_sheet"])
     if metadata_df.empty:
         raise KeyError(f"Worksheet '{config['metadata_sheet']}' tidak ditemukan atau kosong.")
+
+    metadata_df = filter_by_period(
+        metadata_df,
+        year=year,
+        semester=semester,
+        latest_if_all=True,
+    )
 
     profile_col = find_col(metadata_df, ["profile", "profil", "no", "code"])
     name_col = find_col(metadata_df, ["profile name", "nama profil", "nama", "name"])
@@ -7037,14 +7299,34 @@ def rw_load_profile_metadata(h_code: str) -> pd.DataFrame:
     metadata_df["Profile"] = metadata_df["Profile"].apply(rw_normalize_profile)
     metadata_df = metadata_df.dropna(subset=["Profile"]).copy()
     metadata_df["Profile"] = metadata_df["Profile"].astype(int)
+    metadata_df = metadata_df.drop_duplicates(subset=["Profile"], keep="first").reset_index(drop=True)
     return metadata_df
 
 
-def rw_load_csl_profile_data(h_code: str):
+def rw_load_csl_profile_data(h_code: str, year=None, semester=None):
     config = RW_H_CONFIG[h_code]
     respondent_df = try_read_sheet_silent(config["sheet"])
     if respondent_df.empty:
         raise KeyError(f"Worksheet '{config['sheet']}' tidak ditemukan atau kosong.")
+
+    year_col = find_col(respondent_df, ["year", "tahun"])
+    available_years = []
+    if year_col and year_col in respondent_df.columns:
+        available_years = sorted(
+            pd.to_numeric(respondent_df[year_col], errors="coerce")
+            .dropna()
+            .astype(int)
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+    respondent_df = filter_by_period(
+        respondent_df,
+        year=year,
+        semester=semester,
+        latest_if_all=False,
+    )
 
     region_col = find_col(respondent_df, [config["region_column"].lower()]) or (
         config["region_column"] if config["region_column"] in respondent_df.columns else None
@@ -7059,6 +7341,7 @@ def rw_load_csl_profile_data(h_code: str):
         "total_rows": len(respondent_df),
         "region_non_null": int(respondent_df[region_col].notna().sum()),
         "profile_non_null": int(respondent_df[profile_col].notna().sum()),
+        "available_years": available_years,
     }
 
     result = respondent_df.copy()
@@ -7397,7 +7680,7 @@ def rw_create_culture_dominant_chart(region_summary: pd.DataFrame, culture_df: p
 
 def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
     """Nama cluster, alasan penamaan, dan anggota wilayah."""
-    with st.expander("**Keterangan Profile/Cluster Wilayah (BPS)**", expanded=True):
+    with st.expander("**Keterangan Profile/Cluster Wilayah (BPS)**", expanded=False):
         if cluster_df.empty:
             st.info("Data cluster BPS tidak tersedia.")
             return
@@ -7414,7 +7697,7 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
                 "description",
                 "Penjelasan penamaan cluster belum tersedia untuk profile ini.",
             )
-            basis = info.get("basis", "Dasar penamaan belum tersedia.")
+            
 
             st.markdown(
                 f"""
@@ -7424,8 +7707,7 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
                     </div>
                     <div class="region-detail-body">
                         <div style="font-style:italic;margin:5px 0 7px;color:#5F6368;">{html.escape(description)}</div>
-                        <div style="margin-bottom:6px;"><b>Dasar penamaan:</b> {html.escape(basis)}</div>
-                        <div><b>Daerah:</b> {html.escape(region_str)}</div>
+                         <div><b>Daerah:</b> {html.escape(region_str)}</div>
                     </div>
                 </div>
                 """,
@@ -7436,7 +7718,7 @@ def rw_render_cluster_region_details(cluster_df: pd.DataFrame):
 
 def rw_render_culture_region_details(culture_df: pd.DataFrame):
     """Nama kelompok budaya, deskripsi italic, karakter, dan daerah anggota."""
-    with st.expander("**Keterangan Kelompok Budaya**", expanded=True):
+    with st.expander("**Keterangan Kelompok Budaya**", expanded=False):
         if culture_df.empty:
             st.info("Data pengelompokkan budaya tidak tersedia.")
             return
@@ -7488,27 +7770,7 @@ def rw_render_culture_region_details(culture_df: pd.DataFrame):
             )
 
 
-def rw_render_data_diagnostic(diagnostic: dict, h_code: str):
-    config = RW_H_CONFIG[h_code]
-    with st.expander("Pemeriksaan Kelengkapan Data", expanded=False):
-        diagnostic_df = pd.DataFrame({
-            "Ukuran": [
-                "Total Baris", f"Wilayah Terisi ({config['region_column']})",
-                "Profile Terisi", "Baris Valid Wilayah + Profile", "Jumlah Wilayah Valid",
-            ],
-            "Nilai": [
-                diagnostic.get("total_rows", 0), diagnostic.get("region_non_null", 0),
-                diagnostic.get("profile_non_null", 0), diagnostic.get("valid_rows", 0),
-                diagnostic.get("valid_regions", 0),
-            ],
-        })
-        st.dataframe(diagnostic_df, hide_index=True, use_container_width=True)
-        if diagnostic.get("profile_non_null", 0) > diagnostic.get("region_non_null", 0):
-            st.warning(
-                "Kolom Profile lebih banyak terisi daripada kolom wilayah. Wilayah setiap "
-                "responden tidak boleh ditebak (tidak dilakukan forward-fill). Gunakan data "
-                "responden yang kolom wilayahnya terisi pada setiap baris."
-            )
+
 
 
 def rw_render_region_profile_page():
@@ -7530,7 +7792,9 @@ def rw_render_region_profile_page():
             "Customer Profile hasil survei."
         )
 
-        filter_col_1, filter_col_2, filter_col_3 = st.columns(3)
+        filter_col_1, filter_col_2, filter_col_3, filter_col_4, filter_col_5 = st.columns(
+            [1.4, 0.9, 1.0, 1.3, 1.1]
+        )
         with filter_col_1:
             selected_h = st.selectbox(
                 "Pilih Bagian",
@@ -7539,13 +7803,69 @@ def rw_render_region_profile_page():
                 key="rw_selected_h",
             )
 
+        # Ambil daftar tahun yang tersedia pada worksheet responden maupun metadata
+        rw_cfg = RW_H_CONFIG[selected_h]
+        raw_resp_sheet = try_read_sheet_silent(rw_cfg["sheet"])
+        raw_meta_sheet = try_read_sheet_silent(rw_cfg["metadata_sheet"])
+        rw_years_set = set()
+        for _df_src in (raw_resp_sheet, raw_meta_sheet):
+            if _df_src is not None and not _df_src.empty:
+                _ycol = find_col(_df_src, ["Tahun", "tahun", "Year", "year"])
+                if _ycol and _ycol in _df_src.columns:
+                    _yrs = (
+                        pd.to_numeric(_df_src[_ycol], errors="coerce")
+                        .dropna()
+                        .astype(int)
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
+                    rw_years_set.update(_yrs)
+        rw_year_options = ["Semua"] + sorted(rw_years_set)
+
+        with filter_col_2:
+            rw_year_key = "rw_selected_year"
+            if st.session_state.get(rw_year_key) not in rw_year_options:
+                st.session_state[rw_year_key] = "Semua"
+            selected_rw_year = st.selectbox(
+                "Tahun",
+                options=rw_year_options,
+                key=rw_year_key,
+            )
+
+        with filter_col_3:
+            rw_sem_options = ["Semua", "Semester 1", "Semester 2"]
+            rw_sem_key = "rw_selected_sem"
+            if st.session_state.get(rw_sem_key) not in rw_sem_options:
+                st.session_state[rw_sem_key] = "Semua"
+            selected_rw_sem = st.selectbox(
+                "Periode",
+                options=rw_sem_options,
+                key=rw_sem_key,
+            )
+
+        rw_year_param = None if selected_rw_year == "Semua" else selected_rw_year
+        rw_sem_param = (
+            None
+            if selected_rw_sem == "Semua"
+            else (1 if "1" in selected_rw_sem else 2)
+        )
+
         minimum_respondents = 30
 
         try:
             cluster_df = rw_load_cluster_data()
             culture_df = rw_load_culture_data()
-            metadata_df = rw_load_profile_metadata(selected_h)
-            respondent_df, diagnostic = rw_load_csl_profile_data(selected_h)
+            metadata_df = rw_load_profile_metadata(
+                selected_h,
+                year=rw_year_param,
+                semester=rw_sem_param,
+            )
+            respondent_df, diagnostic = rw_load_csl_profile_data(
+                selected_h,
+                year=rw_year_param,
+                semester=rw_sem_param,
+            )
         except (KeyError, ValueError, RuntimeError) as error:
             st.error(str(error))
             st.info(
@@ -7557,7 +7877,7 @@ def rw_render_region_profile_page():
         if respondent_df.empty:
             st.error(
                 "Tidak ada baris yang memiliki wilayah dan Profile secara bersamaan "
-                "untuk bagian ini."
+                "untuk bagian dan periode ini."
             )
             return
 
@@ -7592,14 +7912,14 @@ def rw_render_region_profile_page():
                 st.code("\n".join(unmatched_regions))
 
         cluster_options = ["Semua"] + sorted(region_summary[RW_CLUSTER_PROFILE_COLUMN].dropna().unique().tolist())
-        with filter_col_2:
+        with filter_col_4:
             selected_cluster = st.selectbox(
                 "Filter Profile Wilayah",
                 options=cluster_options,
                 key="rw_selected_cluster",
             )
 
-        with filter_col_3:
+        with filter_col_5:
             sort_profile = st.selectbox(
                 "Sort by",
                 options=["Profile Wilayah"] + [f"Profile {p}" for p in RW_PROFILE_ORDER],
@@ -7630,12 +7950,7 @@ def rw_render_region_profile_page():
                 ascending=[False, True, True],
             ).copy()
 
-        # ----------------------------
-        # DASAR PEMBENTUKAN PROFILE WILAYAH
-        # ----------------------------
-        rw_render_clustering_methodology()
 
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
         # ----------------------------
         # KPI
@@ -7715,19 +8030,30 @@ def rw_render_region_profile_page():
 
         with chart_left:
             with st.container(key="rw_cluster_dominant_chart_card", border=True):
-                st.markdown('<div class="chart-title">Dominasi Profile berdasarkan Cluster Wilayah</div>', unsafe_allow_html=True)
+                st.markdown(
+                    '<div class="chart-title">Dominasi Profile berdasarkan Cluster Wilayah</div>',
+                    unsafe_allow_html=True
+                )
                 st.markdown(
                     '<div class="chart-subtitle">Proporsi kabupaten/kota berdasarkan customer profile '
                     'dominan pada cluster karakteristik wilayah (BPS)</div>',
                     unsafe_allow_html=True,
                 )
+
                 st.plotly_chart(
                     rw_create_cluster_dominant_chart(
-                        region_summary[region_summary["Jumlah_Responden"] >= minimum_respondents]
+                        region_summary[
+                            region_summary["Jumlah_Responden"] >= minimum_respondents
+                        ]
                     ),
                     use_container_width=True,
                     key=f"rw_cluster_dominant_{selected_h}",
                 )
+
+                # Dasar pembentukan cluster ditempatkan tepat di bawah chart
+                rw_render_clustering_methodology()
+
+                # Keterangan nama cluster dan anggota wilayah
                 rw_render_cluster_region_details(cluster_df)
 
         with chart_right:
@@ -7747,11 +8073,6 @@ def rw_render_region_profile_page():
                 )
                 rw_render_culture_region_details(culture_df)
 
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-
-        rw_render_data_diagnostic(diagnostic, selected_h)
-
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
         # ----------------------------
         # INSIGHT CLUSTER & BUDAYA

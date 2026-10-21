@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Kepuasan Dealer</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <style>
+    :root {
+      --csl-red:#E60012;
+      --csl-red-dark:#C8102E;
+      --csl-orange:#FF6B00;
+      --csl-yellow:#FFB000;
+      --csl-green:#35A853;
+      --csl-blue:#1665D8;
+      --csl-text:#262626;
+      --csl-muted:#666;
+      --csl-border:#E7E9EC;
+      --csl-shadow:0 1px 2px rgba(20,20,20,.04),0 2px 8px rgba(20,20,20,.05);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--csl-text)}
+    body{background:linear-gradient(180deg,#FF6B00 0%,#FF8A33 420px,#FFF7F2 100%);background-attachment:fixed}
+    button,select{font:inherit}
+    .app-container{max-width:1600px;margin:0 auto;padding:.25rem 1.25rem 3rem}
+
+    /* ===== HEADER ===== */
+    .top-header{display:grid;grid-template-columns:6.8fr 1.55fr 1.15fr 1.05fr;align-items:center;gap:10px;margin:0 0 10px;padding:14px 20px;border-radius:10px;background:linear-gradient(110deg,#C8102E 0%,#E60012 43%,#FF6B00 100%);box-shadow:0 4px 16px rgba(200,16,46,.28);color:#fff}
+    .csl-header-brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;height:44px;margin:0;padding:0;min-width:0}
+    .csl-logo{width:40px;height:40px;flex:0 0 40px;border-radius:10px;background:#fff;color:#C8102E;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;font-weight:800}
+    .csl-brand{display:flex;align-items:center;justify-content:flex-start;height:40px;gap:12px;min-width:0}
+    .csl-brand h1{display:flex;align-items:center;height:40px;font-size:18px;line-height:1;margin:0;padding:0;color:#fff;font-weight:800;letter-spacing:.2px;white-space:nowrap}
+    .csl-update-time{position:relative;left:8px;font-size:11px;line-height:1.25;text-align:right;color:rgba(255,255,255,.92);white-space:nowrap}
+    .csl-update-time b{color:#fff;font-size:11.5px}
+    .header-btn{min-height:34px;height:34px;width:100%;padding:0 14px;color:#fff;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.72);border-radius:9px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:none;cursor:pointer}
+    .header-btn:hover{color:#C8102E;background:#fff;border-color:#fff}
+
+    /* ===== NAV ===== */
+    .page-selector-card{display:block;width:100%;background:transparent;border:0;padding:0;margin:0 0 12px}
+    .page-selector{display:flex;gap:7px;flex-wrap:wrap}
+    .page-btn{min-height:40px;height:40px;padding:0 21px;background:#fff;border:1px solid #E2E2E2;border-radius:9px;color:#4F4F4F;font-size:12.5px;font-weight:700;box-shadow:0 2px 5px rgba(38,38,38,.10);cursor:pointer;transition:border-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
+    .page-btn.active{background:#fff;border:2px solid #E60012;color:#E60012;box-shadow:0 2px 7px rgba(230,0,18,.16)}
+    .page-btn:not(.active):hover{background:#FFF7F7;color:#C8102E;border-color:#E60012;box-shadow:0 3px 8px rgba(200,16,46,.16)}
+
+    /* ===== GENERAL SECTION/CARD ===== */
+    .section{background:rgba(255,255,255,.98);border:1px solid var(--csl-border);border-radius:10px;box-shadow:var(--csl-shadow);padding:16px;margin:0 0 18px}
+    .custom-section-title{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .custom-section-badge{display:flex;align-items:center;justify-content:center;width:auto;min-width:72px;height:24px;padding:0 10px;border-radius:5px;background:#E60012;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.6px}
+    .section-2 .custom-section-badge{background:#FF6B00}
+    .section-3 .custom-section-badge{background:#1665D8}
+    .section-4 .custom-section-badge{background:#1665D8}
+    .custom-section-text{font-size:15px;color:#262626;font-weight:800;letter-spacing:.1px}
+    .section-description{font-size:13px;line-height:1.55;color:#404040;margin:0 0 14px}
+    .chart-card,.profile-equal-card,.demographic-card,.fixed-chart-card,.nps-card,.region-card{background:#fff;border:1px solid #D0D0D0;border-radius:10px;padding:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.05);min-width:0}
+    .chart-title{font-size:12px;font-weight:800;color:#666;letter-spacing:.3px;text-transform:uppercase;margin-bottom:4px}
+    .chart-subtitle{font-size:11.5px;color:#666;margin-bottom:8px;line-height:1.45}
+    .plot{width:100%;min-width:0}
+    .plot-scroll{overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable}
+    .plot-scroll::-webkit-scrollbar,.heatmap-scroll::-webkit-scrollbar,.profile-scroll::-webkit-scrollbar{width:7px;height:7px}
+    .plot-scroll::-webkit-scrollbar-thumb,.heatmap-scroll::-webkit-scrollbar-thumb,.profile-scroll::-webkit-scrollbar-thumb{background:#D8DBDF;border-radius:20px}
+    .info-box,.warning-box,.error-box{padding:11px 13px;border-radius:8px;font-size:12.5px;line-height:1.5;margin:8px 0}
+    .info-box{background:#F4F8FB;border:1px solid #BBDEFB;color:#37474F}
+    .warning-box{background:#FFF8E8;border:1px solid #FCE7B8;color:#6D4C00}
+    .error-box{background:#FFF1F1;border:1px solid #FFD8D8;color:#9B1C1C}
+
+    /* ===== MAP ===== */
+    .map-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px}
+    .map-header-title{font-size:12px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.3px}
+    .map-header-badge{font-size:10.5px;font-weight:700;color:#C8102E;background:#FFF1F1;border:1px solid #FFD8D8;padding:4px 9px;border-radius:20px}
+    .map-wrap{position:relative;width:100%;height:560px;border-radius:8px;overflow:hidden;background:#E9EEF2}
+    #satisfaction-map{width:100%;height:560px}
+    .leaflet-tile-pane{filter:grayscale(100%) brightness(1.08) contrast(.82);opacity:.62}
+    .map-region-label{width:100px;text-align:center;font:500 11px Arial;color:#184C7A;white-space:nowrap;pointer-events:none;text-shadow:-1px -1px #fff,1px -1px #fff,-1px 1px #fff,1px 1px #fff}
+    .map-legend{position:absolute;left:60px;bottom:18px;z-index:9998;background:rgba(255,255,255,.96);border:1px solid #D9DEE5;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:9px 12px;font:12px Arial;color:#475569}
+    .map-legend-gradient{width:210px;height:10px;border-radius:5px;background:linear-gradient(90deg,#E60012 0%,#FFB000 50%,#35A853 100%)}
+    .map-legend-row{display:flex;justify-content:space-between;margin-top:3px;gap:16px}
+    .ntt-inset{position:absolute;right:14px;bottom:18px;width:29%;min-width:255px;max-width:330px;height:198px;z-index:9999;border:3px solid #fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);overflow:hidden;background:#E9EEF2;padding:0;cursor:pointer}
+    .ntt-inset-label{position:absolute;left:10px;top:8px;z-index:2;background:rgba(255,255,255,.95);padding:4px 8px;border-radius:5px;font:700 11px Arial;color:#262626}
+    .ntt-inset svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:176px;background:#E9EEF2;pointer-events:none}
+
+    /* ===== FILTERS ===== */
+    .filters-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.3fr 1.3fr 2.1fr;gap:10px;align-items:end}
+    .filter-field{min-width:0}
+    .filter-field label{display:block;font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px;margin:0 0 5px}
+    .filter-field select{width:100%;height:38px;border:1px solid var(--csl-border);border-radius:7px;background:#fff;color:#262626;padding:0 9px;font-size:12px;outline:none;min-width:0}
+    .filter-field select:focus{border-color:#E60012;box-shadow:0 0 0 2px rgba(230,0,18,.08)}
+
+    /* ===== KPI ===== */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .kpi-card{min-height:132px;text-align:left;background:#fff;border:1px solid var(--csl-border);border-radius:10px;padding:16px;box-shadow:var(--csl-shadow);position:relative;overflow:hidden}
+    .kpi-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#E60012}
+    .kpi-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+    .kpi-value{font-size:34px;color:#262626;font-weight:800;line-height:1.1;margin:8px 0 4px}
+    .kpi-sub{display:inline-block;font-size:10.5px;font-weight:800;background:#F0F1F3;padding:3px 9px;border-radius:20px}
+    .charts-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .charts-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+
+    /* ===== RANKING ===== */
+    .ranking-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .dealer-ranking-card{background:#fff;border:1.5px solid #D9DDE3;border-radius:12px;padding:0;overflow:hidden;box-shadow:0 2px 7px rgba(38,38,38,.07);margin:0}
+    .dealer-ranking-title{padding:14px 16px;font-size:12px;font-weight:800;color:#262626;border-bottom:1px solid #F0F1F3;background:#fff}
+    .dealer-ranking-title-high{border-left:4px solid #FF6B00}.dealer-ranking-title-low{border-left:4px solid #E60012}
+    .dealer-ranking-row{min-height:42px;display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed #E7E9EC}
+    .dealer-ranking-row:last-child{border-bottom:none}.dealer-ranking-name{font-size:12.5px;font-weight:500;line-height:1.35;color:#3F3F46}.dealer-rank{font-size:11.5px;font-weight:800;color:#D75B00}.dealer-rank-low{color:#C8102E}.dealer-ranking-value{font-size:12px;font-weight:800;color:#D75B00;white-space:nowrap}.dealer-ranking-value-low{color:#C8102E}
+
+    /* ===== MATRIX ===== */
+    .matrix-layout{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(250px,1fr);gap:16px;align-items:start}
+    .quadrant-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:8px}
+    .quadrant-chip{height:38px;border-radius:8px;border:1px solid var(--csl-border);background:#fff;color:#404040;font-size:11.5px;font-weight:700;cursor:pointer}
+    .quadrant-chip.active{color:#fff;border-color:transparent}
+    .matrix-detail-panel{height:478px;border:1px solid #E7E9EC;border-radius:10px;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+    .matrix-detail-head{flex:0 0 auto;padding:12px 14px 10px;border-bottom:1px solid #F0F1F3}
+    .matrix-detail-roman{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase}.matrix-detail-label{font-size:15px;font-weight:800;color:#262626}
+    .matrix-detail-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px 10px 10px;scrollbar-gutter:stable}
+    .matrix-point-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;border:1px solid #F0F1F3;border-radius:6px;padding:6px 10px;margin-bottom:6px}
+    .matrix-point-name{min-width:0;font-size:11.5px;color:#262626;line-height:1.25;overflow:hidden}.matrix-point-name b{font-size:12.5px}.matrix-point-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.matrix-point-value{font-size:11px;color:#666;text-align:right}
+    .matrix-caption{font-size:11.5px;color:#666;margin-top:5px}
+    .matrix-md-wrap{max-width:330px;margin:0 0 10px}
+
+    /* ===== PROFILE ===== */
+    .profile-top-grid{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:16px;
+        align-items:start;
+    }
+
+    .profile-equal-card{
+        height:420px;
+        min-height:420px;
+        max-height:420px;
+        overflow:hidden;
+    }
+
+    .heatmap-scroll{
+        height:340px;
+        max-height:340px;
+        overflow-y:auto;
+        overflow-x:hidden;
+        scrollbar-gutter:stable;
+    }
+
+    .profile-scroll{
+        height:340px;
+        overflow-y:auto;
+        overflow-x:hidden;
+        scrollbar-gutter:stable;
+    }
+    .profile-card{position:relative;background:#fff;border:1px solid var(--csl-border);border-radius:8px;height:64px;min-height:64px;max-height:64px;padding:0;margin-bottom:6px;box-shadow:none;transition:all .2s ease;overflow:hidden;cursor:pointer}
+    .profile-card:hover{border-color:#E60012;background:#FFF6F6}.profile-card.active{background:#FFF1F1;border:1.5px solid #E60012}.profile-card.disabled,.profile-card.disabled:hover{background:#F7F7F7;border-color:#E2E2E2;cursor:default}.profile-card.disabled .profile-card-inner{opacity:.55}
+    .profile-card-inner{display:flex;flex-direction:column;justify-content:center;gap:5px;width:100%;height:100%;min-height:62px;padding:8px 12px;box-sizing:border-box}
+    .profile-card-header{display:flex;justify-content:space-between;align-items:center;width:100%;font-size:12.5px;line-height:1.2}.profile-card-title{font-weight:600;color:#212121}.profile-card.active .profile-card-title,.profile-card.active .profile-card-pct{color:#C8102E;font-weight:700}.profile-card-pct{font-weight:700;color:#212121;margin-left:8px;white-space:nowrap}.profile-bar-bg{background:#E0E0E0;border-radius:6px;height:6px;width:100%;overflow:hidden}.profile-bar-fill{border-radius:6px;height:100%}
+    .profile-description-title{font-size:13px;font-weight:800;color:#262626;margin-bottom:12px}
+    .insight-box{background:#FFF6F6;border:1px solid #FFDADA;border-left:4px solid #E60012;border-radius:8px;padding:16px 18px 18px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px;box-shadow:none}
+    .insight-box-header{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#C8102E;padding-bottom:8px;border-bottom:1px dashed #FFDADA}.insight-box-body{font-size:13.5px;color:#37474F;line-height:1.6;font-weight:400}
+    .reco-box{background:#FFF8E8;border:1px solid #FCE7B8;border-left:4px solid #FF6B00;border-radius:8px;padding:16px 18px 18px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px;box-shadow:none}.reco-box-header{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#B45300;padding-bottom:8px;border-bottom:1px dashed #FCE7B8}.reco-box-body{font-size:13.5px;color:#2E3B2C;line-height:1.6;font-weight:400}
+    .profile-summary{width:100%;margin:14px 0 4px;padding:14px 16px;background:linear-gradient(135deg,#FFF7F2,#fff);border:1px solid #FFD7BF;border-left:4px solid #FF6B00;border-radius:10px;color:#3F3F46;font-size:13px;line-height:1.65}.profile-summary-title{font-size:11px;font-weight:800;letter-spacing:.5px;color:#C8102E;text-transform:uppercase;margin-bottom:5px}
+
+    /* ===== DEMOGRAPHICS ===== */
+    .demographic-grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.demographic-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.demographic-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.demographic-card{height:390px;min-height:390px;max-height:390px;overflow:hidden;display:flex;flex-direction:column}.chart-viewport{height:330px;min-height:330px;max-height:330px;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable}.chart-viewport::-webkit-scrollbar{width:6px}.chart-viewport::-webkit-scrollbar-thumb{background:#D8DBDF;border-radius:20px}
+    .fixed-chart-card{height:190px;min-height:190px;max-height:190px;overflow:hidden}.fixed-chart-card .legend-row{display:flex;flex-wrap:wrap;align-items:center;font-size:10px;line-height:1.45;color:#667085;padding:0 4px 4px}.legend-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:2px 12px 2px 0}.legend-dot{display:inline-block;width:10px;height:10px;border-radius:2px}
+    .nps-card{height:390px;min-height:390px;max-height:390px;overflow:hidden}.nps-caption{font-size:11px;color:#666;margin:0 4px 6px}
+
+    /* ===== REGION PAGE ===== */
+    .region-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}.region-two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.region-card{padding:12px}.region-detail-box{background:#FAFBFC;border:1px solid #E7E9EC;border-left:4px solid #1665D8;border-radius:8px;padding:10px 14px;margin-bottom:10px}.region-detail-box.culture{border-left-color:#FF6B00}.region-detail-title{font-weight:700;font-size:.92rem;color:#262626;margin-bottom:3px}.region-detail-count{font-weight:500;color:#666;font-size:.82rem}.region-detail-body{font-size:.85rem;color:#37474F;line-height:1.5}.methodology-box{background:#F8FAFC;border:1px solid #E7E9EC;border-radius:8px;padding:12px 14px;margin:12px 0}.methodology-title{font-size:12px;font-weight:800;color:#262626;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}.methodology-body{font-size:12.5px;line-height:1.55;color:#475569}.variable-list{margin:8px 0 0;padding-left:18px}.variable-list li{margin:4px 0}
+
+    /* ===== FRAMEWORK ===== */
+    .fw-shell,.fw-shell *{font-family:Poppins,sans-serif!important;box-sizing:border-box;text-align:center!important}
+    .fw-shell{background:#fff;border:1px solid #ececec;border-radius:18px;padding:22px 18px 24px;margin:10px 0 22px;box-shadow:0 8px 24px rgba(36,20,10,.06)}
+    .fw-title{display:block;width:100%;text-align:center;margin:0;color:#222;font-size:23px;font-weight:800;letter-spacing:.2px}.fw-subtitle{position:relative;left:50%;transform:translateX(-50%);display:block;width:min(760px,calc(100% - 32px));text-align:center;color:#777;font-size:13px;margin:6px 0 22px;line-height:1.55}.fw-subtitle-gmm{width:min(940px,calc(100% - 32px));line-height:1.75;color:#666;margin:8px 0 24px}
+    .fw-grid{display:grid;gap:14px;overflow-x:auto;padding:2px 2px 12px;scrollbar-color:#ff7a1a #fff1e8}.fw-grid-a{grid-template-columns:repeat(6,minmax(185px,1fr));gap:26px}.fw-grid-b{grid-template-columns:repeat(6,minmax(200px,1fr))}
+    .fw-step{--accent:#e60012;--tint:#fff3f3;position:relative;min-width:200px;border:1.5px solid var(--accent);border-radius:15px;background:#fff;overflow:hidden;box-shadow:0 5px 14px rgba(80,34,10,.08);display:flex;flex-direction:column}.fw-step:nth-child(even){--accent:#ff6b00;--tint:#fff6ee}.fw-grid-b .fw-step{--accent:#E60012;--tint:#FFF3F3;border-color:#E60012}.fw-grid-b .fw-step:nth-child(even){--accent:#FF6B00;--tint:#FFF5EC;border-color:#FF6B00}
+    .fw-step-head{position:relative;height:122px;min-height:122px;max-height:122px;flex:0 0 122px;background:linear-gradient(135deg,var(--accent),#ff8a21);color:#fff;display:flex;align-items:center;justify-content:center;padding:12px 42px 12px 52px}.fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#c90012,#f13a20)}.fw-grid-b .fw-step:nth-child(odd) .fw-step-head{background:linear-gradient(135deg,#C8102E 0%,#E60012 55%,#F13A20 100%)}.fw-grid-b .fw-step:nth-child(even) .fw-step-head{background:linear-gradient(135deg,#E65100 0%,#FF6B00 55%,#FF9A3D 100%)}
+    .fw-step-head>span{position:absolute;left:12px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-size:15px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.13)}.fw-step-head h3{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;margin:0;padding:0;font-size:13px;line-height:1.35;font-weight:800;color:#fff;text-align:center}
+    .fw-step-body{padding:11px;background:linear-gradient(180deg,var(--tint),#fff 28%);display:flex;flex:1;flex-direction:column;border-radius:0 0 13px 13px}.fw-item{display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:flex-start;border:1px solid color-mix(in srgb,var(--accent) 24%,white);border-radius:10px;background:#fff;padding:9px 8px;margin-bottom:9px;min-height:78px}.fw-item>div:last-child{width:100%}.fw-mini-icon{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:8px;background:var(--tint);color:var(--accent);font-weight:900;font-size:16px}.fw-mini-icon i{font-family:"Font Awesome 6 Free"!important;font-weight:900!important}.fw-item b{display:block;width:100%;color:#343434;font-size:11.5px;line-height:1.25;margin:1px 0 4px}.fw-item span{display:block;width:100%;color:#666;font-size:10.5px;line-height:1.38}.fw-output{border-radius:10px;background:var(--tint);border:1px solid color-mix(in srgb,var(--accent) 30%,white);padding:10px 11px;min-height:70px;margin-top:0}.fw-output b{display:block;width:100%;color:var(--accent);font-size:11px}.fw-output ul{list-style:none;margin:6px 0 0;padding:0;color:#444;font-size:10.5px;line-height:1.55}.fw-output li{padding:0}
+    .fw-insight-grid{display:grid;grid-template-columns:repeat(4,minmax(230px,1fr));gap:14px}.fw-insight{border:1px solid #eee;border-left:5px solid var(--c);border-radius:12px;background:#fff;padding:14px 15px;box-shadow:0 3px 10px rgba(20,20,20,.05)}.fw-insight-icon{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 14%,white);color:var(--c);font-weight:900;font-size:16px;margin:0 auto 8px}.fw-insight-title{font-size:12.5px;font-weight:800;color:#262626;margin-bottom:5px;line-height:1.3}.fw-insight-desc{font-size:11px;color:#666;line-height:1.55}
+    .fw-grid-a .fw-step{min-width:185px;overflow:visible}.fw-grid-a .fw-step-head{border-radius:13px 13px 0 0}.fw-grid-a .fw-step:not(:last-child)::after{content:"➜";position:absolute;right:-24px;top:38px;z-index:8;color:#181818;font-size:24px;font-weight:900;line-height:1}.fw-grid-a .fw-item{position:relative;flex-direction:row;align-items:center;justify-content:flex-start;min-height:82px;margin-bottom:22px;padding:10px 8px}.fw-grid-a .fw-item>div:last-child{flex:1;min-width:0}.fw-grid-a .fw-mini-icon{flex:0 0 36px;width:36px;height:36px;border-radius:50%;font-size:19px}.fw-grid-a .fw-item:not(:last-child)::after{content:"↓";position:absolute;left:50%;bottom:-20px;transform:translateX(-50%);color:#181818;font-size:17px;font-weight:900;line-height:1}
+
+    /* ===== LOADING ===== */
+    .loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.62);backdrop-filter:blur(1px);z-index:999999;display:none;align-items:center;justify-content:center}.loading-overlay.show{display:flex}.loading-pill{background:#fff;border:1px solid #E7E9EC;border-radius:12px;box-shadow:0 5px 20px rgba(0,0,0,.12);padding:12px 16px;font-size:12.5px;font-weight:700;color:#444;display:flex;align-items:center;gap:10px}.spinner{width:16px;height:16px;border:2px solid #FFD0C4;border-top-color:#E60012;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+
+    @media(max-width:1100px){
+      .top-header{grid-template-columns:1fr auto auto;}.csl-update-time{grid-column:1/2;grid-row:2;text-align:left;left:0}.filters-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.charts-grid-3{grid-template-columns:1fr}.profile-top-grid{grid-template-columns:1fr}.profile-equal-card{height:auto;max-height:none}.demographic-grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}.matrix-layout{grid-template-columns:1fr}.region-two-col{grid-template-columns:1fr}.fw-grid-a{grid-template-columns:repeat(2,minmax(220px,1fr))}.fw-grid-b{grid-template-columns:repeat(3,minmax(220px,1fr))}.fw-insight-grid{grid-template-columns:repeat(2,minmax(220px,1fr))}
+    }
+    @media(max-width:760px){
+      .app-container{padding:.2rem .65rem 2rem}.top-header{padding:12px;grid-template-columns:1fr 1fr}.csl-header-brand{grid-column:1/-1}.csl-brand h1{font-size:15px}.csl-update-time{grid-column:1/-1;grid-row:auto}.page-btn{padding:0 12px}.filters-grid,.kpi-grid,.charts-grid-2,.ranking-grid,.demographic-grid-4,.demographic-grid-3,.demographic-grid-2,.region-filters{grid-template-columns:1fr}.quadrant-chips{grid-template-columns:repeat(2,1fr)}.ntt-inset{min-width:210px;width:44%;height:170px}.map-legend{left:15px}.fw-grid-a,.fw-grid-b{grid-template-columns:1fr;overflow-x:visible}.fw-insight-grid{grid-template-columns:1fr}.fw-step{min-width:0}.fw-shell{padding:17px 12px}.fw-title{font-size:19px}
+    }
+    .leaflet-container {
+        background: #d9d9d9 !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay"><div class="loading-pill"><span class="spinner"></span><span>Memuat data dashboard…</span></div></div>
+  <div class="app-container">
+    <header class="top-header">
+      <div class="csl-header-brand">
+        <div class="csl-logo">CSL</div>
+        <div class="csl-brand"><h1>CUSTOMER SATISFACTION LEVEL ANALYTICS</h1></div>
+      </div>
+      <div class="csl-update-time">Data terakhir diperbarui<br><b id="lastUpdate">-</b></div>
+      <button class="header-btn" id="refreshBtn">⟳&nbsp; Refresh Data</button>
+      <button class="header-btn" id="resetBtn">Reset Filter</button>
+    </header>
+
+    <div class="page-selector-card"><nav class="page-selector" id="pageSelector"></nav></div>
+    <main id="app"></main>
+  </div>
+
+<script>
+/* ============================================================
+ * KONFIGURASI DEPLOYMENT
+ * Ganti SATU nilai ini dengan URL Web App Apps Script yang berakhiran /exec.
+ * Contoh: https://script.google.com/macros/s/AKfycb.../exec
+ * ============================================================ */
+const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbyBFkfmuAN3VgzUdULdSCYMMRNFCaAcN01Hx_i9yejIQe5GFikGpDT6yPqNY460xv8f/exec';
+
+/* Sumber geometri yang sama dengan shapefile Python:
+ * idn_admbnda_adm2_bps_20200401, layer ADM2 BPS 2020-04-01.
+ */
+const ADM2_ARCGIS_URL = 'https://services.arcgis.com/tKsJAIiLjd90D5q2/ArcGIS/rest/services/idn_adm_bps_20200401_shp/FeatureServer/4/query';
+
+const COLORS = {
+  RED:'#E60012', ORANGE:'#FF6B00', YELLOW:'#FFB000', GREEN:'#35A853', BLUE:'#1665D8', DARK_RED:'#C8102E'
+};
+const PAGE_OPTIONS_FALLBACK = ['H1 SALES','H2 SERVICE','H3 SPARE PART','PROFIL WILAYAH','FRAMEWORK'];
+const UNIT_BY_PAGE = {'H1 SALES':'sales','H2 SERVICE':'service','H3 SPARE PART':'parts'};
+
+const state = {
+  config:null,
+  activePage:'H1 SALES',
+  lastUpdate:new Date(),
+  unit:{
+    sales:{year:'Semua',semester:'Semester 1',md:'Semua',layer:'Semua',kar:'Semua',kab:'Semua',dealer:'Semua',profile:'P1',matrixMd:'M2Z',selectedQuadrant:null,heatmap:null},
+    service:{year:'Semua',semester:'Semester 1',md:'Semua',layer:'Semua',kar:'Semua',kab:'Semua',dealer:'Semua',profile:'P1',matrixMd:'M2Z',selectedQuadrant:null,heatmap:null},
+    parts:{year:'Semua',semester:'Semester 1',md:'Semua',layer:'Semua',kar:'Semua',kab:'Semua',dealer:'Semua',profile:'P1',matrixMd:'M2Z',selectedQuadrant:null,heatmap:null}
+  },
+  region:{h:'H1',cluster:'Semua',sort:'Profile Wilayah'},
+  geometry:null,
+  geometryPromise:null,
+  map:null
+};
+
+function escapeHtml(value){
+  return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+function setLoading(show){document.getElementById('loadingOverlay').classList.toggle('show',!!show)}
+function infoBox(message, kind='info'){
+  const cls = kind === 'error' ? 'error-box' : kind === 'warning' ? 'warning-box' : 'info-box';
+  return `<div class="${cls}">${escapeHtml(message)}</div>`;
+}
+function formatWib(date=new Date()){
+  const parts = new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Jakarta',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(date);
+  const map={}; parts.forEach(p=>map[p.type]=p.value);
+  const monMap={'Jan':'Jan','Feb':'Feb','Mar':'Mar','Apr':'Apr','Mei':'Mei','Jun':'Jun','Jul':'Jul','Agu':'Agu','Sep':'Sep','Okt':'Okt','Nov':'Nov','Des':'Des','May':'Mei','Aug':'Agu','Oct':'Okt','Dec':'Des'};
+  return `${map.day} ${monMap[map.month]||map.month} ${map.year}, ${map.hour}:${map.minute} WIB`;
+}
+function updateLastUpdate(){document.getElementById('lastUpdate').textContent = state.config?.lastUpdate || formatWib(state.lastUpdate)}
+function isConfigured(){return GAS_EXEC_URL && GAS_EXEC_URL.startsWith('https://script.google.com/') && GAS_EXEC_URL.includes('/exec')}
+
+/* JSONP digunakan karena Kode.gs sudah mendukung parameter callback.
+ * Ini menghindari perubahan backend/CORS dan tetap satu index.html statis.
+ */
+function apiGet(action, params={}){
+  return new Promise((resolve,reject)=>{
+    if(!isConfigured()){
+      reject(new Error('GAS_EXEC_URL belum diisi. Ganti nilai GAS_EXEC_URL pada index.html dengan URL deployment Apps Script /exec.'));
+      return;
+    }
+    const callback = `__gas_cb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const query = new URLSearchParams({action, ...Object.fromEntries(Object.entries(params).filter(([,v])=>v!==undefined && v!==null)), callback, _ts:String(Date.now())});
+    const timeout = setTimeout(()=>cleanup(new Error(`Timeout saat memanggil endpoint ${action}.`)), 90000);
+    function cleanup(err,data){
+      clearTimeout(timeout);
+      try{delete window[callback]}catch(_){window[callback]=undefined}
+      script.remove();
+      if(err) reject(err); else resolve(data);
+    }
+    window[callback] = payload => {
+      if(!payload || payload.ok === false) cleanup(new Error(payload?.error || `Endpoint ${action} gagal.`));
+      else cleanup(null,payload);
+    };
+    script.onerror = ()=>cleanup(new Error(`Gagal memuat endpoint ${action}. Pastikan deployment Apps Script dapat diakses Anyone.`));
+    script.src = `${GAS_EXEC_URL}?${query.toString()}`;
+    document.head.appendChild(script);
+  });
+}
+
+function unitParams(unit){
+  const s=state.unit[unit];
+  return {unit,year:s.year,semester:s.semester,md:s.md,layer:s.layer,kar:s.kar,kab:s.kab,dealer:s.dealer,profile:s.profile};
+}
+function syncUnitStateFromPayload(unit,payload){
+  const s=state.unit[unit], fo=payload.filterOptions;
+  if(!fo) return;
+  s.year=fo.year?.selected ?? s.year;
+  s.semester=fo.semester?.selected ?? s.semester;
+  s.md=fo.mainDealer?.selected ?? s.md;
+  s.layer=fo.layer?.selected ?? s.layer;
+  s.kar=fo.karesidenan?.selected ?? s.kar;
+  s.kab=fo.kabKota?.selected ?? s.kab;
+  s.dealer=fo.dealer?.selected ?? s.dealer;
+  if(payload.section3?.profileList?.selected) s.profile=payload.section3.profileList.selected;
+}
+
+function deepMerge(base, extra){
+  const out = Array.isArray(base) ? base.slice() : {...base};
+  if(!extra) return out;
+  Object.entries(extra).forEach(([k,v])=>{
+    if(v && typeof v==='object' && !Array.isArray(v) && base?.[k] && typeof base[k]==='object' && !Array.isArray(base[k])) out[k]=deepMerge(base[k],v);
+    else out[k]=v;
+  });
+  return out;
+}
+function plotLayout(extra={}){
+  const base={
+    font:{family:'Inter, Segoe UI, Arial, sans-serif',color:'#262626',size:12},
+    paper_bgcolor:'#FFFFFF',plot_bgcolor:'#FFFFFF',
+    hoverlabel:{bgcolor:'#262626',font:{color:'#FFFFFF'},bordercolor:'#262626',align:'left'},
+    xaxis:{gridcolor:'#F0F1F3',zerolinecolor:'#C7C9CD',linecolor:'#E7E9EC'},
+    yaxis:{gridcolor:'#F0F1F3',zerolinecolor:'#C7C9CD',linecolor:'#E7E9EC'},
+    legend:{bgcolor:'rgba(255,255,255,0)',font:{size:11}}
+  };
+  return deepMerge(base,extra);
+}
+const PLOT_CONFIG={responsive:true,displaylogo:false};
+function purgePlot(el){try{if(el && el._fullLayout) Plotly.purge(el)}catch(_){}}
+function makePlot(el,data,layout,config={}){if(!el)return; purgePlot(el); Plotly.newPlot(el,data,plotLayout(layout),{...PLOT_CONFIG,...config})}
+
+function sectionTitle(badge,title){return `<div class="custom-section-title"><div class="custom-section-badge">${escapeHtml(badge)}</div><div class="custom-section-text">${escapeHtml(title)}</div></div>`}
+function chartCard(title,subtitle='',id='',classes='chart-card'){
+  return `<div class="${classes}"><div class="chart-title">${escapeHtml(title)}</div>${subtitle?`<div class="chart-subtitle">${escapeHtml(subtitle)}</div>`:''}<div class="plot" id="${id}"></div></div>`;
+}
+function renderKpis(cards){
+  return `<div class="kpi-grid">${(cards||[]).map(c=>`<div class="kpi-card"><div class="kpi-label">${escapeHtml(c.label)}</div><div class="kpi-value">${escapeHtml(c.value)}</div><div class="kpi-sub" style="color:${escapeHtml(c.subColor)}">${escapeHtml(c.sub)}</div></div>`).join('')}</div>`;
+}
+
+function buildSelect(fieldId,payload,paramKey,unit){
+  if(!payload) return '';
+  let options=[];
+  if(Array.isArray(payload.options) && payload.options.length && typeof payload.options[0]==='object') options=payload.options.map(o=>({value:String(o.value),label:String(o.label)}));
+  else options=(payload.options||[]).map(v=>({value:String(v),label:String(v)}));
+  const htmlOptions=options.map(o=>`<option value="${escapeHtml(o.value)}" ${String(payload.selected)===o.value?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
+  return `<div class="filter-field"><label for="${fieldId}">${escapeHtml(payload.label)}</label><select id="${fieldId}" data-unit="${unit}" data-param="${paramKey}">${htmlOptions}</select></div>`;
+}
+function renderFilters(unit,fo){
+  return `<div class="filters-grid" id="filters-${unit}">
+    ${buildSelect(`${unit}-year`,fo.year,'year',unit)}
+    ${buildSelect(`${unit}-semester`,fo.semester,'semester',unit)}
+    ${buildSelect(`${unit}-md`,fo.mainDealer,'md',unit)}
+    ${buildSelect(`${unit}-layer`,fo.layer,'layer',unit)}
+    ${buildSelect(`${unit}-kar`,fo.karesidenan,'kar',unit)}
+    ${buildSelect(`${unit}-kab`,fo.kabKota,'kab',unit)}
+    ${buildSelect(`${unit}-dealer`,fo.dealer,'dealer',unit)}
+  </div>`;
+}
+function bindFilterEvents(unit){
+  document.querySelectorAll(`#filters-${unit} select[data-param]`).forEach(sel=>{
+    sel.addEventListener('change',async e=>{
+      state.unit[unit][e.target.dataset.param]=e.target.value;
+      await renderUnitPage(unit,{preserveScroll:true,skipHeatmap:true});
+    });
+  });
+}
+
+function renderPageSelector(){
+  const opts=state.config?.pageOptions || PAGE_OPTIONS_FALLBACK;
+  document.getElementById('pageSelector').innerHTML=opts.map(p=>`<button class="page-btn ${state.activePage===p?'active':''}" data-page="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join('');
+  document.querySelectorAll('.page-btn').forEach(btn=>btn.addEventListener('click',async()=>{
+    if(state.activePage===btn.dataset.page) return;
+    state.activePage=btn.dataset.page;
+    renderPageSelector();
+    await renderActivePage();
+  }));
+}
+
+function resetActivePageState(){
+  const unit=UNIT_BY_PAGE[state.activePage];
+  if(unit){
+    state.unit[unit]={year:'Semua',semester:'Semester 1',md:'Semua',layer:'Semua',kar:'Semua',kab:'Semua',dealer:'Semua',profile:'P1',matrixMd:'M2Z',selectedQuadrant:null,heatmap:state.unit[unit]?.heatmap||null};
+  }else if(state.activePage==='PROFIL WILAYAH'){
+    state.region={h:'H1',cluster:'Semua',sort:'Profile Wilayah'};
+  }
+}
+</script>
+<script>
+/* ============================================================
+ * GEOMETRY + MAP
+ * ============================================================ */
+function normalizeLocationName(value){
+  if(value===null || value===undefined || String(value).trim()==='') return '';
+  let name=String(value).trim().toLowerCase();
+  name=name.replace(/\bkab-kodya\b/g,'');
+  name=name.replace(/\b(kabupaten|kab|kodya|kota)\b\.?/g,'');
+  name=name.replace(/\s+/g,' ').trim();
+  return name;
+}
+function dashboardRegionName(value){
+  if(value===null || value===undefined || String(value).trim()==='') return '';
+  let raw=String(value).trim().toLowerCase().replace(/[_/]+/g,' ').replace(/\s+/g,' ').trim();
+  const simple=normalizeLocationName(raw);
+  if(simple==='ntt' || simple==='nusa tenggara timur' || simple.includes('kupang')) return 'Kupang';
+  if(raw.includes('kota malang') || raw.includes('kodya malang')) return 'Kota Malang';
+  if(simple==='malang' || simple==='batu') return 'Malang';
+  const merged={mojokerto:'Mojokerto',kediri:'Kediri',probolinggo:'Probolinggo',pasuruan:'Pasuruan',madiun:'Madiun',blitar:'Kab-Kodya Blitar'};
+  if(merged[simple]) return merged[simple];
+  return simple.replace(/\b\w/g,c=>c.toUpperCase());
+}
+function combineFeatures(features){
+  if(!features.length) return null;
+  let out=features[0];
+  for(let i=1;i<features.length;i++){
+    try{ out=turf.union(out,features[i]) || out; }catch(_){ /* geometry source is valid; keep first if browser union fails */ }
+  }
+  try{return turf.simplify(out,{tolerance:.005,highQuality:true,mutate:false})}catch(_){return out}
+}
+async function loadAdminGeometry(){
+  if(state.geometry) return state.geometry;
+  if(state.geometryPromise) return state.geometryPromise;
+  state.geometryPromise=(async()=>{
+    const query=new URLSearchParams({
+      where:"ADM1_EN IN ('Jawa Timur','Nusa Tenggara Timur')",
+      outFields:'ADM2_EN,ADM1_EN',returnGeometry:'true',outSR:'4326',f:'geojson'
+    });
+    const response=await fetch(`${ADM2_ARCGIS_URL}?${query.toString()}`);
+    if(!response.ok) throw new Error('Gagal mengambil geometri batas kabupaten/kota.');
+    const gj=await response.json();
+    const groups={};
+    (gj.features||[]).forEach(f=>{
+      const prov=String(f.properties?.ADM1_EN||'').trim().toLowerCase();
+      const region=prov.includes('nusa tenggara timur') ? 'NTT' : dashboardRegionName(f.properties?.ADM2_EN||'');
+      if(!region) return;
+      (groups[region] ||= []).push(f);
+    });
+    const byRegion={};
+    Object.entries(groups).forEach(([region,features])=>{
+      const feature=combineFeatures(features);
+      if(feature){ feature.properties={...(feature.properties||{}),region}; byRegion[region]=feature; }
+    });
+    state.geometry=byRegion;
+    return byRegion;
+  })();
+  try{return await state.geometryPromise}finally{state.geometryPromise=null}
+}
+function mapTooltipHtml(stat,mapData,displayRegion){
+  const aliases=mapData.tooltipAliases||['Kabupaten/Kota:','Satisfaction:','%CSL H123:','Profile Dominan:'];
+  return `<div style="font:12px Inter,Arial;line-height:1.55;text-align:left"><b>${escapeHtml(aliases[0]||'Kabupaten/Kota:')}</b> ${escapeHtml(displayRegion)}<br>`+
+    `<b>${escapeHtml(aliases[1]||'Satisfaction:')}</b> ${escapeHtml(stat?.satisfactionText||'Tidak ada data')}<br>`+
+    `<b>${escapeHtml(aliases[2]||'%CSL H123:')}</b> ${escapeHtml(stat?.cslH123Text||'Tidak ada data')}<br>`+
+    `<b>${escapeHtml(aliases[3]||'Profile Dominan:')}</b> ${escapeHtml(stat?.dominantProfile||'-')}</div>`;
+}
+function featureToInsetSvg(feature,color,label){
+  if(!feature) return '';
+  const bbox=turf.bbox(feature), [minX,minY,maxX,maxY]=bbox;
+  const W=320,H=176,pad=16, dx=Math.max(maxX-minX,1e-8), dy=Math.max(maxY-minY,1e-8);
+  const scale=Math.min((W-pad*2)/dx,(H-pad*2)/dy);
+  const project=([x,y])=>[pad+(x-minX)*scale,H-pad-(y-minY)*scale];
+  const paths=[];
+  const geom=feature.geometry||{};
+  const polys=geom.type==='Polygon'?[geom.coordinates]:(geom.type==='MultiPolygon'?geom.coordinates:[]);
+  polys.forEach(poly=>poly.forEach(ring=>{
+    const d=ring.map((c,i)=>{const [x,y]=project(c);return `${i?'L':'M'}${x.toFixed(2)},${y.toFixed(2)}`}).join(' ')+' Z';
+    paths.push(`<path d="${d}" fill="${escapeHtml(color)}" fill-opacity=".92" stroke="#FFFFFF" stroke-width="1.5"/>`);
+  }));
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-label="${escapeHtml(label)}">${paths.join('')}</svg>`;
+}
+async function handleMapRegionClick(unit,region){
+  try{
+    setLoading(true);
+    const s=state.unit[unit];
+    const result=await apiGet('mapClick',{unit,region,year:s.year,semester:s.semester});
+    const sel=result.selection||{};
+    if(sel.main_dealer!==undefined) s.md=sel.main_dealer || 'Semua';
+    if(sel.karesidenan!==undefined) s.kar=sel.karesidenan || 'Semua';
+    if(sel.kab_kota!==undefined) s.kab=sel.kab_kota || 'Semua';
+    s.layer=sel.layer || 'Semua';
+    s.dealer=sel.dealer || 'Semua';
+    await renderUnitPage(unit,{preserveScroll:true,skipHeatmap:true});
+  }catch(err){document.getElementById('app').insertAdjacentHTML('afterbegin',infoBox(err.message,'error'))}
+  finally{setLoading(false)}
+}
+async function renderSatisfactionMap(mapData,unit){
+  const host=document.getElementById('satisfaction-map');
+  if(!host) return;
+  if(!mapData?.available){host.innerHTML=infoBox(mapData?.message||'Nilai satisfaction per wilayah belum tersedia untuk filter yang dipilih.');return}
+  let geometry;
+  try{geometry=await loadAdminGeometry()}catch(err){host.innerHTML=infoBox(err.message,'warning');return}
+  if(state.map){try{state.map.remove()}catch(_){} state.map=null;}
+  host.innerHTML='';
+  const map=L.map(host,{center:[-7.62,112.45],zoom:8,minZoom:6,maxZoom:12,zoomControl:true,preferCanvas:true,attributionControl:true});
+  state.map=map;
+  //L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  //    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  //    subdomains: 'abcd',
+  //    maxZoom: 20
+  //}).addTo(map);
+  const statMap={}; (mapData.regions||[]).forEach(r=>statMap[r.region]=r);
+  Object.entries(geometry).filter(([region])=>region!=='NTT').forEach(([region,feature])=>{
+    const stat=statMap[region]||null;
+    const color=stat?.color||mapData.noDataColor||'#D9DEE5';
+    const layer=L.geoJSON(feature,{style:{fillColor:color,color:'#FFFFFF',weight:1.5,fillOpacity:.92}}).addTo(map);
+    layer.bindTooltip(mapTooltipHtml(stat,mapData,region),{sticky:true,direction:'top',opacity:.97});
+    layer.on('mouseover',()=>layer.setStyle({fillColor:color,color:'#262626',weight:2.5,fillOpacity:1}));
+    layer.on('mouseout',()=>layer.setStyle({fillColor:color,color:'#FFFFFF',weight:1.5,fillOpacity:.92}));
+    layer.on('click',()=>handleMapRegionClick(unit,region));
+    try{
+      const pt=turf.pointOnFeature(feature).geometry.coordinates;
+      L.marker([pt[1],pt[0]],{interactive:false,icon:L.divIcon({className:'',html:`<div class="map-region-label">${escapeHtml(region)}</div>`,iconSize:[100,18],iconAnchor:[50,9]})}).addTo(map);
+    }catch(_){}
+  });
+  const bounds=mapData.jatimBounds||[[-8.95,110.75],[-6.70,114.65]];
+  map.fitBounds(bounds,{paddingTopLeft:[15,15],paddingBottomRight:[320,15],maxZoom:8});
+
+  const wrap=host.parentElement;
+  const oldLegend=wrap.querySelector('.map-legend'); if(oldLegend) oldLegend.remove();
+  const legend=document.createElement('div'); legend.className='map-legend';
+  legend.innerHTML=`<div style="font-weight:700;margin-bottom:5px">${escapeHtml(mapData.legendTitle||'Satisfaction')}</div><div class="map-legend-gradient"></div><div class="map-legend-row"><span>${escapeHtml(mapData.legendLowText||'Rendah')}</span><span>${escapeHtml(mapData.legendHighText||'Tinggi')}</span></div>`;
+  wrap.appendChild(legend);
+
+  const oldInset=wrap.querySelector('.ntt-inset'); if(oldInset) oldInset.remove();
+  if(geometry.NTT){
+    const stat=statMap.Kupang||statMap.NTT||null, color=stat?.color||mapData.noDataColor||'#D9DEE5';
+    const inset=document.createElement('div'); inset.className='ntt-inset'; inset.title='Klik NTT untuk memfilter Kupang';
+    inset.innerHTML=`<div class="ntt-inset-label">NTT · ${escapeHtml(stat?.satisfactionText||'Tidak ada data')}</div>${featureToInsetSvg(geometry.NTT,color,'NTT')}`;
+    inset.addEventListener('click',()=>handleMapRegionClick(unit,'NTT'));
+    wrap.appendChild(inset);
+  }
+}
+
+/* ============================================================
+ * PLOTLY CHARTS — 1:1 payload Kode.gs
+ * ============================================================ */
+function renderSatisfactionPlot(id,p){
+  const el=document.getElementById(id); 
+  if(!el)return;
+
+  if(!p?.items?.length){
+    el.innerHTML=infoBox('Data tidak tersedia.');
+    return;
+  }
+
+  makePlot(
+    el,
+    [{
+      type:'bar',
+      orientation:'h',
+      x:p.items.map(x=>x.value),
+      y:p.items.map(x=>x.code),
+      marker:{color:p.color||COLORS.RED},
+      text:p.items.map(x=>x.text),
+      textposition:'outside',
+      cliponaxis:false,
+      customdata:p.items.map(x=>[x.name]),
+      hovertemplate:
+        '<b>Kode Indikator:</b> %{y}<br>' +
+        '<b>Nama Indikator:</b> %{customdata[0]}<br>' +
+        '<b>Satisfaction:</b> %{x:.1f}%<extra></extra>'
+    }],
+    {
+      xaxis:{
+        range:[0,p.xRangeMax],
+        ticksuffix:'%',
+        automargin:true,
+        tickpadding:5
+      },
+
+      yaxis:{
+        autorange:'reversed',
+        automargin:true,
+        tickpadding:8
+      },
+
+      margin:{
+        l:45,
+        r:35,
+        t:10,
+        b:30
+      },
+
+      height:p.height,
+      showlegend:false
+    }
+  );
+}
+function renderGapPlot(id, p) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  if (!p?.items?.length) {
+    el.innerHTML = infoBox('Data tidak tersedia.');
+    return;
+  }
+
+  /*
+   * ============================================================
+   * Hitung range X secara dinamis agar label positif/negatif
+   * mempunyai ruang dan tidak menabrak kode indikator.
+   * ============================================================
+   */
+  const values = p.items
+    .map(x => Number(x.gap))
+    .filter(x => Number.isFinite(x));
+
+  const minValue = Math.min(...values, 0);
+  const maxValue = Math.max(...values, 0);
+
+  /*
+   * Tambahkan ruang 0.15 percentage point di kedua sisi.
+   * Contoh:
+   * -0.4% sampai +0.7%
+   * menjadi:
+   * -0.55% sampai +0.85%
+   */
+  const padding = 0.15;
+
+  const xMin = Math.min(
+    Number.isFinite(p.xMin) ? p.xMin : minValue,
+    minValue
+  ) - padding;
+
+  const xMax = Math.max(
+    Number.isFinite(p.xMax) ? p.xMax : maxValue,
+    maxValue
+  ) + padding;
+
+  makePlot(
+    el,
+
+    [{
+      type: 'bar',
+      orientation: 'h',
+
+      x: p.items.map(x => x.gap),
+      y: p.items.map(x => x.code),
+
+      marker: {
+        color: p.items.map(x => x.color)
+      },
+
+      text: p.items.map(x => x.text),
+
+      /*
+       * Tetap di luar bar supaya angka gap jelas.
+       */
+      textposition: 'outside',
+
+      /*
+       * Jangan potong label yang berada di luar bar.
+       */
+      cliponaxis: false,
+
+      /*
+       * Ukuran font label dibuat sedikit lebih kecil
+       * supaya tidak terlalu berdesakan.
+       */
+      textfont: {
+        size: 10
+      },
+
+      customdata: p.items.map(x => [
+        x.name,
+        x.satisfaction
+      ]),
+
+      hovertemplate:
+        '<b>Kode Indikator:</b> %{y}<br>' +
+        '<b>Nama Indikator:</b> %{customdata[0]}<br>' +
+        '<b>Satisfaction:</b> %{customdata[1]:.1f}%<br>' +
+        '<b>Gap terhadap target:</b> %{x:+.1f}%<extra></extra>'
+    }],
+
+    {
+      xaxis: {
+        range: [xMin, xMax],
+        ticksuffix: '%',
+        automargin: true,
+        tickpadding: 5
+      },
+
+      yaxis: {
+        autorange: 'reversed',
+        automargin: true,
+        tickpadding: 8,
+        tickfont: {
+          size: 10
+        }
+      },
+
+      /*
+       * Ruang kiri dan kanan diperbesar.
+       */
+      margin: {
+        l: 50,
+        r: 50,
+        t: 10,
+        b: 30
+      },
+
+      height: p.height,
+      showlegend: false,
+
+      shapes: [{
+        type: 'line',
+        x0: 0,
+        x1: 0,
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+        line: {
+          color: '#999999',
+          width: 1
+        }
+      }]
+    }
+  );
+}
+function renderDiffPlot(id, p) {
+  const el = document.getElementById(id);
+
+  if (!el) return;
+
+  if (!p) {
+    el.innerHTML = '';
+    return;
+  }
+
+  if (p.available === false) {
+    el.innerHTML = infoBox(
+      p.message ||
+      'Data periode sebelumnya tidak tersedia untuk filter ini.'
+    );
+    return;
+  }
+
+  if (!p.items?.length) {
+    el.innerHTML = infoBox('Data tidak tersedia.');
+    return;
+  }
+
+  /*
+   * ============================================================
+   * Hitung range X secara dinamis.
+   * Memberikan ruang ekstra agar label positif dan negatif
+   * tidak menabrak kode indikator maupun batas chart.
+   * ============================================================
+   */
+  const values = p.items
+    .map(x => Number(x.diff))
+    .filter(x => Number.isFinite(x));
+
+  const minValue = Math.min(...values, 0);
+  const maxValue = Math.max(...values, 0);
+
+  /*
+   * Tambahkan ruang ekstra di kiri dan kanan.
+   */
+  const padding = 0.15;
+
+  const xMin = Math.min(
+    Number.isFinite(p.xMin) ? p.xMin : minValue,
+    minValue
+  ) - padding;
+
+  const xMax = Math.max(
+    Number.isFinite(p.xMax) ? p.xMax : maxValue,
+    maxValue
+  ) + padding;
+
+  makePlot(
+    el,
+
+    [{
+      type: 'bar',
+      orientation: 'h',
+
+      x: p.items.map(x => x.diff),
+      y: p.items.map(x => x.code),
+
+      marker: {
+        color: p.items.map(x => x.color)
+      },
+
+      text: p.items.map(x => x.text),
+
+      /*
+       * Nilai perubahan tetap ditampilkan di luar batang.
+       */
+      textposition: 'outside',
+
+      /*
+       * Jangan potong teks yang berada di luar batang.
+       */
+      cliponaxis: false,
+
+      /*
+       * Sedikit diperkecil supaya tidak bertumpuk.
+       */
+      textfont: {
+        size: 10
+      },
+
+      customdata: p.items.map(x => [
+        x.name,
+        x.satisfaction
+      ]),
+
+      hovertemplate:
+        '<b>Kode Indikator:</b> %{y}<br>' +
+        '<b>Nama Indikator:</b> %{customdata[0]}<br>' +
+        '<b>Satisfaction:</b> %{customdata[1]:.1f}%<br>' +
+        '<b>Gap semester sebelumnya:</b> %{x:+.1f}%<extra></extra>'
+    }],
+
+    {
+      xaxis: {
+        range: [xMin, xMax],
+        ticksuffix: '%',
+        automargin: true,
+        tickpadding: 5
+      },
+
+      yaxis: {
+        /*
+         * A1, A2, A3, dst tetap lengkap.
+         */
+        autorange: 'reversed',
+
+        /*
+         * Plotly diberi izin untuk menyesuaikan ruang
+         * berdasarkan label sumbu.
+         */
+        automargin: true,
+
+        tickpadding: 8,
+
+        tickfont: {
+          size: 10
+        }
+      },
+
+      /*
+       * INI PERBAIKAN PALING PENTING.
+       *
+       * l sebelumnya = 10
+       * sekarang = 50
+       *
+       * supaya A1, A2, A3, dst tidak kepotong.
+       */
+      margin: {
+        l: 50,
+        r: 50,
+        t: 10,
+        b: 30
+      },
+
+      height: p.height,
+      showlegend: false,
+
+      hoverlabel: {
+        align: 'left'
+      },
+
+      shapes: [{
+        type: 'line',
+        x0: 0,
+        x1: 0,
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+
+        line: {
+          color: '#999999',
+          width: 1
+        }
+      }]
+    },
+
+    {
+      displayModeBar: true
+    }
+  );
+}
+function renderHeatmapPlot(id,p){
+  const el=document.getElementById(id);
+  if(!el)return;
+
+  if(!p?.available){
+    el.innerHTML=infoBox(
+      p?.message || 'Data heatmap tidak tersedia.'
+    );
+    return;
+  }
+
+  const custom=p.y.map((code,i)=>
+    p.x.map(() => [
+      code,
+      p.names?.[i] || 'Nama indikator belum tersedia'
+    ])
+  );
+
+  makePlot(
+    el,
+    [{
+      type:'heatmap',
+
+      z:p.z,
+      x:p.x,
+      y:p.y,
+
+      text:p.text,
+      texttemplate:'%{text}',
+
+      textfont:{
+        size:11,
+        color:'#212121'
+      },
+
+      colorscale:p.colorscale,
+      zmid:0,
+
+      xgap:2,
+      ygap:2,
+
+      customdata:custom,
+
+      colorbar:{
+        title:'Selisih',
+        thickness:15,
+        len:0.9
+      },
+
+      hovertemplate:
+        '<b>Kode Indikator:</b> %{customdata[0]}<br>' +
+        '<b>Nama Indikator:</b> %{customdata[1]}<br>' +
+        '<b>Selisih satisfaction rata-rata keseluruhan:</b> %{z:.2f}%' +
+        '<extra></extra>'
+    }],
+
+    {
+      xaxis:{
+        title:{
+          text:'Profile',
+          standoff:8
+        },
+
+        tickangle:0,
+        side:'top',
+
+        tickfont:{
+          size:10
+        },
+
+        automargin:true
+      },
+
+      yaxis:{
+        title:{
+          text:'Indikator',
+          standoff:8
+        },
+
+        autorange:'reversed',
+
+        tickfont:{
+          size:9
+        },
+
+        tickpadding:5,
+
+        automargin:true
+      },
+
+      margin:{
+        l:55,
+        r:55,
+        t:45,
+        b:15
+      },
+
+      /*
+       * Tinggi plot dibuat lebih besar dari viewport.
+       * Dengan begitu .heatmap-scroll tetap bisa melakukan scroll.
+       */
+      height:Math.max(
+        430,
+        (p.y?.length || 1) * 30 + 70
+      )
+    }
+  );
+}
+function renderPiePlot(id,p){
+  const el=document.getElementById(id);if(!el)return;
+  if(!p?.available){el.innerHTML=infoBox(p?.message||'Data tidak tersedia.');return}
+  makePlot(el,[{type:'pie',labels:p.labels,values:p.values,hole:p.hole??.35,marker:p.colors?{colors:p.colors}:undefined,textinfo:'percent',hovertemplate:'<b>%{label}</b><br>Persentase: %{percent}<br>Responden: %{value}<extra></extra>'}],{
+    height:p.height||315,margin:{l:6,r:6,t:8,b:66},showlegend:true,legend:{orientation:'h',y:-.10,x:.5,xanchor:'center',yanchor:'top',font:{size:10},itemwidth:30}
+  },{displayModeBar:false});
+}
+function renderPercentHbar(id,p){
+  const el = document.getElementById(id);
+  if(!el) return;
+
+  if(!p?.available){
+    el.innerHTML = infoBox(
+      p?.message || 'Data tidak tersedia.'
+    );
+    return;
+  }
+
+  const isAge = String(p.title || '')
+    .toLowerCase()
+    .includes('age');
+
+  const custom = p.items.map(x => [x.count]);
+
+  const hover = isAge
+    ? '<b>Kelompok Usia:</b> %{y}<br>' +
+      '<b>Persentase:</b> %{x:.1f}%<br>' +
+      '<b>Responden:</b> %{customdata[0]} orang<extra></extra>'
+    : '<b>Tipe Motor:</b> %{y}<br>' +
+      '<b>Persentase:</b> %{x:.1f}%<br>' +
+      '<b>Responden:</b> %{customdata[0]} orang<extra></extra>';
+
+  makePlot(
+    el,
+    [{
+      type: 'bar',
+      orientation: 'h',
+
+      x: p.items.map(x => x.pct),
+      y: p.items.map(x => x.label),
+
+      marker: {
+        color: p.color || COLORS.RED
+      },
+
+      text: p.items.map(x => x.text),
+      textposition: 'outside',
+      cliponaxis: false,
+
+      customdata: custom,
+
+      hovertemplate: hover
+    }],
+    {
+      /*
+       * ===== SUMBU X =====
+       */
+      xaxis: {
+        range: [0, p.xRangeMax],
+        ticksuffix: '%',
+
+        automargin: true,
+
+        tickfont: {
+          size: 10
+        },
+
+        tickpadding: 5
+      },
+
+      /*
+       * ===== SUMBU Y =====
+       * Diberi ruang lebih besar supaya
+       * keterangan kategori tidak terpotong.
+       */
+      yaxis: {
+        autorange: 'reversed',
+
+        automargin: true,
+
+        tickfont: {
+          size: 10
+        },
+
+        tickpadding: 6
+      },
+
+      /*
+       * ===== MARGIN CHART =====
+       *
+       * l = kiri
+       * r = kanan
+       * t = atas
+       * b = bawah
+       */
+      margin: {
+        l: 75,
+        r: 45,
+        t: 10,
+        b: 35
+      },
+
+      height: p.height || 330,
+
+      showlegend: false
+    },
+
+    {
+      displayModeBar: false
+    }
+  );
+}
+function stackedInsideText(seg){
+  const value=Number(seg.value)||0, clean=String(seg.label||'').replace(/\s+/g,' ').trim(), pct=seg.pctText||`${value.toFixed(1)}%`;
+  const chars=Math.max(4,Math.floor(value*1.10));
+  if(value<5) return pct;
+  if(clean.length<=chars) return `${pct}<br>${clean}`;
+  const words=clean.split(/\s+/), lines=[''];
+  for(const w of words){
+    const i=lines.length-1, candidate=(lines[i]+' '+w).trim();
+    if(candidate.length<=chars) lines[i]=candidate;
+    else lines.push(w);
+  }
+  if(lines.length<=2) return `${pct}<br>${lines.join('<br>')}`;
+  const maxChars=Math.max(6,chars*2);
+  let short=clean.length>maxChars?clean.slice(0,maxChars-1).trimEnd()+'…':clean;
+  const shortWords=short.split(/\s+/), shortLines=[''];
+  for(const w of shortWords){
+    const i=shortLines.length-1,c=(shortLines[i]+' '+w).trim();
+    if(c.length<=chars)shortLines[i]=c;else shortLines.push(w);
+  }
+  return `${pct}<br>${shortLines.slice(0,2).join('<br>')}`;
+}
+function renderStackedPlot(id,p,legendId){
+  const el=document.getElementById(id);if(!el)return;
+  if(!p?.available){el.innerHTML=infoBox(p?.message||'Data tidak tersedia.');return}
+  const traces=(p.segments||[]).map(seg=>({
+    type:'bar',orientation:'h',x:[seg.value],y:[''],name:seg.label,marker:{color:seg.color},
+    text:[stackedInsideText(seg)],textposition:'inside',insidetextanchor:'middle',textfont:{size:12},
+    customdata:[[seg.respondents]],
+    hovertemplate:`<b>${String(seg.hoverTitle||seg.label).replace(/</g,'&lt;')}</b><br>Persentase: %{x:.1f}%<br>Responden: %{customdata[0]} orang<extra></extra>`
+  }));
+  makePlot(el,traces,{barmode:'stack',showlegend:false,height:p.height||108,margin:{l:10,r:10,t:8,b:8},xaxis:{visible:false,range:[0,100]},yaxis:{visible:false}},{displayModeBar:false});
+  const lg=document.getElementById(legendId);
+  if(lg) lg.innerHTML=(p.legend||[]).map(x=>`<span class="legend-item"><span class="legend-dot" style="background:${escapeHtml(x.color)}"></span><span>${x.bold?`<b>${escapeHtml(x.bold)}</b>: ${escapeHtml(x.text)}`:escapeHtml(x.text)}</span></span>`).join('');
+}
+function wrapReason(label){
+  const words=String(label||'').split(/\s+/), lines=[''];
+  words.forEach(w=>{const i=lines.length-1;if((lines[i]+' '+w).trim().length<=23)lines[i]=(lines[i]+' '+w).trim();else if(lines.length<2)lines.push(w);});
+  const joined=lines.join(' ');if(joined.length<String(label||'').length && lines[1]) lines[1]=lines[1].slice(0,20)+'…';
+  return lines.join('<br>');
+}
+function renderReasonsPlot(id,p){
+  const el=document.getElementById(id);if(!el)return;
+  if(!p?.available){el.innerHTML=infoBox(p?.message||'Data tidak tersedia.');return}
+  const labels=p.items.map(x=>wrapReason(x.label));
+  makePlot(el,[{type:'bar',orientation:'h',x:p.items.map(x=>x.count),y:labels,marker:{color:p.color||COLORS.ORANGE},text:null,customdata:p.items.map(x=>[x.label,x.pct]),hovertemplate:'<b>Alasan:</b> %{customdata[0]}<br><b>Frekuensi dipilih:</b> %{x} kali<br><b>Persentase responden:</b> %{customdata[1]:.1f}%<extra></extra>'}],{
+    height:p.height||315,margin:{l:18,r:18,t:8,b:42},showlegend:false,
+    xaxis:{range:[0,p.xLimit],title:{text:p.xAxisTitle||'Frekuensi Dipilih',font:{size:11},standoff:8},tickmode:'array',tickvals:p.maxCount>0?[0,p.maxCount]:[0],ticktext:p.maxCount>0?['0',String(p.maxCount)]:['0'],tickfont:{size:9},tickangle:0,automargin:true,fixedrange:true,showgrid:false,zeroline:false},
+    yaxis:{automargin:true,tickfont:{size:10.5},fixedrange:true},
+    annotations:p.items.map((x,i)=>({x:p.labelX,y:labels[i],xref:'x',yref:'y',text:x.pctText,showarrow:false,xanchor:'left',yanchor:'middle',font:{size:10.5,color:'#667085'},align:'left'}))
+  },{displayModeBar:false,responsive:true});
+}
+function renderNpsGauge(id,p,captionId){
+  const el=document.getElementById(id);if(!el)return;
+  if(!p?.available){el.innerHTML=infoBox(p?.message||'Data tidak tersedia.');return}
+  makePlot(el,[{type:'indicator',mode:'gauge+number',value:p.value,number:{suffix:'',font:{size:30,color:'#212121'}},gauge:{axis:{range:[0,100],tickwidth:1,tickcolor:'#666'},bar:{color:p.barColor||'#212121',thickness:.25},steps:(p.steps||[]).map(s=>({range:s.range,color:s.color})),threshold:{line:{color:'#000000',width:4},thickness:.8,value:p.value}}}],{height:p.height||250,margin:{l:15,r:15,t:10,b:10}});
+  const cap=document.getElementById(captionId);if(cap)cap.textContent=p.caption||'';
+}
+
+/* ============================================================
+ * MATRIX SECTION
+ * ============================================================ */
+function matrixDetailHtml(matrix,qk){
+  const q=matrix.quadrants[qk], items=matrix.pointsByQuadrant[qk]||[];
+  return `<div class="matrix-detail-head"><div class="matrix-detail-roman" style="color:${escapeHtml(q.color)}">${escapeHtml(q.roman)}</div><div class="matrix-detail-label">${escapeHtml(q.label)}</div></div><div class="matrix-detail-list">`+
+    (items.length?items.map(p=>`<div class="matrix-point-item"><div class="matrix-point-name"><b>${escapeHtml(p.code)}</b><div class="matrix-point-desc" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div></div><div class="matrix-point-value">Sat. ${Number(p.x).toFixed(1)}%<br>Imp. ${Number(p.y).toFixed(2)}</div></div>`).join(''):infoBox('Tidak ada indikator pada kuadran ini.'))+'</div>';
+}
+function renderMatrixSection(unit,matrix){
+  const box=document.getElementById(`matrix-body-${unit}`);if(!box)return;
+  if(!matrix?.available){box.innerHTML=infoBox(matrix?.message||'Data matriks tidak tersedia.');return}
+  let selected=state.unit[unit].selectedQuadrant;
+  if(!selected || !matrix.quadrants[selected]) selected=matrix.defaultQuadrant;
+  state.unit[unit].selectedQuadrant=selected;
+  const mdHtml=matrix.mdSelectorNeeded?`<div class="matrix-md-wrap"><div class="filter-field"><label>Pilih Main Dealer (Matriks)</label><select id="matrix-md-${unit}"><option value="M2Z" ${state.unit[unit].matrixMd==='M2Z'?'selected':''}>M2Z</option><option value="M3Z" ${state.unit[unit].matrixMd==='M3Z'?'selected':''}>M3Z</option><option value="SEMUA" ${state.unit[unit].matrixMd==='SEMUA'?'selected':''}>Semua</option></select></div></div>`:'';
+  box.innerHTML=`<div class="section-description">${escapeHtml(matrix.description||'')}</div>${mdHtml}<div class="matrix-layout"><div><div class="quadrant-chips">${matrix.quadrantOrder.map(qk=>{const q=matrix.quadrants[qk];return `<button class="quadrant-chip ${qk===selected?'active':''}" data-q="${qk}" style="${qk===selected?`background:${q.color}`:''}">${escapeHtml(q.roman)} · ${escapeHtml(q.label)}</button>`}).join('')}</div><div id="matrix-plot-${unit}" class="plot"></div><div class="matrix-caption">${escapeHtml(matrix.caption||'')}</div></div><div class="matrix-detail-panel" id="matrix-detail-${unit}">${matrixDetailHtml(matrix,selected)}</div></div>`;
+  if(matrix.mdSelectorNeeded){document.getElementById(`matrix-md-${unit}`).addEventListener('change',async e=>{state.unit[unit].matrixMd=e.target.value;setLoading(true);try{const r=await apiGet('matrix',{...unitParams(unit),matrixMd:e.target.value});state.unit[unit].matrix=r.matrix;renderMatrixSection(unit,r.matrix)}finally{setLoading(false)}})}
+  box.querySelectorAll('.quadrant-chip').forEach(btn=>btn.addEventListener('click',()=>{state.unit[unit].selectedQuadrant=btn.dataset.q;renderMatrixSection(unit,matrix)}));
+  const qsel=state.unit[unit].selectedQuadrant;
+  const activePoints = matrix.points.filter(p => p.quadrant === qsel);
+  const inactivePoints = matrix.points.filter(p => p.quadrant !== qsel);
+
+  const el = document.getElementById(`matrix-plot-${unit}`);
+
+  const makeCustomData = p => [
+    p.code,
+    p.name,
+    p.avgSat,
+    p.rawSat,
+    p.rankSat,
+    p.rankImp,
+    p.quadrant
+  ];
+
+  const hoverTemplate =
+    '<b>Kode Indikator:</b> %{customdata[0]}<br>' +
+    '<b>Nama Indikator:</b> %{customdata[1]}<br>' +
+    '<b>AVG Satisfaction:</b> %{customdata[2]:.2f}%<br>' +
+    '<b>Satisfaction:</b> %{customdata[3]:.2f}<br>' +
+    '<b>Importance:</b> %{y:.2f}<br>' +
+    '<b>Rank Satisfaction:</b> %{customdata[4]}<br>' +
+    '<b>Rank Importance:</b> %{customdata[5]}<extra></extra>';
+
+  makePlot(el, [
+
+    /* ==========================================
+      TITIK KUADRAN YANG TIDAK AKTIF
+      ========================================== */
+    {
+      type: 'scatter',
+      mode: 'markers',
+      x: inactivePoints.map(p => p.x),
+      y: inactivePoints.map(p => p.y),
+
+      marker: {
+        color: inactivePoints.map(p => p.color),
+        size: 8,
+        opacity: 0.55,
+        line: {
+          color: '#FFFFFF',
+          width: 1
+        }
+      },
+
+      customdata: inactivePoints.map(makeCustomData),
+      hovertemplate: hoverTemplate,
+
+      showlegend: false
+    },
+
+    /* ==========================================
+      TITIK KUADRAN YANG AKTIF
+      ========================================== */
+    {
+      type: 'scatter',
+      mode: 'markers+text',
+      x: activePoints.map(p => p.x),
+      y: activePoints.map(p => p.y),
+
+      text: activePoints.map(p => p.code),
+      textposition: 'top center',
+
+      textfont: {
+        size: 10,
+        color: '#454545'
+      },
+
+      marker: {
+        color: activePoints.map(p => p.color),
+        size: 14,
+        opacity: 1,
+        line: {
+          color: '#FFFFFF',
+          width: 2
+        }
+      },
+
+      customdata: activePoints.map(makeCustomData),
+      hovertemplate: hoverTemplate,
+
+      showlegend: false
+    }
+
+  ], {
+    xaxis:{title:'Satisfaction (%)',range:[matrix.xLo,matrix.xHi]},yaxis:{title:'Importance',range:[matrix.yLo,matrix.yHi]},height:480,margin:{l:55,r:15,t:16,b:50},showlegend:false,
+    shapes:[
+      ...matrix.quadrantOrder.map(qk=>{const q=matrix.quadrants[qk], active=qk===qsel; let x0,x1,y0,y1;if(qk==='keep'){x0=matrix.xMid;x1=matrix.xHi;y0=matrix.yMid;y1=matrix.yHi}else if(qk==='priority'){x0=matrix.xLo;x1=matrix.xMid;y0=matrix.yMid;y1=matrix.yHi}else if(qk==='gradual'){x0=matrix.xLo;x1=matrix.xMid;y0=matrix.yLo;y1=matrix.yMid}else{x0=matrix.xMid;x1=matrix.xHi;y0=matrix.yLo;y1=matrix.yMid}return {type:'rect',xref:'x',yref:'y',x0,x1,y0,y1,fillcolor:q.color,opacity:active?.26:.025,line:{width:0},layer:'below'}}),
+      {type:'line',x0:matrix.xMid,x1:matrix.xMid,y0:matrix.yLo,y1:matrix.yHi,line:{color:'#777',dash:'dash',width:1.2}},
+      {type:'line',x0:matrix.xLo,x1:matrix.xHi,y0:matrix.yMid,y1:matrix.yMid,line:{color:'#777',dash:'dash',width:1.2}}
+    ]
+  });
+  el.on('plotly_click',ev=>{const idx=ev?.points?.[0]?.pointIndex;if(idx!==undefined&&matrix.points[idx]){state.unit[unit].selectedQuadrant=matrix.points[idx].quadrant;renderMatrixSection(unit,matrix)}});
+}
+
+/* ============================================================
+ * PROFILE + DEMOGRAPHICS
+ * ============================================================ */
+function profileListHtml(unit,p){
+  return `<div class="chart-title">${escapeHtml(p.title)}</div><div class="chart-subtitle">${escapeHtml(p.subtitle)}</div><div class="profile-scroll">${(p.items||[]).map(x=>`<div class="profile-card ${x.active?'active':''} ${x.disabled?'disabled':''}" data-profile="${escapeHtml(x.code)}" title="${escapeHtml(x.help)}"><div class="profile-card-inner"><div class="profile-card-header"><span class="profile-card-title">${escapeHtml(x.title)}</span><span class="profile-card-pct">${escapeHtml(x.pct)}%</span></div><div class="profile-bar-bg"><div class="profile-bar-fill" style="width:${Math.max(0,Math.min(100,x.pct))}%;background:${escapeHtml(x.color)}"></div></div></div></div>`).join('')}</div>`;
+}
+function profileExplanationHtml(p){
+  return `<div class="profile-description-title">${escapeHtml(p.title)}</div><div class="insight-box"><div class="insight-box-header"><i class="fa-solid fa-lightbulb"></i>${escapeHtml(p.insightHeader)}</div><div class="insight-box-body">${escapeHtml(p.insightText)}</div></div><div class="reco-box"><div class="reco-box-header"><i class="fa-solid fa-bullseye"></i>${escapeHtml(p.recoHeader)}</div><div class="reco-box-body">${escapeHtml(p.recoText)}</div></div>`;
+}
+function genericDemographicCardHtml(unit,row,key,obj,cardClass){
+  const id=`${unit}-demo-${row}-${key}`, cap=`${id}-caption`, legend=`${id}-legend`;
+  const viewport=cardClass==='fixed-chart-card'?'': 'chart-viewport';
+  return `<div class="${cardClass}"><div class="chart-title">${escapeHtml(obj?.title||'')}</div><div class="${viewport}" id="${id}-viewport"><div class="plot" id="${id}"></div>${obj?.steps?`<div class="nps-caption" id="${cap}"></div>`:''}</div>${obj?.segments?`<div class="legend-row" id="${legend}"></div>`:''}</div>`;
+}
+function demographicsHtml(unit,dem){
+  const rows=dem?.rows||{}, a=rows.demographic||{}, second=rows.second||{}, third=rows.third||{}, fourth=rows.fourth||{};
+  const firstEntries=Object.entries(a).filter(([k])=>k!=='columns');
+  return `<div class="demographic-grid-${a.columns||3}" style="margin-top:14px">${firstEntries.map(([k,v])=>genericDemographicCardHtml(unit,'demographic',k,v,'demographic-card')).join('')}</div>`+
+    `<div class="demographic-grid-2" style="margin-top:12px">${Object.entries(second).map(([k,v])=>genericDemographicCardHtml(unit,'second',k,v,'fixed-chart-card')).join('')}</div>`+
+    `<div class="demographic-grid-2" style="margin-top:12px">${Object.entries(third).map(([k,v])=>genericDemographicCardHtml(unit,'third',k,v,'fixed-chart-card')).join('')}</div>`+
+    `<div class="demographic-grid-4" style="margin-top:12px">${Object.entries(fourth).map(([k,v])=>genericDemographicCardHtml(unit,'fourth',k,v,v?.steps?'nps-card':'demographic-card')).join('')}</div>`;
+}
+function drawDemographicObject(unit,row,key,obj){
+  const id=`${unit}-demo-${row}-${key}`;
+  if(!obj?.available){const el=document.getElementById(id);if(el)el.innerHTML=infoBox(obj?.message||'Data tidak tersedia.');return}
+  if(obj.steps) return renderNpsGauge(id,obj,`${id}-caption`);
+  if(obj.segments) return renderStackedPlot(id,obj,`${id}-legend`);
+  if(obj.maxCount!==undefined) return renderReasonsPlot(id,obj);
+  if(obj.labels && obj.values) return renderPiePlot(id,obj);
+  if(obj.items) return renderPercentHbar(id,obj);
+}
+function drawDemographics(unit,dem){
+  Object.entries(dem?.rows||{}).forEach(([row,content])=>Object.entries(content||{}).forEach(([key,obj])=>{if(key!=='columns')drawDemographicObject(unit,row,key,obj)}));
+}
+function bindProfileCards(unit){
+  document.querySelectorAll(`[data-profile]`).forEach(card=>card.addEventListener('click',async()=>{
+    if(card.classList.contains('disabled'))return;
+    const code=card.dataset.profile;if(state.unit[unit].profile===code)return;
+    state.unit[unit].profile=code;
+    await renderUnitPage(unit,{preserveScroll:true,skipHeatmap:true});
+  }));
+}
+function rankingHtml(r){
+  if(!r?.show)return '';
+  if(r.empty)return `<div style="margin-top:14px">${infoBox(r.message||'Nilai satisfaction dealer tidak tersedia.')}</div>`;
+  const build=(items,low)=>items.map(x=>`<div class="dealer-ranking-row"><div class="dealer-rank ${low?'dealer-rank-low':''}">#${escapeHtml(x.rank)}</div><div class="dealer-ranking-name">${escapeHtml(x.label)}</div><div class="dealer-ranking-value ${low?'dealer-ranking-value-low':''}">${escapeHtml(x.value)}</div></div>`).join('');
+  return `<div class="ranking-grid" style="margin-top:14px"><div class="dealer-ranking-card"><div class="dealer-ranking-title dealer-ranking-title-high">${escapeHtml(r.highTitle)}</div>${build(r.top||[],false)}</div><div class="dealer-ranking-card"><div class="dealer-ranking-title dealer-ranking-title-low">${escapeHtml(r.lowTitle)}</div>${build(r.bottom||[],true)}</div></div>`;
+}
+
+/* ============================================================
+ * UNIT PAGE — H1 / H2 / H3
+ * ============================================================ */
+async function renderUnitPage(unit,{preserveScroll=false,skipHeatmap=false}={}){
+  const scrollY=preserveScroll?window.scrollY:0; setLoading(true);
+  try{
+    const s=state.unit[unit];
+    const calls=[apiGet('unitPage',unitParams(unit)),apiGet('matrix',{...unitParams(unit),matrixMd:s.matrixMd})];
+    if(!skipHeatmap || !s.heatmap) calls.push(apiGet('heatmap',{unit}));
+    const results=await Promise.all(calls), page=results[0], matrix=results[1].matrix;
+    const heatmap=(results[2]?.heatmap)||s.heatmap;
+    s.heatmap=heatmap;s.matrix=matrix;s.page=page;syncUnitStateFromPayload(unit,page);
+    const sec1=page.section1||{}, sec3=page.section3||{};
+    const charts=[sec1.satisfactionChart,sec1.targetGapChart,...(sec1.semesterDifferenceChart?[sec1.semesterDifferenceChart]:[])];
+    const chartGridClass=sec1.chartLayout===3?'charts-grid-3':'charts-grid-2';
+    const chartIds=[`${unit}-sat`,`${unit}-gap`,`${unit}-diff`];
+    const chartHtml=charts.map((c,i)=>chartCard(c?.title||'',c?.subtitle||'',chartIds[i])).join('');
+    document.getElementById('app').innerHTML=`
+      <section class="section section-1">${sectionTitle('SECTION 1','CSL PERFORMANCE INDEX')}
+        <div class="map-header"><div class="map-header-title">Satisfaction Map</div><div class="map-header-badge">CLICK MAP TO FILTER</div></div>
+        <div class="map-wrap"><div id="satisfaction-map"></div></div>
+        <div style="height:16px"></div>${renderFilters(unit,page.filterOptions)}<div style="height:16px"></div>${renderKpis(sec1.kpi||[])}
+        <div style="height:14px"></div><div class="${chartGridClass}">${chartHtml}</div>${rankingHtml(sec1.ranking)}
+      </section>
+      <section class="section section-2">${sectionTitle('SECTION 2','MATRIX SATISFACTION x IMPORTANCE')}<div id="matrix-body-${unit}"></div></section>
+      <section class="section section-3">${sectionTitle('SECTION 3','PROFILE CUSTOMER')}
+        <div class="profile-top-grid">
+          <div class="profile-equal-card"><div class="chart-title">${escapeHtml(heatmap?.title||'Customer Profile Heatmap vs Overall Average')}</div><div class="chart-subtitle">${escapeHtml(heatmap?.subtitle||'')}</div><div class="heatmap-scroll"><div class="plot" id="${unit}-heatmap"></div></div></div>
+          <div class="profile-equal-card" id="${unit}-profile-list">${profileListHtml(unit,sec3.profileList||{items:[]})}</div>
+          <div class="profile-equal-card" id="${unit}-profile-description">${profileExplanationHtml(sec3.profileExplanation||{})}</div>
+        </div>
+        ${sec3.insight?.available?`<div class="profile-summary"><div class="profile-summary-title">${escapeHtml(sec3.insight.header)}</div>${sec3.insight.narrative}</div>`:infoBox(sec3.insight?.message||'Ringkasan profil belum tersedia.')}
+        ${demographicsHtml(unit,sec3.demographics)}
+      </section>`;
+    bindFilterEvents(unit); bindProfileCards(unit);renderMatrixSection(unit,matrix);
+    renderSatisfactionPlot(`${unit}-sat`,sec1.satisfactionChart);renderGapPlot(`${unit}-gap`,sec1.targetGapChart);if(sec1.semesterDifferenceChart)renderDiffPlot(`${unit}-diff`,sec1.semesterDifferenceChart);
+    renderHeatmapPlot(`${unit}-heatmap`,heatmap);drawDemographics(unit,sec3.demographics);await renderSatisfactionMap(sec1.map,unit);
+    if(preserveScroll)window.scrollTo({top:scrollY,behavior:'auto'});else window.scrollTo({top:0,behavior:'auto'});
+  }catch(err){document.getElementById('app').innerHTML=infoBox(err.message,'error')}
+  finally{setLoading(false)}
+}
+
+/* ============================================================
+ * PROFIL WILAYAH
+ * ============================================================ */
+function selectFromOptions(id,label,options,selected){
+  return `<div class="filter-field"><label>${escapeHtml(label)}</label><select id="${id}">${(options||[]).map(o=>{const v=typeof o==='object'?o.value:o,l=typeof o==='object'?o.label:o;return `<option value="${escapeHtml(v)}" ${String(v)===String(selected)?'selected':''}>${escapeHtml(l)}</option>`}).join('')}</select></div>`;
+}
+function markdownBold(s){return escapeHtml(s||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}
+function regionDetailsHtml(details,culture=false){
+  if(!details?.items?.length)return '';
+  return `<div class="region-card" style="margin-top:12px"><div class="chart-title">${escapeHtml(details.title)}</div>${details.caption?`<div class="chart-subtitle">${escapeHtml(details.caption)}</div>`:''}${details.items.map(x=>`<div class="region-detail-box ${culture?'culture':''}"><div class="region-detail-title">${escapeHtml(x.title)} <span class="region-detail-count">${escapeHtml(x.countText||'')}</span></div><div class="region-detail-body">${escapeHtml(x.description||'')}${x.character?`<br><b>Karakter:</b> ${escapeHtml(x.character)}`:''}<br><b>Wilayah:</b> ${escapeHtml(x.regions||'-')}</div></div>`).join('')}</div>`;
+}
+function insightItemsHtml(box){
+  if(!box?.items?.length)return infoBox(box?.emptyMessage||'Belum ada insight.');
+  return box.items.map(x=>`<div class="region-detail-box"><div class="region-detail-title">${escapeHtml(x.header)}</div><div class="region-detail-body"><b>Profile Mayoritas:</b> ${escapeHtml(x.majorityProfile)}<br><b>Wilayah Sesuai/Valid:</b> ${escapeHtml(x.regionsMatched)} / ${escapeHtml(x.regionsValid)}<br><b>Konsistensi:</b> ${escapeHtml(x.consistency)}<br><b>Kemiripan Distribusi:</b> ${escapeHtml(x.similarity)} · ${escapeHtml(x.category)}</div></div>`).join('');
+}
+function renderRegionStacked(id,p){
+  const el=document.getElementById(id);if(!el)return;
+  const traces=(p.series||[]).map(s=>({type:'bar',orientation:'h',name:s.name,x:s.values,y:p.regions,marker:{color:s.color},customdata:s.counts.map((c,i)=>[c,p.totals[i],s.profileLabel]),text:s.values.map(v=>v>=6?`${v.toFixed(1)}%`:''),textposition:'inside',insidetextanchor:'middle',hovertemplate:'<b>%{y}</b><br>%{customdata[2]}: %{x:.1f}%<br>Responden profile: %{customdata[0]}<br>Total responden: %{customdata[1]}<extra></extra>'}));
+  makePlot(el,traces,{barmode:'stack',height:p.height,margin:{l:90,r:20,t:10,b:45},xaxis:{title:'Persentase Responden',range:[0,100],ticksuffix:'%'},yaxis:{autorange:'reversed',automargin:true},legend:{orientation:'h',y:-.12,x:.5,xanchor:'center'},uniformtext:{mode:'hide',minsize:8}});
+}
+function renderDominantPlot(id,p){
+  const el=document.getElementById(id);if(!el)return;
+  const traces=(p.series||[]).map(s=>({type:'bar',name:s.name,x:p.xLabels,y:s.values,marker:{color:s.color},width:p.barWidth,text:s.values.map(v=>v>=7?`${v.toFixed(1)}%`:''),textposition:'inside',hovertemplate:`<b>%{x}</b><br>${escapeHtml(s.name)}: %{y:.1f}%<extra></extra>`}));
+  makePlot(el,traces,{barmode:'stack',height:p.height||300,margin:{l:55,r:15,t:10,b:70},xaxis:{title:p.xAxisTitle,tickangle:-18,automargin:true},yaxis:{title:p.yAxisTitle,range:[0,100],ticksuffix:'%'},legend:{title:{text:p.legendTitle||''},orientation:'h',y:-.28,x:.5,xanchor:'center'}});
+}
+async function renderRegionPage(){
+  setLoading(true);
+  try{
+    const r=await apiGet('regionPage',{h:state.region.h,cluster:state.region.cluster,sort:state.region.sort}),p=r.regionPage;
+    if(!p?.available){document.getElementById('app').innerHTML=infoBox(p?.error||'Data Profil Wilayah tidak tersedia.','warning')+(p?.hint?infoBox(p.hint):'');return}
+    state.region.h=p.selection.h;state.region.cluster=p.selection.cluster;state.region.sort=p.selection.sortProfile;
+    const meth=p.clusteringMethodology||{};
+    document.getElementById('app').innerHTML=`<section class="section section-4">${sectionTitle(p.sectionBadge||'SECTION 4',p.sectionTitle||'PROFIL WILAYAH & CLUSTER BUDAYA')}<div class="section-description">${escapeHtml(p.description||'')}</div>
+      <div class="region-filters">${selectFromOptions('region-h','Pilih H',p.options.h,state.region.h)}${selectFromOptions('region-cluster','Profil / Cluster Wilayah',p.options.cluster,state.region.cluster)}${selectFromOptions('region-sort','Urutkan Berdasarkan',p.options.sortProfile,state.region.sort)}</div>
+      ${p.unmatchedRegions?.length?`<details class="warning-box"><summary>${p.unmatchedRegions.length} wilayah tidak terpasangkan dengan data cluster</summary><div style="margin-top:7px">${escapeHtml(p.unmatchedRegions.join(', '))}</div></details>`:''}
+      ${renderKpis(p.kpi||[])}<div style="height:14px"></div>
+      ${chartCard(p.stackedChart.title,p.stackedChart.subtitle,'region-stacked','region-card')}
+      <div class="region-two-col" style="margin-top:16px"><div>${chartCard(p.clusterDominantChart.title,p.clusterDominantChart.subtitle,'region-cluster-chart','region-card')}<div class="methodology-box"><div class="methodology-title">${escapeHtml(meth.title||'')}</div><div class="methodology-body">${markdownBold(meth.intro||'')}<div style="font-weight:700;margin-top:8px">${escapeHtml(meth.variablesTitle||'')}</div><ul class="variable-list">${(meth.variables||[]).map(v=>`<li><b>${escapeHtml(v.name)}</b> — ${escapeHtml(v.desc)}</li>`).join('')}</ul></div></div>${regionDetailsHtml(p.clusterDetails,false)}</div><div>${chartCard(p.cultureDominantChart.title,p.cultureDominantChart.subtitle,'region-culture-chart','region-card')}${regionDetailsHtml(p.cultureDetails,true)}</div></div>
+      <div class="region-two-col" style="margin-top:16px"><div class="insight-box"><div class="insight-box-header"><i class="fa-solid fa-chart-line"></i>${escapeHtml(p.clusterInsight.title)}</div><div class="insight-box-body">${insightItemsHtml(p.clusterInsight)}</div></div><div class="reco-box"><div class="reco-box-header"><i class="fa-solid fa-people-group"></i>${escapeHtml(p.cultureInsight.title)}</div><div class="reco-box-body">${insightItemsHtml(p.cultureInsight)}</div></div></div>
+      </section>`;
+    ['region-h','region-cluster','region-sort'].forEach(id=>document.getElementById(id).addEventListener('change',async()=>{state.region.h=document.getElementById('region-h').value;state.region.cluster=document.getElementById('region-cluster').value;state.region.sort=document.getElementById('region-sort').value;await renderRegionPage()}));
+    renderRegionStacked('region-stacked',p.stackedChart);renderDominantPlot('region-cluster-chart',p.clusterDominantChart);renderDominantPlot('region-culture-chart',p.cultureDominantChart);window.scrollTo({top:0,behavior:'auto'});
+  }catch(err){document.getElementById('app').innerHTML=infoBox(err.message,'error')}
+  finally{setLoading(false)}
+}
+
+/* ============================================================
+ * FRAMEWORK
+ * ============================================================ */
+function frameworkStepHtml(step,profiling=false){
+  const items=(step.items||[]).map(it=>{
+    if(profiling){return `<div class="fw-item"><div class="fw-mini-icon">${escapeHtml(step.icon||'•')}</div><div><b>${escapeHtml(it[0])}</b><span>${escapeHtml(it[1])}</span></div></div>`}
+    return `<div class="fw-item"><div class="fw-mini-icon"><i class="${escapeHtml(it[0])}"></i></div><div><b>${escapeHtml(it[1])}</b><span>${escapeHtml(it[2])}</span></div></div>`;
+  }).join('');
+  return `<article class="fw-step"><div class="fw-step-head"><span>${escapeHtml(step.no)}</span><h3>${step.title}</h3></div><div class="fw-step-body">${items}<div class="fw-output"><b>${escapeHtml(step.output_label||'OUTPUT')}</b><ul>${(step.output||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div></div></article>`;
+}
+async function renderFrameworkPage(){
+  setLoading(true);
+  try{
+    const r=await apiGet('framework'), f=r.framework||r;
+    const matrixSection=f.matrixSection||{};
+    const profilingSection=f.profilingSection||{};
+    const insightSection=f.insightSection||{};
+    const matrixSteps=matrixSection.steps||[];
+    const profilingSteps=profilingSection.steps||[];
+    const insights=insightSection.items||[];
+    document.getElementById('app').innerHTML=`<div class="fw-shell"><h2 class="fw-title">${escapeHtml(matrixSection.title||'')}</h2><div class="fw-subtitle">${escapeHtml(matrixSection.subtitle||'')}</div><div class="fw-grid fw-grid-a">${matrixSteps.map(x=>frameworkStepHtml(x,false)).join('')}</div></div>
+      <div class="fw-shell"><h2 class="fw-title">${escapeHtml(profilingSection.title||'')}</h2><div class="fw-subtitle fw-subtitle-gmm">${profilingSection.subtitleHtml||''}</div><div class="fw-grid fw-grid-b">${profilingSteps.map(x=>frameworkStepHtml(x,true)).join('')}</div></div>
+      ${insights.length?`<div class="fw-shell"><h2 class="fw-title">${escapeHtml(insightSection.title||'')}</h2><div class="fw-insight-grid">${insights.map(x=>`<article class="fw-insight" style="--c:${escapeHtml(x.color)}"><div class="fw-insight-icon">${escapeHtml(x.icon)}</div><div class="fw-insight-title">${escapeHtml(x.title)}</div><div class="fw-insight-desc">${escapeHtml(x.desc)}</div></article>`).join('')}</div></div>`:''}`;
+    window.scrollTo({top:0,behavior:'auto'});
+  }catch(err){document.getElementById('app').innerHTML=infoBox(err.message,'error')}
+  finally{setLoading(false)}
+}
+
+/* ============================================================
+ * NAVIGATION + BOOTSTRAP
+ * ============================================================ */
+async function renderActivePage(){
+  const unit=UNIT_BY_PAGE[state.activePage];
+  if(unit)return renderUnitPage(unit);
+  if(state.activePage==='PROFIL WILAYAH')return renderRegionPage();
+  if(state.activePage==='FRAMEWORK')return renderFrameworkPage();
+  return renderUnitPage('sales');
+}
+document.getElementById('refreshBtn').addEventListener('click',async()=>{
+  state.lastUpdate=new Date();
+  Object.values(state.unit).forEach(s=>{s.heatmap=null});
+  try{setLoading(true);state.config=await apiGet('config');updateLastUpdate();renderPageSelector();await renderActivePage()}catch(err){document.getElementById('app').innerHTML=infoBox(err.message,'error')}finally{setLoading(false)}
+});
+document.getElementById('resetBtn').addEventListener('click',async()=>{resetActivePageState();await renderActivePage()});
+
+async function init(){
+  renderPageSelector(); updateLastUpdate();
+  if(!isConfigured()){
+    document.getElementById('app').innerHTML=`<section class="section">${infoBox('Frontend sudah lengkap. Sebelum dijalankan, ganti GAS_EXEC_URL di bagian awal index.html dengan URL Web App Apps Script dari Kode.gs yang berakhiran /exec.','warning')}</section>`;
+    return;
+  }
+  setLoading(true);
+  try{state.config=await apiGet('config');updateLastUpdate();renderPageSelector();await renderActivePage()}
+  catch(err){document.getElementById('app').innerHTML=infoBox(err.message,'error')}
+  finally{setLoading(false)}
+}
+init();
+</script>
+</body>
+</html>
