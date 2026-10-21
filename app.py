@@ -1768,11 +1768,15 @@ def render_filters(
             years_set.update(df_years)
 
         years = sorted(years_set)
+        year_options = years if years else ["Semua"]
+        year_key = f"{key_prefix}_year"
+        if st.session_state.get(year_key) not in year_options:
+            st.session_state[year_key] = year_options[-1]
 
         sel_year = st.selectbox(
             "Tahun",
-            ["Semua"] + years,
-            key=f"{key_prefix}_year"
+            year_options,
+            key=year_key
         )
     with c2:
         sems = ["Semua", "Semester 1", "Semester 2"]
@@ -7821,12 +7825,12 @@ def rw_render_region_profile_page():
                         .tolist()
                     )
                     rw_years_set.update(_yrs)
-        rw_year_options = ["Semua"] + sorted(rw_years_set)
+        rw_year_options = sorted(rw_years_set) if rw_years_set else ["Semua"]
 
         with filter_col_2:
             rw_year_key = "rw_selected_year"
             if st.session_state.get(rw_year_key) not in rw_year_options:
-                st.session_state[rw_year_key] = "Semua"
+                st.session_state[rw_year_key] = rw_year_options[-1]
             selected_rw_year = st.selectbox(
                 "Tahun",
                 options=rw_year_options,
