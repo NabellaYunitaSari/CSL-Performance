@@ -1373,7 +1373,7 @@ def _set_map_region_filter(df, cols, key_prefix, region):
     selected_sem = st.session_state.get(f"{key_prefix}_sem")
     if selected_year not in (None, "Semua") and year_col and year_col in scoped_region_rows.columns:
         scoped_region_rows = scoped_region_rows[
-            scoped_region_rows[year_col].astype(str) == str(selected_year)
+            _match_year_series(scoped_region_rows[year_col], selected_year)
         ]
     if selected_sem in ("Semester 1", "Semester 2") and sem_col and sem_col in scoped_region_rows.columns:
         sem_number = 1 if "1" in selected_sem else 2
@@ -3752,16 +3752,12 @@ def render_performance_section(
 
         # ====================================================
         # TOP & BOTTOM 5 DEALER SATISFACTION
-        # Filter hanya sampai Karesidenan
-        # Tidak mengikuti Kab/Kota, Dealer, maupun Profile
+        # Filter sampai Kabupaten/Kota
+        # Tidak muncul jika filter Dealer dipilih
         # ====================================================
-        kab_selected = filters.get("kab_kota")
         dealer_selected = filters.get("dealer")
 
-        show_dealer_ranking = (
-            kab_selected in (None, "", "Semua")
-            and dealer_selected in (None, "", "Semua")
-        )
+        show_dealer_ranking = dealer_selected in (None, "", "Semua")
 
         if show_dealer_ranking:
             st.markdown(
@@ -3771,9 +3767,8 @@ def render_performance_section(
 
             dealer_rank_filters = filters.copy()
 
-            # Ranking antar dealer tidak boleh dibatasi
-            # oleh dealer/kabupaten tertentu.
-            dealer_rank_filters["kab_kota"] = None
+            # Ranking antar dealer tidak dibatasi oleh dealer tertentu,
+            # tetapi tetap mengikuti filter Kabupaten/Kota jika dipilih.
             dealer_rank_filters["dealer"] = None
 
             df_dealer_rank = apply_filters(
@@ -6444,25 +6439,25 @@ def render_top_bottom_dealer_satisfaction(
 ):
     """
     Menampilkan Top 5 dan Bottom 5 dealer/unit berdasarkan Satisfaction
-    untuk filter aktif sampai level Karesidenan. Ranking tidak mengikuti
-    filter Customer Profile, Kabupaten/Kota, atau Dealer tertentu.
+    untuk filter aktif sampai level Kabupaten/Kota. Ranking tidak ditampilkan
+    jika filter Dealer tertentu dipilih.
 
     Satisfaction dihitung konsisten dengan dashboard:
     rata-rata skor indikator / 5 * 100%.
 
-    Ranking hanya ditampilkan ketika filter Kabupaten/Kota = Semua.
+    Ranking ditampilkan sampai filter Kabupaten/Kota, tetapi tidak ditampilkan
+    ketika filter Dealer spesifik dipilih.
     Data dihitung langsung dari dataframe aktif, sehingga daftar Top/Bottom 5
     otomatis menyesuaikan saat sumber data atau filter lain berubah.
     """
 
-    # Ranking Top 5 / Bottom 5 hanya berlaku sampai level Karesidenan.
-    # Jika pengguna sudah memilih Kab/Kota atau Dealer tertentu,
-    # ranking tidak ditampilkan karena scope sudah terlalu spesifik.
+    # Ranking Top 5 / Bottom 5 berlaku sampai level Kabupaten/Kota.
+    # Jika pengguna sudah memilih Dealer tertentu,
+    # ranking tidak ditampilkan karena scope sudah terlalu spesifik per dealer.
     if filters is not None:
-        kab_selected = filters.get("kab_kota") not in (None, "Semua", "")
         dealer_selected = filters.get("dealer") not in (None, "Semua", "")
 
-        if kab_selected or dealer_selected:
+        if dealer_selected:
             return
 
     if df_profile is None or df_profile.empty:

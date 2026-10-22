@@ -451,6 +451,17 @@ def _dashboard_region_name(value):
     return simple.title()
 
 
+def _match_year_series(series: pd.Series, target_year) -> pd.Series:
+    try:
+        target_num = int(float(str(target_year).strip()))
+        return pd.to_numeric(series, errors="coerce") == target_num
+    except Exception:
+        return (
+            series.astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+            == str(target_year).strip()
+        )
+
+
 def _set_map_region_filter(df, cols, key_prefix, region):
     """Memindahkan hasil klik peta ke state filter sebelum widget dibuat."""
     kab_col = cols.get("kab_kota") if cols else None
@@ -473,7 +484,7 @@ def _set_map_region_filter(df, cols, key_prefix, region):
     selected_sem = st.session_state.get(f"{key_prefix}_sem")
     if selected_year not in (None, "Semua") and year_col and year_col in scoped_region_rows.columns:
         scoped_region_rows = scoped_region_rows[
-            scoped_region_rows[year_col].astype(str) == str(selected_year)
+            _match_year_series(scoped_region_rows[year_col], selected_year)
         ]
     if selected_sem in ("Semester 1", "Semester 2") and sem_col and sem_col in scoped_region_rows.columns:
         sem_number = 1 if "1" in selected_sem else 2
@@ -771,14 +782,14 @@ def apply_filters(df: pd.DataFrame, cols: dict, filters: dict,
     if not ignore_period:
         yr = override_year if override_year is not None else filters.get("year")
         sm = override_semester if override_semester is not None else filters.get("semester")
-        if yr is not None and year_col:
-            out = out[out[year_col].astype(str) == str(yr)]
-        if sm is not None and sem_col:
+        if yr is not None and year_col and year_col in out.columns:
+            out = out[_match_year_series(out[year_col], yr)]
+        if sm is not None and sem_col and sem_col in out.columns:
             out = out[out[sem_col].apply(_parse_semester) == sm]
     else:
-        if override_year is not None and year_col:
-            out = out[out[year_col].astype(str) == str(override_year)]
-        if override_semester is not None and sem_col:
+        if override_year is not None and year_col and year_col in out.columns:
+            out = out[_match_year_series(out[year_col], override_year)]
+        if override_semester is not None and sem_col and sem_col in out.columns:
             out = out[out[sem_col].apply(_parse_semester) == override_semester]
 
     mapping = [

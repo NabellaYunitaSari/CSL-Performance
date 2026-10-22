@@ -108,10 +108,42 @@
     /* ===== RANKING ===== */
     .ranking-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .dealer-ranking-card{background:#fff;border:1.5px solid #D9DDE3;border-radius:12px;padding:0;overflow:hidden;box-shadow:0 2px 7px rgba(38,38,38,.07);margin:0}
-    .dealer-ranking-title{padding:14px 16px;font-size:12px;font-weight:800;color:#262626;border-bottom:1px solid #F0F1F3;background:#fff}
+    .dealer-ranking-title{padding:11px 14px 11px 16px;font-size:12px;font-weight:800;color:#262626;border-bottom:1px solid #F0F1F3;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:10px}
     .dealer-ranking-title-high{border-left:4px solid #FF6B00}.dealer-ranking-title-low{border-left:4px solid #E60012}
-    .dealer-ranking-row{min-height:42px;display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed #E7E9EC}
-    .dealer-ranking-row:last-child{border-bottom:none}.dealer-ranking-name{font-size:12.5px;font-weight:500;line-height:1.35;color:#3F3F46}.dealer-rank{font-size:11.5px;font-weight:800;color:#D75B00}.dealer-rank-low{color:#C8102E}.dealer-ranking-value{font-size:12px;font-weight:800;color:#D75B00;white-space:nowrap}.dealer-ranking-value-low{color:#C8102E}
+    .dealer-ranking-row{min-height:42px;display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed #E7E9EC;transition:background-color .15s ease}
+    .dealer-ranking-row:last-child{border-bottom:none}.dealer-ranking-name{font-size:12.5px;font-weight:500;line-height:1.35;color:#3F3F46;display:flex;align-items:center;gap:6px;min-width:0}.dealer-rank{font-size:11.5px;font-weight:800;color:#D75B00}.dealer-rank-low{color:#C8102E}.dealer-ranking-value{font-size:12px;font-weight:800;color:#D75B00;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}.dealer-ranking-value-low{color:#C8102E}
+    .dealer-ranking-row.clickable{cursor:pointer}
+    .dealer-ranking-row.clickable:hover{background:#FFF8F3}
+    .dealer-ranking-row.clickable.low-row:hover{background:#FFF5F5}
+    .dealer-ranking-row.active-dealer{background:#FFF1E6;border-left:3px solid #FF6B00}
+    .dealer-ranking-row.active-dealer.low-row{background:#FFEFEF;border-left:3px solid #E60012}
+    .dealer-ranking-row .dealer-click-hint{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#F2F4F7;color:#475467;opacity:0;transition:opacity .15s ease;white-space:nowrap}
+    .dealer-ranking-row.clickable:hover .dealer-click-hint{opacity:1;background:#FF6B00;color:#fff}
+    .dealer-ranking-row.clickable.low-row:hover .dealer-click-hint{background:#E60012;color:#fff}
+    .dealer-ranking-row.active-dealer .dealer-click-hint{opacity:1;background:#262626;color:#fff}
+    .dealer-focus-banner{margin-top:14px;padding:10px 14px;border-radius:10px;background:linear-gradient(90deg,#FFF5EE 0%,#FFFFFF 100%);border:1px solid #FFD6B8;border-left:4px solid #FF6B00;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#262626}
+    .dealer-focus-reset-btn{padding:5px 11px;border-radius:7px;border:1px solid #E60012;background:#fff;color:#E60012;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s ease}
+    .dealer-focus-reset-btn:hover{background:#E60012;color:#fff}
+    .dealer-ranking-viewall-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid #FFD8B8;background:#FFF7F0;color:#D75B00;white-space:nowrap;transition:all .16s ease}
+    .dealer-ranking-viewall-btn:hover{background:#FF6B00;color:#fff;border-color:#FF6B00}
+    .dealer-ranking-viewall-btn-low{border-color:#FFD8D8;background:#FFF3F3;color:#C8102E}
+    .dealer-ranking-viewall-btn-low:hover{background:#E60012;color:#fff;border-color:#E60012}
+    .ranking-modal-overlay{position:fixed;inset:0;background:rgba(20,20,26,.48);backdrop-filter:blur(2px);z-index:999990;display:none;align-items:center;justify-content:center;padding:18px}
+    .ranking-modal-overlay.show{display:flex}
+    .ranking-modal-dialog{background:#fff;width:min(680px,100%);max-height:82vh;border-radius:14px;border:1px solid #E2E5EA;box-shadow:0 16px 42px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden}
+    .ranking-modal-header{padding:14px 18px;border-bottom:1px solid #EFF1F4;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff}
+    .ranking-modal-header.high{border-left:5px solid #FF6B00}
+    .ranking-modal-header.low{border-left:5px solid #E60012}
+    .ranking-modal-title-wrap{min-width:0}
+    .ranking-modal-title{font-size:14px;font-weight:800;color:#262626}
+    .ranking-modal-subtitle{font-size:11.5px;color:#667085;margin-top:2px}
+    .ranking-modal-close{width:32px;height:32px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;color:#4B5563;font-size:16px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px}
+    .ranking-modal-close:hover{background:#FFF1F1;color:#C8102E;border-color:#FFD8D8}
+    .ranking-modal-toolbar{padding:10px 18px;border-bottom:1px solid #F0F1F3;background:#FAFBFC}
+    .ranking-modal-search{width:100%;height:36px;border:1px solid #D9DDE3;border-radius:8px;padding:0 12px;font-size:12.5px;outline:none;background:#fff;color:#262626}
+    .ranking-modal-search:focus{border-color:#E60012;box-shadow:0 0 0 2px rgba(230,0,18,.08)}
+    .ranking-modal-body{overflow-y:auto;overflow-x:hidden;flex:1 1 auto;max-height:calc(82vh - 130px);scrollbar-gutter:stable}
+    .ranking-modal-body .dealer-ranking-row{grid-template-columns:46px minmax(0,1fr) auto;padding:9px 18px}
 
     /* ===== MATRIX ===== */
     .matrix-layout{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(250px,1fr);gap:16px;align-items:start}
@@ -1325,11 +1357,136 @@ function bindProfileCards(unit){
     await renderUnitPage(unit,{preserveScroll:true,skipHeatmap:true});
   }));
 }
-function rankingHtml(r){
+function resolveDealerCodeFromItem(x, unit){
+  if(x?.code) return String(x.code).trim();
+  const label=String(x?.label||'').trim();
+  const opts=state.unit[unit]?.page?.filterOptions?.dealer?.options||[];
+  for(const o of opts){
+    if(typeof o==='object' && String(o.label).trim()===label) return String(o.value).trim();
+  }
+  const m=label.match(/\(([^()]+)\)\s*$/);
+  return m ? m[1].trim() : label;
+}
+function rankingRowHtml(x, low, unit){
+  const code=resolveDealerCodeFromItem(x, unit);
+  const currentDealer=state.unit[unit]?.dealer||'Semua';
+  const isActive=(currentDealer!=='Semua' && String(currentDealer)===String(code));
+  const hintText=isActive?'Sedang Dianalisis':'Klik untuk Fokus →';
+  return `<div class="dealer-ranking-row clickable ${low?'low-row':''} ${isActive?'active-dealer':''}" data-select-dealer="${escapeHtml(code)}" data-select-label="${escapeHtml(x.label)}" title="Klik untuk fokus analisis ${escapeHtml(x.label)}">`+
+    `<div class="dealer-rank ${low?'dealer-rank-low':''}">#${escapeHtml(x.rank)}</div>`+
+    `<div class="dealer-ranking-name"><span>${escapeHtml(x.label)}</span></div>`+
+    `<div class="dealer-ranking-value ${low?'dealer-ranking-value-low':''}"><span class="dealer-click-hint">${escapeHtml(hintText)}</span><span>${escapeHtml(x.value)}</span></div>`+
+  `</div>`;
+}
+function rankingHtml(r, unit){
   if(!r?.show)return '';
   if(r.empty)return `<div style="margin-top:14px">${infoBox(r.message||'Nilai satisfaction dealer tidak tersedia.')}</div>`;
-  const build=(items,low)=>items.map(x=>`<div class="dealer-ranking-row"><div class="dealer-rank ${low?'dealer-rank-low':''}">#${escapeHtml(x.rank)}</div><div class="dealer-ranking-name">${escapeHtml(x.label)}</div><div class="dealer-ranking-value ${low?'dealer-ranking-value-low':''}">${escapeHtml(x.value)}</div></div>`).join('');
-  return `<div class="ranking-grid" style="margin-top:14px"><div class="dealer-ranking-card"><div class="dealer-ranking-title dealer-ranking-title-high">${escapeHtml(r.highTitle)}</div>${build(r.top||[],false)}</div><div class="dealer-ranking-card"><div class="dealer-ranking-title dealer-ranking-title-low">${escapeHtml(r.lowTitle)}</div>${build(r.bottom||[],true)}</div></div>`;
+  const totalCount=(r.allHigh?.length||r.totalCount||r.top?.length||0);
+  const countBadge=totalCount?` (${totalCount})`:'';
+  const s=state.unit[unit]||{};
+  const entity=r.entityLabel||'Dealer';
+  const currentDealer=s.dealer||'Semua';
+  let activeDealerLabel=currentDealer;
+  if(currentDealer!=='Semua'){
+    const opts=s.page?.filterOptions?.dealer?.options||[];
+    const found=opts.find(o=>typeof o==='object' && String(o.value)===String(currentDealer));
+    if(found) activeDealerLabel=found.label;
+  }
+  const focusBanner=(currentDealer!=='Semua')
+    ? `<div class="dealer-focus-banner">`+
+        `<div><i class="fa-solid fa-magnifying-glass-chart" style="color:#E60012;margin-right:6px"></i><b>Fokus Analisis ${escapeHtml(entity)}:</b> ${escapeHtml(activeDealerLabel)} <span style="color:#667085;font-size:11.5px">(Klik ${escapeHtml(entity.toLowerCase())} lain di bawah atau di popup untuk membandingkan)</span></div>`+
+        `<button type="button" class="dealer-focus-reset-btn" id="resetDealerFocusBtn"><i class="fa-solid fa-rotate-left"></i> Tampilkan Semua ${escapeHtml(entity)}</button>`+
+      `</div>`
+    : '';
+  const build=(items,low)=>items.map(x=>rankingRowHtml(x,low,unit)).join('');
+  return `${focusBanner}<div class="ranking-grid" style="margin-top:14px">`+
+    `<div class="dealer-ranking-card"><div class="dealer-ranking-title dealer-ranking-title-high"><span>${escapeHtml(r.highTitle)}</span><button type="button" class="dealer-ranking-viewall-btn" data-ranking-modal="high" title="Lihat urutan seluruh ${escapeHtml(entity)} dari tertinggi"><i class="fa-solid fa-list-ol"></i> Lihat Semua${escapeHtml(countBadge)}</button></div>${build(r.top||[],false)}</div>`+
+    `<div class="dealer-ranking-card"><div class="dealer-ranking-title dealer-ranking-title-low"><span>${escapeHtml(r.lowTitle)}</span><button type="button" class="dealer-ranking-viewall-btn dealer-ranking-viewall-btn-low" data-ranking-modal="low" title="Lihat urutan seluruh ${escapeHtml(entity)} dari terendah"><i class="fa-solid fa-list-ol"></i> Lihat Semua${escapeHtml(countBadge)}</button></div>${build(r.bottom||[],true)}</div>`+
+    `</div>`+
+    `<div class="ranking-modal-overlay" id="rankingModalOverlay" role="dialog" aria-modal="true">`+
+      `<div class="ranking-modal-dialog">`+
+        `<div class="ranking-modal-header" id="rankingModalHeader">`+
+          `<div class="ranking-modal-title-wrap"><div class="ranking-modal-title" id="rankingModalTitle"></div><div class="ranking-modal-subtitle" id="rankingModalSubtitle"></div></div>`+
+          `<button type="button" class="ranking-modal-close" id="rankingModalClose" aria-label="Tutup">&times;</button>`+
+        `</div>`+
+        `<div class="ranking-modal-toolbar"><input type="search" class="ranking-modal-search" id="rankingModalSearch" placeholder="Cari nama atau kode..." autocomplete="off"/></div>`+
+        `<div class="ranking-modal-body" id="rankingModalBody"></div>`+
+      `</div>`+
+    `</div>`;
+}
+function bindRankingModal(unit, r){
+  if(!r?.show || r.empty)return;
+  const overlay=document.getElementById('rankingModalOverlay');
+  if(!overlay)return;
+  const header=document.getElementById('rankingModalHeader');
+  const titleEl=document.getElementById('rankingModalTitle');
+  const subEl=document.getElementById('rankingModalSubtitle');
+  const searchEl=document.getElementById('rankingModalSearch');
+  const bodyEl=document.getElementById('rankingModalBody');
+  const closeBtn=document.getElementById('rankingModalClose');
+  let activeItems=[], isLow=false;
+
+  async function selectDealer(code){
+    if(!code)return;
+    overlay.classList.remove('show');
+    const s=state.unit[unit];
+    s.dealer = (String(s.dealer)===String(code)) ? 'Semua' : code;
+    await renderUnitPage(unit,{preserveScroll:true,skipHeatmap:true});
+  }
+
+  function bindDealerRowClicks(container){
+    container.querySelectorAll('[data-select-dealer]').forEach(row=>{
+      row.addEventListener('click',()=>selectDealer(row.dataset.selectDealer));
+    });
+  }
+
+  bindDealerRowClicks(document);
+
+  const resetFocusBtn=document.getElementById('resetDealerFocusBtn');
+  if(resetFocusBtn){
+    resetFocusBtn.addEventListener('click',async()=>{
+      state.unit[unit].dealer='Semua';
+      await renderUnitPage(unit,{preserveScroll:true,skipHeatmap:true});
+    });
+  }
+
+  function renderRows(query=''){
+    const q=String(query||'').trim().toLowerCase();
+    const filtered=q?activeItems.filter(x=>String(x.label||'').toLowerCase().includes(q)):activeItems;
+    if(!filtered.length){
+      bodyEl.innerHTML=`<div style="padding:16px">${infoBox('Tidak ada data yang cocok dengan pencarian.')}</div>`;
+      return;
+    }
+    bodyEl.innerHTML=filtered.map(x=>rankingRowHtml(x,isLow,unit)).join('');
+    bindDealerRowClicks(bodyEl);
+  }
+  function openModal(mode){
+    isLow=(mode==='low');
+    const entity=r.entityLabel||'Dealer';
+    activeItems=isLow?(r.allLow||r.bottom||[]):(r.allHigh||r.top||[]);
+    header.className=`ranking-modal-header ${isLow?'low':'high'}`;
+    titleEl.textContent=isLow
+      ?(r.allLowTitle||`Urutan Seluruh ${entity} (Satisfaction Terendah)`)
+      :(r.allHighTitle||`Urutan Seluruh ${entity} (Satisfaction Tertinggi)`);
+    subEl.textContent=`Total ${activeItems.length} ${entity} · Klik salah satu ${entity.toLowerCase()} untuk fokus menganalisis detailnya`;
+    searchEl.value='';
+    searchEl.placeholder=`Cari nama atau kode ${entity}...`;
+    renderRows('');
+    overlay.classList.add('show');
+    bodyEl.scrollTop=0;
+    setTimeout(()=>searchEl.focus(),40);
+  }
+  function closeModal(){overlay.classList.remove('show')}
+  document.querySelectorAll('[data-ranking-modal]').forEach(btn=>{
+    btn.addEventListener('click',()=>openModal(btn.dataset.rankingModal));
+  });
+  searchEl.addEventListener('input',e=>renderRows(e.target.value));
+  closeBtn.addEventListener('click',closeModal);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal()});
+  document.addEventListener('keydown',function escHandler(e){
+    if(!document.body.contains(overlay)){document.removeEventListener('keydown',escHandler);return;}
+    if(e.key==='Escape' && overlay.classList.contains('show'))closeModal();
+  });
 }
 
 /* ============================================================
@@ -1345,6 +1502,12 @@ async function renderUnitPage(unit,{preserveScroll=false,skipHeatmap=false}={}){
     const heatmap=(results[2]?.heatmap)||s.heatmap;
     s.heatmap=heatmap;s.matrix=matrix;s.page=page;syncUnitStateFromPayload(unit,page);
     const sec1=page.section1||{}, sec3=page.section3||{};
+    const scopeKey=[s.year,s.semester,s.md,s.layer,s.kar,s.kab].join('||');
+    if(sec1.ranking?.show && !sec1.ranking.empty){
+      s.lastRanking=sec1.ranking;
+      s.lastRankingScopeKey=scopeKey;
+    }
+    const activeRanking=(sec1.ranking?.show)?sec1.ranking:((s.lastRanking && s.lastRankingScopeKey===scopeKey)?s.lastRanking:sec1.ranking);
     const charts=[sec1.satisfactionChart,sec1.targetGapChart,...(sec1.semesterDifferenceChart?[sec1.semesterDifferenceChart]:[])];
     const chartGridClass=sec1.chartLayout===3?'charts-grid-3':'charts-grid-2';
     const chartIds=[`${unit}-sat`,`${unit}-gap`,`${unit}-diff`];
@@ -1354,7 +1517,7 @@ async function renderUnitPage(unit,{preserveScroll=false,skipHeatmap=false}={}){
         <div class="map-header"><div class="map-header-title">Satisfaction Map</div><div class="map-header-badge">CLICK MAP TO FILTER</div></div>
         <div class="map-wrap"><div id="satisfaction-map"></div></div>
         <div style="height:16px"></div>${renderFilters(unit,page.filterOptions)}<div style="height:16px"></div>${renderKpis(sec1.kpi||[])}
-        <div style="height:14px"></div><div class="${chartGridClass}">${chartHtml}</div>${rankingHtml(sec1.ranking)}
+        <div style="height:14px"></div><div class="${chartGridClass}">${chartHtml}</div>${rankingHtml(activeRanking,unit)}
       </section>
       <section class="section section-2">${sectionTitle('SECTION 2','MATRIX SATISFACTION x IMPORTANCE')}<div id="matrix-body-${unit}"></div></section>
       <section class="section section-3">${sectionTitle('SECTION 3','PROFILE CUSTOMER')}
@@ -1366,7 +1529,7 @@ async function renderUnitPage(unit,{preserveScroll=false,skipHeatmap=false}={}){
         ${sec3.insight?.available?`<div class="profile-summary"><div class="profile-summary-title">${escapeHtml(sec3.insight.header)}</div>${sec3.insight.narrative}</div>`:infoBox(sec3.insight?.message||'Ringkasan profil belum tersedia.')}
         ${demographicsHtml(unit,sec3.demographics)}
       </section>`;
-    bindFilterEvents(unit); bindProfileCards(unit);renderMatrixSection(unit,matrix);
+    bindFilterEvents(unit); bindProfileCards(unit); bindRankingModal(unit,activeRanking); renderMatrixSection(unit,matrix);
     renderSatisfactionPlot(`${unit}-sat`,sec1.satisfactionChart);renderGapPlot(`${unit}-gap`,sec1.targetGapChart);if(sec1.semesterDifferenceChart)renderDiffPlot(`${unit}-diff`,sec1.semesterDifferenceChart);
     renderHeatmapPlot(`${unit}-heatmap`,heatmap);drawDemographics(unit,sec3.demographics);await renderSatisfactionMap(sec1.map,unit);
     if(preserveScroll)window.scrollTo({top:scrollY,behavior:'auto'});else window.scrollTo({top:0,behavior:'auto'});
